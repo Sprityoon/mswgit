@@ -1,0 +1,83 @@
+{
+  "Id": "",
+  "GameId": "",
+  "EntryKey": "model://maplestorymapobject$33d5e644d28941f89e99cae06f8271d5",
+  "ContentType": "x-mod/model",
+  "Content": "",
+  "Usage": 0,
+  "UsePublish": 1,
+  "UseService": 0,
+  "CoreVersion": "26.5.0.0",
+  "StudioVersion": "0.1.0.0",
+  "DynamicLoading": 0,
+  "ContentProto": {
+    "Use": "Json",
+    "Json": {
+      "Type": "MODLazyModel",
+      "Name": "Tree1",
+      "Id": "maplestorymapobject$33d5e644d28941f89e99cae06f8271d5",
+      "ModelId": "MapObject",
+      "DataSetId": "MapObjectDataSet",
+      "DataId": "33d5e644d28941f89e99cae06f8271d5",
+      "Target": {
+        "Version": 1,
+        "Name": "Tree1",
+        "BaseModelId": "mapobject",
+        "Id": "maplestorymapobject$33d5e644d28941f89e99cae06f8271d5",
+        "Components": [
+          "script.ResourceOccupiedArea"
+        ],
+        "Properties": [],
+        "Values": [
+          {
+            "TargetType": null,
+            "Name": "renderguid",
+            "ValueType": {
+              "$type": "MODNativeType",
+              "type": "System.String, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089"
+            },
+            "Value": "3a2c81b1fd684b0d82482d9677572285"
+          },
+          {
+            "TargetType": "script.ResourceOccupiedArea",
+            "Name": "OffsetXMin",
+            "ValueType": {
+              "$type": "MODNativeType",
+              "type": "System.Double, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089"
+            },
+            "Value": 0
+          },
+          {
+            "TargetType": "script.ResourceOccupiedArea",
+            "Name": "OffsetXMax",
+            "ValueType": {
+              "$type": "MODNativeType",
+              "type": "System.Double, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089"
+            },
+            "Value": 0
+          },
+          {
+            "TargetType": "script.ResourceOccupiedArea",
+            "Name": "OffsetYMin",
+            "ValueType": {
+              "$type": "MODNativeType",
+              "type": "System.Double, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089"
+            },
+            "Value": 0
+          },
+          {
+            "TargetType": "script.ResourceOccupiedArea",
+            "Name": "OffsetYMax",
+            "ValueType": {
+              "$type": "MODNativeType",
+              "type": "System.Double, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089"
+            },
+            "Value": 0
+          }
+        ],
+        "EventLinks": [],
+        "Children": []
+      }
+    }
+  }
+}

@@ -1,0 +1,263 @@
+@Component
+script UIInventoryController extends Component
+
+	property Entity inventoryPopup = "161bf078-6a8c-4ed3-b221-3ab8636d5a75"
+
+	property ButtonComponent btnClose = "908c948f-2bee-4f48-847d-44e5d9c7d4f5"
+
+	property ButtonComponent tabAll = "50aedf9c-dc1a-44ab-a59d-cf50993d5841"
+
+	property ButtonComponent tabRes = "e323133b-35e3-450f-8b28-ff25f232f974"
+
+	property ButtonComponent tabEquip = "0e82ae41-74dd-40e3-8387-8ad7e6c5864c"
+
+	property GridViewComponent gridView = "e04474dd-1d8b-46b3-a877-024ec0634a2a"
+
+	property TextComponent capacityText = "8bde93a1-1771-4506-84b6-52d5e30ab884"
+
+	property Entity tooltipPanel = "cb0a5d15-af9f-441d-a77f-c50234a3664e"
+
+	property TextComponent tooltipName = "31f5192b-dca8-40ca-883a-d15b0b356e97"
+
+	property TextComponent tooltipDesc = "370bfb64-1849-406e-b96a-dd4879f3274e"
+
+	property TextComponent tooltipCount = "3e29a691-d594-4497-95c9-caa9f696bf0a"
+
+	property string activeTab = "All"
+
+	property table filteredItems = {}
+
+	property any closeHandler = nil
+
+	property any tabAllHandler = nil
+
+	property any tabResHandler = nil
+
+	property any tabEquipHandler = nil
+
+	@ExecSpace("ClientOnly")
+	method void OnBeginPlay()
+		self.inventoryPopup.Enable = false
+		self.tooltipPanel.Enable = false
+		self:UpdateDimmer()
+		
+		-- Button clicks
+		self.closeHandler = self.btnClose.Entity:ConnectEvent(ButtonClickEvent, function()
+			self:Close()
+		end)
+		self.tabAllHandler = self.tabAll.Entity:ConnectEvent(ButtonClickEvent, function()
+			self:SetTab("All")
+		end)
+		self.tabResHandler = self.tabRes.Entity:ConnectEvent(ButtonClickEvent, function()
+			self:SetTab("Resources")
+		end)
+		self.tabEquipHandler = self.tabEquip.Entity:ConnectEvent(ButtonClickEvent, function()
+			self:SetTab("Equipment")
+		end)
+		
+		-- GridView setup
+		self.gridView.OnRefresh = function(index, entity)
+			self:RefreshGridItem(index, entity)
+		end
+	end
+
+	@ExecSpace("ClientOnly")
+	method void OnEndPlay()
+		if isvalid(self.btnClose) then
+			self.btnClose.Entity:DisconnectEvent(ButtonClickEvent, self.closeHandler)
+		end
+		if isvalid(self.tabAll) then
+			self.tabAll.Entity:DisconnectEvent(ButtonClickEvent, self.tabAllHandler)
+		end
+		if isvalid(self.tabRes) then
+			self.tabRes.Entity:DisconnectEvent(ButtonClickEvent, self.tabResHandler)
+		end
+		if isvalid(self.tabEquip) then
+			self.tabEquip.Entity:DisconnectEvent(ButtonClickEvent, self.tabEquipHandler)
+		end
+	end
+
+	@ExecSpace("ClientOnly")
+	method void Toggle()
+		if self.inventoryPopup.Enable then
+			self:Close()
+		else
+			self:Open()
+		end
+	end
+
+	@ExecSpace("ClientOnly")
+	method void Open()
+		self.inventoryPopup.Enable = true
+		self:SetTab("All")
+		self:UpdateDimmer()
+	end
+
+	@ExecSpace("ClientOnly")
+	method void Close()
+		self.inventoryPopup.Enable = false
+		self.tooltipPanel.Enable = false
+		self:UpdateDimmer()
+	end
+
+	@ExecSpace("ClientOnly")
+	method void SetTab(string tabName)
+		self.activeTab = tabName
+		
+		-- Highlight active tab
+		local allColor = Color(0.3, 0.3, 0.3, 1)
+		local resColor = Color(0.3, 0.3, 0.3, 1)
+		local equipColor = Color(0.3, 0.3, 0.3, 1)
+		
+		if tabName == "All" then
+			allColor = Color(0.18, 0.34, 0.15, 1) -- Forest Green
+		elseif tabName == "Resources" then
+			resColor = Color(0.18, 0.34, 0.15, 1)
+		elseif tabName == "Equipment" then
+			equipColor = Color(0.18, 0.34, 0.15, 1)
+		end
+		
+		if isvalid(self.tabAll) then self.tabAll.Entity.SpriteGUIRendererComponent.Color = allColor end
+		if isvalid(self.tabRes) then self.tabRes.Entity.SpriteGUIRendererComponent.Color = resColor end
+		if isvalid(self.tabEquip) then self.tabEquip.Entity.SpriteGUIRendererComponent.Color = equipColor end
+		
+		self:RefreshInventoryData()
+	end
+
+	@ExecSpace("ClientOnly")
+	method void RefreshInventoryData()
+		local player = _UserService.LocalPlayer
+		if not isvalid(player) then return end
+		
+		local inv = player.PlayerInventory
+		if not isvalid(inv) then return end
+		
+		local items = _HttpService:JSONDecode(inv.InventoryDataJson) or {}
+		
+		-- Filter items based on activeTab
+		self.filteredItems = {}
+		local totalCount = 0
+		
+		for itemName, count in pairs(items) do
+			if count > 0 then
+				totalCount = totalCount + 1
+				local category = self:GetItemCategory(itemName)
+		
+				if self.activeTab == "All" or self.activeTab == category then
+					table.insert(self.filteredItems, { name = itemName, count = count })
+				end
+			end
+		end
+		
+		-- Sort items alphabetically for clean display
+		table.sort(self.filteredItems, function(a, b)
+			return a.name < b.name
+		end)
+		
+		-- Update Capacity
+		if isvalid(self.capacityText) then
+			self.capacityText.Text = totalCount .. " / 24 items"
+		end
+		
+		-- Refresh GridView
+		if isvalid(self.gridView) then
+			self.gridView.TotalCount = #self.filteredItems
+			self.gridView:Refresh(true, true)
+		end
+	end
+
+	@ExecSpace("ClientOnly")
+	method string GetItemCategory(string itemName)
+		if itemName == "Wood" or itemName == "Stone" or itemName == "Grass" or itemName == "Big Stone" then
+			return "Resources"
+		elseif string.find(itemName, "Pickaxe") or string.find(itemName, "Axe") or string.find(itemName, "Chest") then
+			return "Equipment"
+		end
+		return "Resources"
+	end
+
+	@ExecSpace("ClientOnly")
+	method string GetItemIcon(string itemName)
+		if itemName == "Wood" then return "🪵"
+		elseif itemName == "Stone" then return "🪨"
+		elseif itemName == "Grass" then return "🌿"
+		elseif itemName == "Big Stone" then return "🗿"
+		elseif itemName == "Wooden Axe" then return "🪓"
+		elseif itemName == "Stone Pickaxe" then return "⛏️"
+		elseif itemName == "Stone Axe" then return "🔨"
+		elseif itemName == "Wooden Chest" then return "📦"
+		end
+		return "❓"
+	end
+
+	@ExecSpace("ClientOnly")
+	method string GetItemDescription(string itemName)
+		if itemName == "Wood" then return "A flexible wooden branch. Useful for crafting basic tools."
+		elseif itemName == "Stone" then return "A common stone found in the wild. Used in crafting tools and buildings."
+		elseif itemName == "Grass" then return "Soft wild grass. Can be used for binding or insulation."
+		elseif itemName == "Big Stone" then return "A heavy, dense block of solid stone. Used for durable crafting."
+		elseif itemName == "Wooden Axe" then return "A simple wooden axe. Speeds up wood gathering."
+		elseif itemName == "Stone Pickaxe" then return "A sturdy stone pickaxe. Ideal for mining large stones."
+		elseif itemName == "Stone Axe" then return "An upgraded axe. Efficiently cuts down trees."
+		elseif itemName == "Wooden Chest" then return "A simple chest to store your extra materials."
+		end
+		return "A mysterious item of unknown utility."
+	end
+
+	@ExecSpace("ClientOnly")
+	method void RefreshGridItem(integer index, Entity slotEntity)
+		-- index is 0-based
+		local data = self.filteredItems[index + 1]
+		if not data then return end
+		
+		-- Icon
+		local iconTextEntity = slotEntity:GetChildByName("Icon")
+		if isvalid(iconTextEntity) and isvalid(iconTextEntity.TextComponent) then
+			iconTextEntity.TextComponent.Text = self:GetItemIcon(data.name)
+		end
+		
+		-- Count
+		local countTextEntity = slotEntity:GetChildByName("Count")
+		if isvalid(countTextEntity) and isvalid(countTextEntity.TextComponent) then
+			countTextEntity.TextComponent.Text = "x" .. data.count
+		end
+		
+		-- Click action to show tooltip
+		local btn = slotEntity.ButtonComponent
+		if isvalid(btn) then
+			slotEntity:ConnectEvent(ButtonClickEvent, function()
+				self:ShowTooltip(data.name, data.count)
+			end)
+		end
+	end
+
+	@ExecSpace("ClientOnly")
+	method void ShowTooltip(string itemName, integer count)
+		if not isvalid(self.tooltipPanel) then return end
+		self.tooltipPanel.Enable = true
+		
+		if isvalid(self.tooltipName) then
+			self.tooltipName.Text = itemName
+		end
+		if isvalid(self.tooltipDesc) then
+			self.tooltipDesc.Text = self:GetItemDescription(itemName)
+		end
+		if isvalid(self.tooltipCount) then
+			self.tooltipCount.Text = "Owned: " .. count
+		end
+	end
+
+	@ExecSpace("ClientOnly")
+	method void UpdateDimmer()
+		local dimmer = _EntityService:GetEntityByPath("/ui/PopupGroup/Dimmer")
+		if not isvalid(dimmer) then return end
+		
+		local inv = _EntityService:GetEntityByPath("/ui/PopupGroup/InventoryPopup")
+		local craft = _EntityService:GetEntityByPath("/ui/PopupGroup/CraftingPopup")
+		local char = _EntityService:GetEntityByPath("/ui/PopupGroup/CharacterPopup")
+		
+		local anyOpen = (isvalid(inv) and inv.Enable) or (isvalid(craft) and craft.Enable) or (isvalid(char) and char.Enable)
+		dimmer.Enable = anyOpen
+	end
+
+end

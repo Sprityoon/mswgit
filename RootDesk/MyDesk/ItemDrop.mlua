@@ -1,0 +1,111 @@
+@Component
+script ItemDrop extends Component
+
+	@Sync
+	property string ItemName = "Dirt"
+
+	@Sync
+	property string SpriteRUID = ""
+
+	property number ElapsedTime = 0
+	property Vector3 BasePosition = Vector3(0,0,0)
+	property boolean IsCollected = false
+
+	@ExecSpace("ServerOnly")
+	method void OnBeginPlay()
+		self.BasePosition = self.Entity.TransformComponent.WorldPosition
+		self.ElapsedTime = math.random() * 10 -- Randomize start phase for sine wave float
+		self.IsCollected = false
+
+		-- Set the sprite visual if RUID is already present (e.g. from model template values)
+		local sprite = self.Entity.SpriteRendererComponent
+		if isvalid(sprite) and self.SpriteRUID ~= "" then
+			sprite.SpriteRUID = self.SpriteRUID
+		end
+	end
+
+	@ExecSpace("ServerOnly")
+	method void Init(string name, string ruid)
+		self.ItemName = name
+		self.SpriteRUID = ruid
+		local sprite = self.Entity.SpriteRendererComponent
+		if isvalid(sprite) then
+			sprite.SpriteRUID = ruid
+		end
+		log("ItemDrop initialized: " .. name .. " with RUID: " .. ruid)
+	end
+
+	@ExecSpace("ServerOnly")
+	method void OnUpdate(number delta)
+		if self.IsCollected then return end
+
+		self.ElapsedTime = self.ElapsedTime + delta
+
+		-- 1. Apply floating visual offset (sine wave)
+		local transform = self.Entity.TransformComponent
+		if not isvalid(transform) then return end
+
+		local floatOffset = math.sin(self.ElapsedTime * 3.0) * 0.15
+		transform.WorldPosition = Vector3(self.BasePosition.x, self.BasePosition.y + floatOffset, self.BasePosition.z)
+
+		-- 2. Detect nearby players for pickup
+		local mapComp = self.Entity.CurrentMap.MapComponent
+		if not isvalid(mapComp) then return end
+
+		local users = _UserService:GetUsersByMapComponent(mapComp)
+		if not users then return end
+
+		local closestPlayer = nil
+		local minDistance = 2.0 -- Detection/Magnet range (2.0 units)
+
+		for _, user in ipairs(users) do
+			if isvalid(user) then
+				local playerPos = user.TransformComponent.WorldPosition
+				local dist = Vector2.Distance(Vector2(self.BasePosition.x, self.BasePosition.y), Vector2(playerPos.x, playerPos.y))
+				if dist < minDistance then
+					closestPlayer = user
+					minDistance = dist
+				end
+			end
+		end
+
+		-- 3. Magnet Pull and Pickup
+		if closestPlayer then
+			local playerPos = closestPlayer.TransformComponent.WorldPosition
+			
+			-- Move towards player position
+			local dx = playerPos.x - transform.WorldPosition.x
+			local dy = playerPos.y - transform.WorldPosition.y
+			local dist = math.sqrt(dx * dx + dy * dy)
+			if dist > 0.01 then
+				local dirX = dx / dist
+				local dirY = dy / dist
+				-- Pull item towards player
+				self.BasePosition = self.BasePosition + Vector3(dirX, dirY, 0) * delta * 4.5
+			end
+
+			-- Pickup threshold
+			if minDistance < 0.4 then
+				self.IsCollected = true
+				self:Collect(closestPlayer)
+			end
+		end
+	end
+
+	@ExecSpace("ServerOnly")
+	method void Collect(Entity player)
+		log("Collecting item: " .. self.ItemName .. " for player " .. player.Name)
+		
+		---@type PlayerInventory
+		local inventory = player:GetComponent("PlayerInventory")
+		if isvalid(inventory) then
+			inventory:AddItem(self.ItemName, 1)
+		else
+			log_warning("Player " .. player.Name .. " does not have a PlayerInventory component.")
+		end
+
+		-- Destroy the item drop entity
+		self.Entity:Destroy()
+	end
+
+end

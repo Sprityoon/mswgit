@@ -1,0 +1,75 @@
+{
+  "Id": "",
+  "GameId": "",
+  "EntryKey": "model://eeb06413-e549-4547-8817-800da8eba527",
+  "ContentType": "x-mod/model",
+  "Content": "",
+  "Usage": 0,
+  "UsePublish": 1,
+  "UseService": 0,
+  "CoreVersion": "26.5.0.0",
+  "StudioVersion": "0.1.0.0",
+  "DynamicLoading": 0,
+  "ContentProto": {
+    "Use": "Json",
+    "Json": {
+      "Version": 1,
+      "Name": "Big Stone2",
+      "BaseModelId": "mapobject",
+      "Id": "eeb06413-e549-4547-8817-800da8eba527",
+      "Components": [
+        "script.ResourceOccupiedArea"
+      ],
+      "Properties": [],
+      "Values": [
+        {
+          "TargetType": "MOD.Core.SpriteRendererComponent",
+          "Name": "SpriteRUID",
+          "ValueType": {
+            "$type": "MODNativeType",
+            "type": "System.String, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089"
+          },
+          "Value": "34cffe50228240a5bf9f9eba02d80206"
+        },
+        {
+          "TargetType": "script.ResourceOccupiedArea",
+          "Name": "OffsetXMin",
+          "ValueType": {
+            "$type": "MODNativeType",
+            "type": "System.Double, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089"
+          },
+          "Value": -2
+        },
+        {
+          "TargetType": "script.ResourceOccupiedArea",
+          "Name": "OffsetXMax",
+          "ValueType": {
+            "$type": "MODNativeType",
+            "type": "System.Double, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089"
+          },
+          "Value": 2
+        },
+        {
+          "TargetType": "script.ResourceOccupiedArea",
+          "Name": "OffsetYMin",
+          "ValueType": {
+            "$type": "MODNativeType",
+            "type": "System.Double, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089"
+          },
+          "Value": -2
+        },
+        {
+          "TargetType": "script.ResourceOccupiedArea",
+          "Name": "OffsetYMax",
+          "ValueType": {
+            "$type": "MODNativeType",
+            "type": "System.Double, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089"
+          },
+          "Value": 0
+        }
+      ],
+      "EventLinks": [],
+      "Children": []
+    }
+  }
+}
