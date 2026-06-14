@@ -1,0 +1,417 @@
+@Logic
+script TileDurabilityManager extends Logic
+
+	property table DamagedResources = {}
+
+	property table RefusalFeedback = {}
+
+	property number DropItemScale = 2.0
+
+	@ExecSpace("ServerOnly")
+	method void OnBeginPlay()
+		-- Initializes the per-resource damage tracking table on the server.
+		self.DamagedResources = {}
+		log("TileDurabilityManager initialized on server (entity-only mode).")
+	end
+
+	@ExecSpace("ServerOnly")
+	method void OnUpdate(number delta)
+		-- Heals resources that have not been hit for 10 seconds.
+		local now = os.clock()
+		for key, data in pairs(self.DamagedResources) do
+			if now - data.lastHitTime > 10.0 then
+				self.DamagedResources[key] = nil
+				log("Resource at " .. key .. " recovered full durability.")
+			end
+		end
+	end
+
+	@ExecSpace("ServerOnly")
+	method void HitResource(Entity mapEntity, string pivotKey, Entity attacker)
+		-- description: Processes a hit on a resource, tile, or furniture. Demolishes tiles and furniture in exactly 2 hits.
+		if not isvalid(mapEntity) then return end
+		
+		local resourceSpawner = _ResourceSpawner
+		if resourceSpawner == nil or resourceSpawner.GridToEntity == nil then
+			log_warning("TileDurabilityManager: ResourceSpawner is not available.")
+			return
+		end
+		
+		local gridData = resourceSpawner.GridToEntity[pivotKey]
+		if gridData == nil then
+			log("TileDurabilityManager: No entity or tile registered at " .. pivotKey)
+			return
+		end
+		
+		local isTile = gridData.isTile == true
+		local isFurniture = gridData.isFurniture == true
+		
+		local resourceEntity = nil
+		if not isTile then
+			resourceEntity = gridData.entity
+			if not isvalid(resourceEntity) then
+				log("TileDurabilityManager: Registered entity at " .. pivotKey .. " is invalid.")
+				return
+			end
+		end
+		
+		local data = self.DamagedResources[pivotKey]
+		if data == nil then
+			local maxDurability = 2
+			if not isTile and not isFurniture then
+				maxDurability = self:GetMaxDurability(resourceEntity)
+			end
+			
+			data = {
+				currentHits = 0,
+				maxDurability = maxDurability,
+				lastHitTime = 0,
+				strikeCount = 0,
+				dropPool = {}
+			}
+			
+			if isTile then
+				-- Find item ID for this tile from item_dataset
+				local tileName = gridData.tileName
+				local itemId = ""
+				local ds = _DataService:GetTable("item_dataset")
+				if ds ~= nil then
+					local row = ds:FindRow("PlacedTileName", tileName)
+					if row ~= nil then
+						itemId = row:GetItem("id")
+					end
+				end
+				if itemId ~= "" then
+					data.dropPool[itemId] = 1
+				else
+					log_warning("TileDurabilityManager: No item mapping found for tile: " .. tostring(tileName))
+				end
+			elseif isFurniture then
+				-- Find item ID for this furniture from item_dataset
+				local itemName = gridData.itemName
+				local itemId = ""
+				local ds = _DataService:GetTable("item_dataset")
+				if ds ~= nil then
+					local row = ds:FindRow("Name", itemName)
+					if row ~= nil then
+						itemId = row:GetItem("id")
+					end
+				end
+				if itemId ~= "" then
+					data.dropPool[itemId] = 1
+				else
+					log_warning("TileDurabilityManager: No item mapping found for furniture: " .. tostring(itemName))
+				end
+				
+				-- If it's a furnace, add its contents to the drop pool
+				local furnaceComp = resourceEntity:GetComponent("script.Furnace")
+				if isvalid(furnaceComp) then
+					---@type Furnace
+					local fc = furnaceComp
+					if fc.InputItemCount > 0 and fc.InputItemName ~= "" then
+						local f_ds = _DataService:GetTable("item_dataset")
+						local in_row = f_ds and f_ds:FindRow("Name", fc.InputItemName)
+						local in_id = in_row and in_row:GetItem("id") or fc.InputItemName
+						data.dropPool[in_id] = (data.dropPool[in_id] or 0) + fc.InputItemCount
+					end
+					if fc.FuelItemCount > 0 and fc.FuelItemName ~= "" then
+						local f_ds = _DataService:GetTable("item_dataset")
+						local fuel_row = f_ds and f_ds:FindRow("Name", fc.FuelItemName)
+						local fuel_id = fuel_row and fuel_row:GetItem("id") or fc.FuelItemName
+						data.dropPool[fuel_id] = (data.dropPool[fuel_id] or 0) + fc.FuelItemCount
+					end
+					if fc.OutputItemCount > 0 and fc.OutputItemName ~= "" then
+						local f_ds = _DataService:GetTable("item_dataset")
+						local out_row = f_ds and f_ds:FindRow("Name", fc.OutputItemName)
+						local out_id = out_row and out_row:GetItem("id") or fc.OutputItemName
+						data.dropPool[out_id] = (data.dropPool[out_id] or 0) + fc.OutputItemCount
+					end
+				end
+				
+				-- If it's a chest, add its contents to the drop pool (generic check)
+				local chestComp = resourceEntity:GetComponent("script.Chest") or resourceEntity:GetComponent("script.WoodenChest") or resourceEntity:GetComponent("script.Storage")
+				if isvalid(chestComp) and chestComp.Items ~= nil then
+					for cItemName, count in pairs(chestComp.Items) do
+						if count > 0 then
+							local f_ds = _DataService:GetTable("item_dataset")
+							local c_row = f_ds and f_ds:FindRow("Name", cItemName)
+							local c_id = c_row and c_row:GetItem("id") or cItemName
+							data.dropPool[c_id] = (data.dropPool[c_id] or 0) + count
+						end
+					end
+				end
+			else
+				-- Normal resource entity pre-roll using ItemDropLogic
+				local sourceName = resourceEntity.Name or ""
+				local drops = _ItemDropLogic:GetDrops(sourceName)
+				for _, drop in ipairs(drops) do
+					local totalCount = math.random(drop.min, drop.max)
+					data.dropPool[drop.id] = totalCount
+				end
+			end
+			
+			self.DamagedResources[pivotKey] = data
+		end
+		
+		-- Compute hit damage
+		local damage = 1
+		local hasCorrectTool = true
+		local requiredTool = ""
+		
+		if not isTile and not isFurniture then
+			requiredTool = self:GetRequiredToolType(resourceEntity)
+			if requiredTool ~= "" then
+				hasCorrectTool = false
+				if isvalid(attacker) then
+					local inv = attacker:GetComponent("script.PlayerInventory")
+					if isvalid(inv) then
+						---@type PlayerInventory
+						local pi = inv
+						local toolInfo = pi:GetEquippedToolInfo()
+						if toolInfo.toolType == requiredTool then
+							damage = 1 + toolInfo.power
+							hasCorrectTool = true
+						end
+					end
+				end
+			end
+		end
+		
+		if not hasCorrectTool then
+			-- Play refusal shake for normal resources
+			local reaction = resourceEntity:GetComponent("script.ResourceReaction")
+			if isvalid(reaction) then
+				---@type ResourceReaction
+				local rr = reaction
+				rr:PlayRefusalShake()
+			end
+		
+			local now = os.clock()
+			local feedback = self.RefusalFeedback[pivotKey]
+			if feedback == nil then
+				feedback = { count = 0, lastFeedbackTime = 0 }
+				self.RefusalFeedback[pivotKey] = feedback
+			end
+			feedback.count += 1
+		
+			if feedback.count >= 2 and (now - feedback.lastFeedbackTime) > 10.0 then
+				feedback.lastFeedbackTime = now
+				feedback.count = 0
+		
+				local pc = attacker:GetComponent("script.PlayerController")
+				if isvalid(pc) then
+					---@type PlayerController
+					local controller = pc
+					local toolLabel = "tool"
+					if requiredTool == "pickaxe" then
+						toolLabel = "Pickaxe"
+					elseif requiredTool == "axe" then
+						toolLabel = "Axe"
+					end
+					controller:ClientShowMineFeedback("You need a " .. toolLabel .. " to gather this!")
+				end
+			end
+			return
+		end
+		
+		-- Trigger hit animation
+		if not isTile then
+			local reaction = resourceEntity:GetComponent("script.ResourceReaction")
+			if not isvalid(reaction) then
+				-- Furniture models might not have ResourceReaction attached by default
+				resourceEntity:AddComponent("script.ResourceReaction")
+				reaction = resourceEntity:GetComponent("script.ResourceReaction")
+			end
+			
+			if isvalid(reaction) then
+				---@type ResourceReaction
+				local rr = reaction
+				rr:PlayShake()
+			end
+		end
+		
+		data.currentHits += damage
+		data.strikeCount = data.strikeCount + 1
+		data.lastHitTime = os.clock()
+		
+		-- Target drop position calculation
+		local dropPos = Vector3(gridData.pivotX + 0.5, gridData.pivotY + 0.5, 0)
+		
+		if isTile then
+			log("Hit tile: " .. gridData.tileName .. " at " .. pivotKey .. " (" .. data.currentHits .. "/" .. data.maxDurability .. ")")
+		elseif isFurniture then
+			log("Hit furniture: " .. gridData.itemName .. " at " .. pivotKey .. " (" .. data.currentHits .. "/" .. data.maxDurability .. ")")
+		else
+			local sourceName = resourceEntity.Name or ""
+			log("Hit resource: " .. tostring(sourceName) .. " at " .. pivotKey .. " (" .. data.currentHits .. "/" .. data.maxDurability .. ", damage=" .. damage .. ", requiredTool=" .. requiredTool .. ", strikeCount=" .. data.strikeCount .. ")")
+		end
+		
+		if data.currentHits >= data.maxDurability then
+			self.DamagedResources[pivotKey] = nil
+		
+			if isTile then
+				-- Clear tile from RectTileMap3 (Layer 3)
+				local layer3 = mapEntity:GetChildByName("RectTileMap3")
+				if isvalid(layer3) and isvalid(layer3.RectTileMapComponent) then
+					layer3.RectTileMapComponent:RemoveTile(gridData.pivotX, gridData.pivotY)
+				end
+				resourceSpawner:RemovePlacedTile(gridData.pivotX, gridData.pivotY)
+				log("Tile demolished: " .. gridData.tileName .. " at " .. pivotKey)
+			elseif isFurniture then
+				resourceSpawner:RemovePlacedFurniture(gridData.pivotX, gridData.pivotY)
+				resourceEntity:Destroy()
+				log("Furniture demolished: " .. gridData.itemName .. " at " .. pivotKey)
+			else
+				local sourceName = resourceEntity.Name or ""
+				resourceSpawner:RemoveEntity(pivotKey)
+				resourceEntity:Destroy()
+				log("Resource entity destroyed: " .. sourceName .. " at " .. pivotKey)
+			end
+		
+			-- Spawn remaining pool drops
+			for itemId, remainingCount in pairs(data.dropPool) do
+				if remainingCount > 0 then
+					self:SpawnResourceDrop(mapEntity, dropPos, itemId, remainingCount, remainingCount)
+				end
+			end
+		else
+			-- Intermediate drops (only for normal resources, no intermediate drops for tiles/furniture)
+			if not isTile and not isFurniture then
+				local sourceName = resourceEntity.Name or ""
+				if string.sub(sourceName, 1, 4) == "Tree" and data.strikeCount % 5 == 0 then
+					local remainingWood = data.dropPool["wood"] or 0
+					if remainingWood > 0 then
+						data.dropPool["wood"] = remainingWood - 1
+						self:SpawnResourceDrop(mapEntity, dropPos, "wood", 1, 1)
+						log("Intermediate drop: 1 Wood from " .. sourceName .. " (strikes=" .. data.strikeCount .. ", remaining=" .. (remainingWood - 1) .. ")")
+					end
+				elseif string.sub(sourceName, 1, 9) == "Big Stone" and data.strikeCount % 3 == 0 then
+					local remainingStone = data.dropPool["stone"] or 0
+					if remainingStone > 0 then
+						local toDrop = math.random(1, 2)
+						if toDrop > remainingStone then
+							toDrop = remainingStone
+						end
+						data.dropPool["stone"] = remainingStone - toDrop
+						self:SpawnResourceDrop(mapEntity, dropPos, "stone", toDrop, toDrop)
+						log("Intermediate drop: " .. toDrop .. " Stone from " .. sourceName .. " (strikes=" .. data.strikeCount .. ", remaining=" .. (remainingStone - toDrop) .. ")")
+					end
+				end
+			end
+		
+			if not isTile then
+				local reaction = resourceEntity:GetComponent("script.ResourceReaction")
+				if isvalid(reaction) then
+					---@type ResourceReaction
+					local rr = reaction
+					rr:PlayShake()
+				end
+			end
+		end
+	end
+
+	@ExecSpace("ServerOnly")
+	method integer GetMaxDurability(Entity resourceEntity)
+		-- Resolves max durability from ResourceDataSet by the entity's name (SourceId).
+		local name = resourceEntity.Name or ""
+		local ds = _DataService:GetTable("ResourceDataSet")
+		if ds ~= nil then
+			local row = ds:FindRow("SourceId", name)
+			if row ~= nil then
+				return math.floor(tonumber(row:GetItem("MaxDurability")) or 2)
+			end
+		end
+		log_warning("TileDurabilityManager: No ResourceDataSet entry for '" .. name .. "', using default durability 2.")
+		return 2
+	end
+
+	@ExecSpace("ServerOnly")
+	method string GetRequiredToolType(Entity resourceEntity)
+		-- Resolves the efficient tool type ("pickaxe"/"axe"/"") from ResourceDataSet.
+		local name = resourceEntity.Name or ""
+		local ds = _DataService:GetTable("ResourceDataSet")
+		if ds == nil then return "" end
+		local row = ds:FindRow("SourceId", name)
+		if row == nil then return "" end
+		return row:GetItem("RequiredToolType") or ""
+	end
+
+	@ExecSpace("ServerOnly")
+	method void SpawnResourceDrop(Entity mapEntity, Vector3 spawnPos, string itemId, number dropMinCount, number dropMaxCount)
+		-- Spawns dropped item entities for the given itemId, resolved through item_dataset.
+		if itemId == nil or itemId == "" then
+			log_warning("TileDurabilityManager: SpawnResourceDrop called with an empty itemId.")
+			return
+		end
+		
+		local ds = _DataService:GetTable("item_dataset")
+		if ds == nil then
+			log_error("TileDurabilityManager: item_dataset not found.")
+			return
+		end
+		
+		local row = ds:FindRow("id", itemId)
+		if row == nil then
+			log_warning("item_dataset에서 해당 아이템을 찾을 수 없습니다: " .. tostring(itemId))
+			return
+		end
+		
+		local itemName = row:GetItem("Name")
+		local modelName = row:GetItem("ModelName")
+		local entryId = row:GetItem("EntryId")
+		
+		local minCount = dropMinCount or 1
+		local maxCount = dropMaxCount or 1
+		local spawnCount = math.random(minCount, maxCount)
+		
+		log("Spawning " .. spawnCount .. " drops of " .. itemName .. " at pos " .. tostring(spawnPos))
+		
+		for i = 1, spawnCount do
+			-- 데이터셋의 고유 EntryId를 우선적으로 사용합니다.
+			local itemModelId = entryId
+		
+			-- 만약 데이터셋에 EntryId가 비어있다면, 이름으로 찾는 방식을 Fallback으로 사용합니다.
+			if not itemModelId or itemModelId == "" then
+				itemModelId = _EntryService:GetModelIdByName(modelName)
+			end
+		
+			if not itemModelId or itemModelId == "" then
+				log_error("Failed to find model ID for item: " .. tostring(itemId))
+				continue
+			end
+		
+			local drop = _SpawnService:SpawnByModelId(
+				itemModelId,
+				"Item_" .. itemId,
+				spawnPos,
+				mapEntity
+			)
+		
+			if isvalid(drop) then
+				-- 드롭 아이템 시인성을 위해 스케일을 확대합니다.
+				local dropTransform = drop.TransformComponent
+				if isvalid(dropTransform) then
+					local s = self.DropItemScale
+					dropTransform.Scale = Vector3(s, s, 1)
+				end
+		
+				local itemDropComp = drop:GetComponent("script.itemreact")
+				if not isvalid(itemDropComp) then
+					-- 모델에 itemreact 컴포넌트가 없으면 스폰 직후 동적으로 부착합니다.
+					drop:AddComponent("script.itemreact")
+					itemDropComp = drop:GetComponent("script.itemreact")
+				end
+				if isvalid(itemDropComp) then
+					---@type itemreact
+					local idc = itemDropComp
+					idc:Init(itemName)
+				else
+					log_error("Failed to attach itemreact component on spawned item model: " .. itemModelId)
+				end
+			else
+				log_error("Failed to spawn item drop entity with modelId: " .. itemModelId)
+			end
+		end
+	end
+
+end

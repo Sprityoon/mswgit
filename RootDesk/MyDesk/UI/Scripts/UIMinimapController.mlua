@@ -1,0 +1,122 @@
+@Component
+script UIMinimapController extends Component
+
+	property number MapRadius = 75.0
+
+	property integer GridCells = 15
+
+	property number TilesPerCell = 4.0
+
+	property any updateTimer = nil
+
+	property any layer1 = nil
+
+	property any layer2 = nil
+
+	property boolean mapReady = false
+
+	@ExecSpace("ClientOnly")
+	method void OnBeginPlay()
+		-- Caches the tilemap layers, then repaints the player-centered window on a light timer.
+		self:CacheTileMaps()
+		self.updateTimer = _TimerService:SetTimerRepeat(function()
+			self:RepaintWindow()
+		end, 0.25)
+	end
+
+	@ExecSpace("ClientOnly")
+	method void OnEndPlay()
+		-- Releases the repaint timer.
+		if self.updateTimer then
+			_TimerService:ClearTimer(self.updateTimer)
+			self.updateTimer = nil
+		end
+	end
+
+	@ExecSpace("ClientOnly")
+	method void CacheTileMaps()
+		-- Resolves the base-earth (layer1) and grass/overlay (layer2) RectTileMapComponents.
+		local map = _EntityService:GetEntityByPath("/maps/map01")
+		if not isvalid(map) then
+			log_warning("UIMinimapController: map01 not found yet; retrying.")
+			_TimerService:SetTimerOnce(function() self:CacheTileMaps() end, 0.5)
+			return
+		end
+		local l1 = map:GetChildByName("RectTileMap")
+		local l2 = map:GetChildByName("RectTileMap2")
+		if isvalid(l1) then self.layer1 = l1.RectTileMapComponent end
+		if isvalid(l2) then self.layer2 = l2.RectTileMapComponent end
+		if not isvalid(self.layer1) then
+			_TimerService:SetTimerOnce(function() self:CacheTileMaps() end, 0.5)
+			return
+		end
+		self.mapReady = true
+		log("UIMinimapController: Tilemap layers cached for minimap.")
+	end
+
+	@ExecSpace("ClientOnly")
+	method Color TileColor(string tileName)
+		-- Maps a tile name to its minimap color. Prefix-based so new variants inherit a family color.
+		if tileName == nil or tileName == "" then
+			return Color(0.06, 0.07, 0.09, 1.0)
+		end
+		if string.sub(tileName, 1, 9) == "BaseGrass" then
+			return Color(0.39, 0.60, 0.13, 1.0)
+		elseif string.sub(tileName, 1, 8) == "BaseSand" then
+			return Color(0.91, 0.82, 0.55, 1.0)
+		elseif string.sub(tileName, 1, 8) == "BaseSnow" then
+			return Color(0.90, 0.93, 0.95, 1.0)
+		elseif string.sub(tileName, 1, 9) == "BaseEarth" then
+			return Color(0.70, 0.53, 0.42, 1.0)
+		end
+		return Color(0.55, 0.50, 0.45, 1.0)
+	end
+
+	@ExecSpace("ClientOnly")
+	method string TileNameAt(integer wx, integer wy)
+		-- Returns the topmost actual tile name at world cell (wx, wy): overlay (layer2) over base (layer1).
+		local cell = Vector2Int(wx, wy)
+		if isvalid(self.layer2) then
+			local t2 = self.layer2:GetTile(cell)
+			if t2 ~= nil and t2.Name ~= nil and t2.Name ~= "" then
+				return t2.Name
+			end
+		end
+		if isvalid(self.layer1) then
+			local t1 = self.layer1:GetTile(cell)
+			if t1 ~= nil and t1.Name ~= nil then
+				return t1.Name
+			end
+		end
+		return ""
+	end
+
+	@ExecSpace("ClientOnly")
+	method void RepaintWindow()
+		-- Repaints all cells with the actual tilemap state in the window centered on the player.
+		if not self.mapReady then return end
+		local player = _UserService.LocalPlayer
+		if not isvalid(player) then return end
+		
+		local worldPos = player.TransformComponent.WorldPosition
+		local px = math.floor(worldPos.x)
+		local py = math.floor(worldPos.y)
+		
+		local gridCells = self.GridCells
+		local half = math.floor(gridCells / 2)
+		local tilesPerCell = math.floor(self.TilesPerCell)
+		
+		for r = 0, gridCells - 1 do
+			for c = 0, gridCells - 1 do
+				local cellEntity = self.Entity:GetChildByName("Cell_" .. r .. "_" .. c)
+				if isvalid(cellEntity) and isvalid(cellEntity.SpriteGUIRendererComponent) then
+					local wx = px + (c - half) * tilesPerCell
+					local wy = py + (r - half) * tilesPerCell
+					local tileName = self:TileNameAt(wx, wy)
+					cellEntity.SpriteGUIRendererComponent.Color = self:TileColor(tileName)
+				end
+			end
+		end
+	end
+
+end

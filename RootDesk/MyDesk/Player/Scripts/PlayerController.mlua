@@ -1,0 +1,613 @@
+@Component
+script PlayerController extends Component
+
+	@Sync
+	property integer LastDirectionX = -1
+
+	@Sync
+	property integer LastDirectionY = 0
+
+	property any KeyDownHandler = nil
+
+	property any ScreenTouchHandler = nil
+
+	@Sync
+	property integer Level = 12
+
+	@Sync
+	property integer Stamina = 60
+
+	@Sync
+	property integer MaxStamina = 100
+
+	@Sync
+	property integer XP = 450
+
+	@Sync
+	property integer MaxXP = 1200
+
+	@Sync
+	property integer Attack = 15
+
+	@Sync
+	property integer Defense = 10
+
+	@Sync
+	property number GatheringSpeed = 10
+
+	@Sync
+	property number MovementSpeed = 100
+
+	property number LastMineTime = 0.0
+
+	property number MineCooldown = 0.6
+
+	property boolean HasRequestedInitialStones = false
+
+	method void OnBeginPlay()
+		-- description: Initialize key and screen touch event listeners on the client.
+		if self:IsClient() then
+			self.KeyDownHandler = _InputService:ConnectEvent(KeyDownEvent, self.OnKeyDown)
+			self.ScreenTouchHandler = _InputService:ConnectEvent(ScreenTouchEvent, self.OnScreenTouch)
+			
+			local movement = self.Entity.MovementComponent
+			if isvalid(movement) then
+				movement.InputSpeed = 3.6  -- Set top-down movement speed
+			end
+			
+			log("PlayerController initialized on client. Current facing: " .. self.LastDirectionX .. ", " .. self.LastDirectionY)
+		else
+			log("PlayerController initialized on server for player: " .. self.Entity.Name)
+		end
+	end
+
+	@ExecSpace("ClientOnly")
+	method void OnEndPlay()
+		-- description: Clean up event listeners and local preview on client.
+		if self.KeyDownHandler then
+			_InputService:DisconnectEvent(KeyDownEvent, self.KeyDownHandler)
+			self.KeyDownHandler = nil
+		end
+		if self.ScreenTouchHandler then
+			_InputService:DisconnectEvent(ScreenTouchEvent, self.ScreenTouchHandler)
+			self.ScreenTouchHandler = nil
+		end
+		local preview = self._T.PlacementPreviewEntity
+		if isvalid(preview) then
+			preview.Enable = false
+			preview.Visible = false
+			self._T.PlacementPreviewEntity = nil
+		end
+		log("PlayerController cleaned up on client.")
+	end
+
+	@ExecSpace("ClientOnly")
+	method boolean IsObstacle(Vector2 checkPos, number radius)
+		local simulator = _CollisionService:GetSimulator(self.Entity)
+		local checkShape = CircleShape(checkPos, radius)
+		local overlaps = simulator:OverlapAll(CollisionGroups.TriggerBox, checkShape)
+		for _, comp in ipairs(overlaps) do
+			if isvalid(comp) and isvalid(comp.Entity) then
+				if comp.Entity ~= self.Entity and comp.Entity.Name ~= "GrownGrass" and comp.Entity.Name ~= "ItemDrop" then
+					return true
+				end
+			end
+		end
+		return false
+	end
+
+	@ExecSpace("Server")
+	method void RequestInitialStones()
+		-- Client request to spawn initial stones around the player.
+		local playerComp = self.Entity.PlayerComponent
+		if playerComp == nil or senderUserId ~= playerComp.UserId then
+			return
+		end
+		
+		local psh = _PlayerSpawnHandler
+		if isvalid(psh) then
+			if not psh:HasSpawned(senderUserId) then
+				psh:SetSpawned(senderUserId, true)
+				psh:SpawnStonesForPlayer(self.Entity)
+			end
+		end
+	end
+
+	@ExecSpace("ClientOnly")
+	method void OnUpdate(number delta)
+		-- description: Monitor player movement inputs to track last facing direction and drive movement.
+		if self.Entity == _UserService.LocalPlayer and not self.HasRequestedInitialStones then
+			self.HasRequestedInitialStones = true
+			self:RequestInitialStones()
+		end
+		
+		local dx = 0
+		local dy = 0
+		
+		if _InputService:IsKeyPressed(KeyboardKey.LeftArrow) then
+			dx = -1
+		elseif _InputService:IsKeyPressed(KeyboardKey.RightArrow) then
+			dx = 1
+		end
+		
+		if _InputService:IsKeyPressed(KeyboardKey.UpArrow) then
+			dy = 1
+		elseif _InputService:IsKeyPressed(KeyboardKey.DownArrow) then
+			dy = -1
+		end
+		
+		local inputDx = dx
+		
+		-- Drive movement via MovementComponent
+		local movement = self.Entity.MovementComponent
+		if isvalid(movement) then
+			if dx ~= 0 or dy ~= 0 then
+				local speed = movement.InputSpeed
+				local currentPos = nil
+				local body = self.Entity.KinematicbodyComponent
+				if isvalid(body) then
+					currentPos = body:GetWorldGroundPosition()
+				else
+					currentPos = self.Entity.TransformComponent.WorldPosition:ToVector2()
+				end
+				
+				local r = 0.3
+				local step = speed * delta
+				
+				-- Test X movement
+				if dx ~= 0 then
+					local testXPos = currentPos + Vector2(dx * step, 0)
+					if self:IsObstacle(testXPos, r) then
+						dx = 0
+					end
+				end
+				
+				-- Test Y movement
+				if dy ~= 0 then
+					local testYPos = currentPos + Vector2(0, dy * step)
+					if self:IsObstacle(testYPos, r) then
+						dy = 0
+					end
+				end
+				
+				if dx ~= 0 or dy ~= 0 then
+					local moveDir = Vector2(dx, dy):Normalize()
+					movement:MoveToDirection(moveDir, delta)
+				else
+					movement:Stop()
+				end
+			else
+				movement:Stop()
+			end
+		end
+		
+		-- Only update direction if there is active X movement input (MapleStory style: horizontal facing only)
+		if inputDx ~= 0 then
+			local newDirX = inputDx
+			local newDirY = 0
+		
+			-- Send to server if direction changed
+			if newDirX ~= self.LastDirectionX or newDirY ~= self.LastDirectionY then
+				self:ServerSetDirection(newDirX, newDirY)
+			end
+		end
+		
+		-- Update local placement preview
+		self:UpdatePlacementPreview()
+	end
+
+	@ExecSpace("Server")
+	method void ServerSetDirection(integer dirX, integer dirY)
+		-- description: Synchronize client facing direction to server.
+		local playerComp = self.Entity.PlayerComponent
+		if playerComp == nil or senderUserId ~= playerComp.UserId then
+			return
+		end
+		
+		self.LastDirectionX = dirX
+		self.LastDirectionY = dirY
+		log("Player facing updated on server: " .. self.LastDirectionX .. ", " .. self.LastDirectionY)
+	end
+
+	@ExecSpace("ClientOnly")
+	method void TryMine()
+		-- description: Attempts to trigger mining or placement on client-side.
+		local now = _UtilLogic.ElapsedSeconds
+		if now - self.LastMineTime < self.MineCooldown then
+			return
+		end
+		self.LastMineTime = now
+		
+		local isPlaceable = false
+		local activeItem = ""
+		local inv = self.Entity:GetComponent("script.PlayerInventory")
+		if isvalid(inv) then
+			local slots = _HttpService:JSONDecode(inv.QuickSlotsJson) or {}
+			activeItem = slots[inv.SelectedQuickSlotIndex] or ""
+			if activeItem ~= "" then
+				local ds = _DataService:GetTable("item_dataset")
+				if ds ~= nil then
+					local row = ds:FindRow("Name", activeItem)
+					if row ~= nil and row:GetItem("Category") == "furniture" then
+						isPlaceable = true
+					end
+				end
+			end
+		end
+
+		if isPlaceable then
+			local tilemap = self.Entity.CurrentMap:GetFirstChildComponentByTypeName("RectTileMapComponent")
+			if isvalid(tilemap) then
+				local playerWorldPos = self.Entity.TransformComponent.WorldPosition
+				local playerCell = tilemap:ToCellPosition(playerWorldPos)
+				if playerCell then
+					local targetCell = Vector2Int(playerCell.x + self.LastDirectionX, playerCell.y + self.LastDirectionY)
+					log("[PLACE] Requesting placement of " .. activeItem .. " at cell (" .. targetCell.x .. ", " .. targetCell.y .. ")")
+					inv:ServerRequestPlace(activeItem, targetCell.x, targetCell.y)
+				end
+			end
+			return
+		end
+		
+		local state = self.Entity.StateComponent
+		if isvalid(state) then
+			state:ChangeState("MINE")
+		end
+		
+		local myPos = self.Entity.TransformComponent.WorldPosition
+		self:RequestMine(myPos)
+	end
+
+	@ExecSpace("ClientOnly")
+	method void OnKeyDown(KeyDownEvent event)
+		-- description: Handle keyboard input events on client.
+		local key = event.key
+		
+		if key == KeyboardKey.LeftControl or key == KeyboardKey.RightControl then
+			self:TryMine()
+		elseif key == KeyboardKey.LeftAlt or key == KeyboardKey.RightAlt then
+			log("Visual Jump key (Alt) pressed.")
+			local movement = self.Entity.MovementComponent
+			if isvalid(movement) then
+				movement:Jump()
+			end
+		elseif key == KeyboardKey.I then
+			local popup = _EntityService:GetEntityByPath("/ui/PopupGroup/InventoryPopup")
+			if isvalid(popup) then
+				local controller = popup:GetComponent("script.UIInventoryController")
+				if isvalid(controller) then
+					local c = controller
+					c:Toggle()
+				end
+			end
+		elseif key == KeyboardKey.C then
+			local popup = _EntityService:GetEntityByPath("/ui/PopupGroup/CraftingPopup")
+			if isvalid(popup) then
+				local controller = popup:GetComponent("script.UICraftingController")
+				if isvalid(controller) then
+					local c = controller
+					c:Toggle()
+				end
+			end
+		elseif key == KeyboardKey.Space then
+			local popup = _EntityService:GetEntityByPath("/ui/PopupGroup/CraftingPopup")
+			if isvalid(popup) and popup.Enable then
+				local controller = popup:GetComponent("script.UICraftingController")
+				if isvalid(controller) then
+					controller:TryCraft()
+				end
+			end
+		elseif key == KeyboardKey.P then
+			local popup = _EntityService:GetEntityByPath("/ui/PopupGroup/CharacterPopup")
+			if isvalid(popup) then
+				local controller = popup:GetComponent("script.UICharacterController")
+				if isvalid(controller) then
+					local c = controller
+					c:Toggle()
+				end
+			end
+		elseif key == KeyboardKey.F then
+			local nearbyFurnace = self:FindNearbyFurnace()
+			if isvalid(nearbyFurnace) then
+				local popup = _EntityService:GetEntityByPath("/ui/PopupGroup/FurnacePopup")
+				if isvalid(popup) then
+					local controller = popup:GetComponent("script.UIFurnaceController")
+					if isvalid(controller) then
+						local c = controller
+						if popup.Enable then
+							c:Close()
+						else
+							c:Open(nearbyFurnace)
+						end
+					end
+				end
+			end
+		else
+			-- Numeric Keys (1 to 0)
+			local slotIndex = 0
+			if key == KeyboardKey.Alpha1 then slotIndex = 1
+			elseif key == KeyboardKey.Alpha2 then slotIndex = 2
+			elseif key == KeyboardKey.Alpha3 then slotIndex = 3
+			elseif key == KeyboardKey.Alpha4 then slotIndex = 4
+			elseif key == KeyboardKey.Alpha5 then slotIndex = 5
+			elseif key == KeyboardKey.Alpha6 then slotIndex = 6
+			elseif key == KeyboardKey.Alpha7 then slotIndex = 7
+			elseif key == KeyboardKey.Alpha8 then slotIndex = 8
+			elseif key == KeyboardKey.Alpha9 then slotIndex = 9
+			elseif key == KeyboardKey.Alpha0 then slotIndex = 10
+			end
+		
+			if slotIndex > 0 then
+				local pinv = self.Entity:GetComponent("script.PlayerInventory")
+				if isvalid(pinv) then
+					pinv:ServerSelectQuickSlot(slotIndex)
+				end
+			end
+		end
+	end
+
+	@ExecSpace("ClientOnly")
+	method Entity FindNearbyFurnace()
+		-- description: Finds the closest furnace entity within interaction distance on the client.
+		local currentMap = self.Entity.CurrentMap
+		if not isvalid(currentMap) then return nil end
+		
+		local myPos = self.Entity.TransformComponent.WorldPosition:ToVector2()
+		local closest = nil
+		local minDist = 1.5 -- Interaction distance (1.5 grid cells)
+		
+		local furnaceComponents = currentMap:GetChildComponentsByTypeName("script.Furnace", true)
+		if not furnaceComponents then return nil end
+		
+		for _, comp in ipairs(furnaceComponents) do
+			if isvalid(comp) then
+				local ent = comp.Entity
+				if isvalid(ent) then
+					local fPos = ent.TransformComponent.WorldPosition:ToVector2()
+					local dist = (myPos - fPos):Magnitude()
+					if dist < minDist then
+						minDist = dist
+						closest = ent
+					end
+				end
+			end
+		end
+		
+		return closest
+	end
+
+	@ExecSpace("Client")
+	method void ClientPlayMineEffect(boolean hitSuccess, Entity targetEntity)
+		-- description: Play attack or hit effect on clients (Disabled).
+	end
+
+	@ExecSpace("Client")
+	method void ClientShowMineFeedback(string message)
+		-- description: Show gathering feedback as a chat balloon above the player.
+		local balloon = self.Entity.ChatBalloonComponent
+		if isvalid(balloon) then
+			balloon.AutoShowEnabled = false
+			balloon.ShowDuration = 2.0
+			balloon.Message = ""
+			balloon.Message = message
+		end
+		log("[Gather] " .. message)
+	end
+
+	@ExecSpace("Server")
+	method void RequestMine(Vector3 playerWorldPos)
+		-- description: Execute mining verification and execution on the server.
+		local playerComp = self.Entity.PlayerComponent
+		if playerComp == nil or senderUserId ~= playerComp.UserId then
+			return
+		end
+		
+		local now = _UtilLogic.ServerElapsedSeconds
+		if now - self.LastMineTime < self.MineCooldown - 0.1 then
+			return
+		end
+		self.LastMineTime = now
+		
+		local currentMap = self.Entity.CurrentMap
+		if not isvalid(currentMap) then
+			log_warning("Player is not on a valid map.")
+			return
+		end
+		
+		---@type RectTileMapComponent
+		local tilemap = currentMap:GetFirstChildComponentByTypeName("RectTileMapComponent", true)
+		if not isvalid(tilemap) then
+			log_warning("Target map does not contain a RectTileMapComponent.")
+			return
+		end
+		
+		-- Convert the passed client-side world position to grid cell coordinate
+		local cellPos = tilemap:ToCellPosition(playerWorldPos)
+		
+		-- Locate cell in front of player
+		local targetCell = Vector2Int(cellPos.x + self.LastDirectionX, cellPos.y + self.LastDirectionY)
+		
+		-- Query the spawned resource entity occupying the target cell (entity-only mining)
+		local key = math.floor(targetCell.x) .. "_" .. math.floor(targetCell.y)
+		local resourceSpawner = _ResourceSpawner
+		local pivotKey = nil
+		---@type Entity
+		local targetEntity = nil
+		
+		if resourceSpawner and resourceSpawner.GridToEntity then
+			local gridData = resourceSpawner.GridToEntity[key]
+			if gridData and (gridData.isTile or isvalid(gridData.entity)) then
+				pivotKey = math.floor(gridData.pivotX) .. "_" .. math.floor(gridData.pivotY)
+				targetEntity = gridData.entity
+			end
+		end
+		
+		if pivotKey ~= nil then
+		
+			-- Play hit effect on all clients (attached to target resource entity)
+			self:ClientPlayMineEffect(true, targetEntity)
+		
+			-- Report the hit to the durability manager using the entity's pivot key
+			_TileDurabilityManager:HitResource(currentMap, pivotKey, self.Entity)
+		else
+			-- Play air swing effect on all clients (attached to player)
+			self:ClientPlayMineEffect(false, nil)
+			log("No resource entity found at target cell " .. tostring(targetCell))
+		end
+	end
+
+	@ExecSpace("ClientOnly")
+	method void UpdatePlacementPreview()
+		-- description: Updates the local placement preview entity when holding placeable furniture or tiles.
+		if self.Entity ~= _UserService.LocalPlayer then return end
+		
+		local inv = self.Entity:GetComponent("script.PlayerInventory")
+		if not isvalid(inv) then return end
+		
+		local slots = _HttpService:JSONDecode(inv.QuickSlotsJson) or {}
+		local activeItem = slots[inv.SelectedQuickSlotIndex] or ""
+		-- log("[PREVIEW] Active Item: " .. activeItem .. " Slot: " .. inv.SelectedQuickSlotIndex)
+		
+		local isPlaceable = false
+		local iconRuid = ""
+		local placedTileName = ""
+		
+		if activeItem ~= "" then
+			local ds = _DataService:GetTable("item_dataset")
+			if ds ~= nil then
+				local row = ds:FindRow("Name", activeItem)
+				if row ~= nil and row:GetItem("Category") == "furniture" then
+					isPlaceable = true
+					iconRuid = row:GetItem("IconRUID") or ""
+					placedTileName = row:GetItem("PlacedTileName") or ""
+				end
+			end
+		end
+		
+		if isPlaceable then
+			local tilemap = self.Entity.CurrentMap:GetFirstChildComponentByTypeName("RectTileMapComponent")
+			if isvalid(tilemap) then
+				local playerWorldPos = self.Entity.TransformComponent.WorldPosition
+				local playerCell = tilemap:ToCellPosition(playerWorldPos)
+				if playerCell == nil then return end
+				local targetCell = Vector2Int(playerCell.x + self.LastDirectionX, playerCell.y + self.LastDirectionY)
+				local cellWorldPos = Vector3(targetCell.x + 0.5, targetCell.y + 0.5, 0)
+				
+				local preview = self._T.PlacementPreviewEntity
+				if not isvalid(preview) then
+					preview = self.Entity.CurrentMap:GetChildByName("PlacementPreview")
+					self._T.PlacementPreviewEntity = preview
+				end
+				
+				if isvalid(preview) then
+					preview.Enable = true
+					preview.Visible = true
+					
+					local sprite = preview.SpriteRendererComponent
+					if isvalid(sprite) and self._T.LastActiveItem ~= activeItem then
+						local spriteRuid = iconRuid
+						if placedTileName == "" then
+							if activeItem == "Furnace" then
+								spriteRuid = "a3b810b8178847a0b9ec54bc4b63ba96"
+							end
+						end
+						sprite.SpriteRUID = spriteRuid
+						self._T.LastActiveItem = activeItem
+					end
+				end
+				
+				preview = self._T.PlacementPreviewEntity
+				if isvalid(preview) then
+					preview.TransformComponent.WorldPosition = cellWorldPos
+					
+					local canPlace = true
+					-- Client-side occupancy check using collision simulator
+					local simulator = _CollisionService:GetSimulator(self.Entity)
+					if simulator then
+						-- Use a slightly larger shape to ensure we catch nearby obstacles
+						local checkShape = BoxShape(Vector2(targetCell.x + 0.5, targetCell.y + 0.5), Vector2(0.9, 0.9), 0)
+						-- Check all relevant collision groups
+						local groups = { CollisionGroups.Default, CollisionGroups.TriggerBox, CollisionGroups.HitBox }
+						local overlaps = simulator:OverlapAll(groups, checkShape)
+						
+						for _, comp in ipairs(overlaps) do
+							if isvalid(comp) and isvalid(comp.Entity) then
+								local ent = comp.Entity
+								-- Block if there's any entity except self, the preview itself, or temporary item drops
+								if ent ~= self.Entity and ent.Name ~= "PlacementPreview" and ent.Name ~= "ItemDrop" then
+									canPlace = false
+									break
+								end
+							end
+						end
+					end
+					
+					if canPlace then
+						local currentMap = self.Entity.CurrentMap
+						local layer1 = currentMap:GetChildByName("RectTileMap")
+						local layer2 = currentMap:GetChildByName("RectTileMap2")
+						local hasBase = false
+						if isvalid(layer1) and isvalid(layer1.RectTileMapComponent) then
+							if layer1.RectTileMapComponent:GetTile(targetCell) ~= nil then hasBase = true end
+						end
+						if isvalid(layer2) and isvalid(layer2.RectTileMapComponent) then
+							if layer2.RectTileMapComponent:GetTile(targetCell) ~= nil then hasBase = true end
+						end
+						if not hasBase then 
+							canPlace = false 
+						end
+					end
+					
+					local sprite = preview.SpriteRendererComponent
+					if isvalid(sprite) then
+						if canPlace then
+							sprite.Color = Color(0.2, 1.0, 0.2, 0.6)
+						else
+							sprite.Color = Color(1.0, 0.2, 0.2, 0.6)
+						end
+						local mapRadius = 75
+						if _ResourceSpawner then mapRadius = _ResourceSpawner.MapRadius end
+						sprite.OrderInLayer = math.floor((mapRadius - targetCell.y) * 100) + 1
+					end
+				end
+			end
+		else
+			local preview = self._T.PlacementPreviewEntity
+			if isvalid(preview) then
+				preview.Enable = false
+				preview.Visible = false
+				self._T.LastActiveItem = ""
+			end
+		end
+	end
+
+	@ExecSpace("ClientOnly")
+	method void OnInteractButton()
+		-- description: Handles interaction button press (mobile/UI).
+		local nearbyFurnace = self:FindNearbyFurnace()
+		if isvalid(nearbyFurnace) then
+			local popup = _EntityService:GetEntityByPath("/ui/PopupGroup/FurnacePopup")
+			if isvalid(popup) then
+				local controller = popup:GetComponent("script.UIFurnaceController")
+				if isvalid(controller) then
+					local c = controller
+					if popup.Enable then
+						c:Close()
+					else
+						c:Open(nearbyFurnace)
+					end
+				end
+			end
+		end
+	end
+
+	@ExecSpace("ClientOnly")
+	method void OnScreenTouch(ScreenTouchEvent event)
+		-- description: Handles screen touch and mouse clicks. Placement logic has been removed as it is now tool-driven.
+		if event.TouchId ~= 1 then return end
+		if _InputService:IsPointerOverUI() then return end
+		
+		-- Optionally, could add interaction logic here in the future
+	end
+
+end

@@ -1,0 +1,72 @@
+@Logic
+script ItemDropLogic extends Logic
+
+	property table DropTables = {}
+
+	method void OnBeginPlay()
+		        if self:IsServer() then
+		            self:InitDropTables()
+		        end
+	end
+
+	method void InitDropTables()
+		        -- ItemDropDataSet에서 드롭 데이터를 로드합니다.
+		        -- 월드 인스턴스가 플레이 세션 간 유지되므로 누적 방지를 위해 항상 초기화합니다.
+		        self.DropTables = {}
+		        local dataSet = _DataService:GetTable("ItemDropDataSet")
+		        if not dataSet then
+		            log_error("ItemDropLogic: ItemDropDataSet을 찾을 수 없습니다!")
+		            return
+		        end
+		
+		        local rowCount = dataSet:GetRowCount()
+		        for i = 1, rowCount do
+		            local sourceId = dataSet:GetCell(i, "SourceId")
+		            local itemId = dataSet:GetCell(i, "ItemId")
+		            local minCount = tonumber(dataSet:GetCell(i, "MinCount")) or 1
+		            local maxCount = tonumber(dataSet:GetCell(i, "MaxCount")) or 1
+		            local probability = tonumber(dataSet:GetCell(i, "Probability")) or 1.0
+		
+		            if not self.DropTables[sourceId] then
+		                self.DropTables[sourceId] = {}
+		            end
+		
+		            table.insert(self.DropTables[sourceId], self:CreateEntry(itemId, minCount, maxCount, probability))
+		        end
+		        
+		        log("ItemDropLogic: ItemDropDataSet 로드 완료. 총 " .. tostring(rowCount) .. "개 엔트리.")
+	end
+
+	method table CreateEntry(string itemId, number min, number max, number prob)
+		        local entry = {}
+		        entry.itemId = itemId
+		        entry.minCount = min
+		        entry.maxCount = max
+		        entry.probability = prob
+		        return entry
+	end
+
+	method table GetDrops(string sourceId)
+		        local drops = {}
+		        local tableEntries = self.DropTables[sourceId]
+		        
+		        if not tableEntries then
+		            -- 소스별 특정 테이블이 없으면 빈 테이블 반환
+		            return drops
+		        end
+		        
+		        for _, entry in ipairs(tableEntries) do
+		            local rand = math.random()
+		            if rand <= entry.probability then
+		                table.insert(drops, {
+		                    id = entry.itemId,
+		                    min = entry.minCount,
+		                    max = entry.maxCount
+		                })
+		            end
+		        end
+		        
+		        return drops
+	end
+
+end

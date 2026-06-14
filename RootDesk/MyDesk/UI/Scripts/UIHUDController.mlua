@@ -1,0 +1,285 @@
+@Component
+script UIHUDController extends Component
+
+	property Entity levelText = "acc07745-4823-4da4-bd7f-42564bb2af25"
+
+	property SpriteGUIRendererComponent hpFill = "6cf348b4-283f-40f5-bf65-e25ef2e4ed00"
+
+	property TextComponent hpValText = "e8accb24-1b25-435b-9b4d-d71c95d36bab"
+
+	property SpriteGUIRendererComponent staFill = "921779cd-b147-4849-8426-59194da6521d"
+
+	property TextComponent staValText = "7346e45d-bd3c-4206-bc97-433bde1dee36"
+
+	property any updateTimer = nil
+
+	property table quickSlotHandlers = {}
+
+	property any btnMineHandler = nil
+
+	property any btnJumpHandler = nil
+
+	property any btnBagHandler = nil
+
+	property any btnCraftHandler = nil
+
+	property any btnInfoHandler = nil
+
+	@ExecSpace("ClientOnly")
+	method void OnBeginPlay()
+		self.updateTimer = _TimerService:SetTimerRepeat(function()
+			self:UpdateHUD()
+		end, 1/10)
+		
+		local btnMine = _EntityService:GetEntityByPath("/ui/HUDGroup/MobileUI/BtnMine")
+		if isvalid(btnMine) then
+			if isvalid(btnMine.SpriteGUIRendererComponent) then btnMine.SpriteGUIRendererComponent.RaycastTarget = true end
+			self.btnMineHandler = btnMine:ConnectEvent(ButtonClickEvent, function()
+				local player = _UserService.LocalPlayer
+				if isvalid(player) then
+					local controller = player:GetComponent("script.PlayerController")
+					if isvalid(controller) then
+						controller:TryMine()
+					end
+				end
+			end)
+		end
+		
+		local btnJump = _EntityService:GetEntityByPath("/ui/HUDGroup/MobileUI/BtnJump")
+		if isvalid(btnJump) then
+			if isvalid(btnJump.SpriteGUIRendererComponent) then btnJump.SpriteGUIRendererComponent.RaycastTarget = true end
+			self.btnJumpHandler = btnJump:ConnectEvent(ButtonClickEvent, function()
+				local player = _UserService.LocalPlayer
+				if isvalid(player) and isvalid(player.MovementComponent) then
+					player.MovementComponent:Jump()
+				end
+			end)
+		end
+		
+		local btnBag = _EntityService:GetEntityByPath("/ui/HUDGroup/MobileUI/BtnBag")
+		if isvalid(btnBag) then
+			if isvalid(btnBag.SpriteGUIRendererComponent) then btnBag.SpriteGUIRendererComponent.RaycastTarget = true end
+			self.btnBagHandler = btnBag:ConnectEvent(ButtonClickEvent, function()
+				local popup = _EntityService:GetEntityByPath("/ui/PopupGroup/InventoryPopup")
+				if isvalid(popup) then
+					local controller = popup:GetComponent("script.UIInventoryController")
+					if isvalid(controller) then
+						local c = controller
+						c:Toggle()
+					end
+				end
+			end)
+		end
+		
+		local btnCraft = _EntityService:GetEntityByPath("/ui/HUDGroup/MobileUI/BtnCraft")
+		if isvalid(btnCraft) then
+			if isvalid(btnCraft.SpriteGUIRendererComponent) then btnCraft.SpriteGUIRendererComponent.RaycastTarget = true end
+			self.btnCraftHandler = btnCraft:ConnectEvent(ButtonClickEvent, function()
+				local popup = _EntityService:GetEntityByPath("/ui/PopupGroup/CraftingPopup")
+				if isvalid(popup) then
+					local controller = popup:GetComponent("script.UICraftingController")
+					if isvalid(controller) then
+						local c = controller
+						c:Toggle()
+					end
+				end
+			end)
+		end
+		
+		local btnInfo = _EntityService:GetEntityByPath("/ui/HUDGroup/MobileUI/BtnInfo")
+		if isvalid(btnInfo) then
+			if isvalid(btnInfo.SpriteGUIRendererComponent) then btnInfo.SpriteGUIRendererComponent.RaycastTarget = true end
+			self.btnInfoHandler = btnInfo:ConnectEvent(ButtonClickEvent, function()
+				local popup = _EntityService:GetEntityByPath("/ui/PopupGroup/CharacterPopup")
+				if isvalid(popup) then
+					local controller = popup:GetComponent("script.UICharacterController")
+					if isvalid(controller) then
+						local c = controller
+						c:Toggle()
+					end
+				end
+			end)
+		end
+		
+		-- Connect Quick Slot click events
+		self.quickSlotHandlers = {}
+		for i = 1, 10 do
+			local slotPath = "/ui/HUDGroup/QuickSlots/Slot" .. i
+			local slotEntity = _EntityService:GetEntityByPath(slotPath)
+			if isvalid(slotEntity) then
+				if isvalid(slotEntity.SpriteGUIRendererComponent) then
+					slotEntity.SpriteGUIRendererComponent.RaycastTarget = true
+				end
+				self.quickSlotHandlers[slotEntity] = slotEntity:ConnectEvent(ButtonClickEvent, function()
+					local player = _UserService.LocalPlayer
+					if not isvalid(player) then return end
+					local pinv = player:GetComponent("script.PlayerInventory")
+					if not isvalid(pinv) then return end
+
+					-- If Inventory is open and an item is inspected, register it to this slot
+					local invPopup = _EntityService:GetEntityByPath("/ui/PopupGroup/InventoryPopup")
+					if isvalid(invPopup) and invPopup.Enable then
+						local invCtrl = invPopup:GetComponent("script.UIInventoryController")
+						if isvalid(invCtrl) and invCtrl.inspectedItem ~= "" then
+							pinv:ServerRegisterQuickSlot(i, invCtrl.inspectedItem)
+							
+							-- Visual flash effect
+							if isvalid(slotEntity.SpriteGUIRendererComponent) then
+								local original = slotEntity.SpriteGUIRendererComponent.Color
+								slotEntity.SpriteGUIRendererComponent.Color = Color(0.3, 0.7, 1.0, 1.0)
+								_TimerService:SetTimerOnce(function()
+									if isvalid(slotEntity) and isvalid(slotEntity.SpriteGUIRendererComponent) then
+										slotEntity.SpriteGUIRendererComponent.Color = original
+									end
+								end, 0.3)
+							end
+							return
+						end
+					end
+		
+					pinv:ServerSelectQuickSlot(i)
+				end)
+			end
+		end
+	end
+
+	@ExecSpace("ClientOnly")
+	method void OnEndPlay()
+		if self.updateTimer then
+			_TimerService:ClearTimer(self.updateTimer)
+			self.updateTimer = nil
+		end
+		
+		local btnMine = _EntityService:GetEntityByPath("/ui/HUDGroup/MobileUI/BtnMine")
+		if isvalid(btnMine) and self.btnMineHandler then
+			btnMine:DisconnectEvent(ButtonClickEvent, self.btnMineHandler)
+		end
+		
+		local btnJump = _EntityService:GetEntityByPath("/ui/HUDGroup/MobileUI/BtnJump")
+		if isvalid(btnJump) and self.btnJumpHandler then
+			btnJump:DisconnectEvent(ButtonClickEvent, self.btnJumpHandler)
+		end
+		
+		local btnBag = _EntityService:GetEntityByPath("/ui/HUDGroup/MobileUI/BtnBag")
+		if isvalid(btnBag) and self.btnBagHandler then
+			btnBag:DisconnectEvent(ButtonClickEvent, self.btnBagHandler)
+		end
+		
+		local btnCraft = _EntityService:GetEntityByPath("/ui/HUDGroup/MobileUI/BtnCraft")
+		if isvalid(btnCraft) and self.btnCraftHandler then
+			btnCraft:DisconnectEvent(ButtonClickEvent, self.btnCraftHandler)
+		end
+		
+		local btnInfo = _EntityService:GetEntityByPath("/ui/HUDGroup/MobileUI/BtnInfo")
+		if isvalid(btnInfo) and self.btnInfoHandler then
+			btnInfo:DisconnectEvent(ButtonClickEvent, self.btnInfoHandler)
+		end
+		
+		-- Disconnect Quick Slot click events
+		if self.quickSlotHandlers then
+			for slotEntity, eventHandler in pairs(self.quickSlotHandlers) do
+				if isvalid(slotEntity) then
+					slotEntity:DisconnectEvent(ButtonClickEvent, eventHandler)
+				end
+			end
+			self.quickSlotHandlers = {}
+		end
+	end
+
+	@ExecSpace("ClientOnly")
+	method void UpdateHUD()
+		local player = _UserService.LocalPlayer
+		if not isvalid(player) then return end
+		
+		-- Update HP
+		local playerComp = player.PlayerComponent
+		if isvalid(playerComp) then
+			local hp = playerComp.Hp
+			local maxHp = playerComp.MaxHp
+			if isvalid(self.hpFill) then
+				self.hpFill.FillAmount = math.max(0, math.min(1, hp / maxHp))
+			end
+			if isvalid(self.hpValText) then
+				self.hpValText.Text = hp .. "/" .. maxHp
+			end
+		end
+		
+		-- Update Level & Stamina from PlayerController
+		local controller = player:GetComponent("script.PlayerController")
+		if isvalid(controller) then
+			if isvalid(self.levelText) and isvalid(self.levelText.TextComponent) then
+				self.levelText.TextComponent.Text = "LV " .. (controller.Level or 12)
+			end
+			
+			local sta = controller.Stamina or 60
+			local maxSta = controller.MaxStamina or 100
+			if isvalid(self.staFill) then
+				self.staFill.FillAmount = math.max(0, math.min(1, sta / maxSta))
+			end
+			if isvalid(self.staValText) then
+				self.staValText.Text = sta .. "/" .. maxSta
+			end
+		end
+		
+		local inv = player:GetComponent("script.PlayerInventory")
+		if isvalid(inv) then
+			-- Update 10 Quick Slots
+			local qslots = _HttpService:JSONDecode(inv.QuickSlotsJson) or {}
+			for i = 1, 10 do
+				local slotPath = "/ui/HUDGroup/QuickSlots/Slot" .. i
+				local slotEntity = _EntityService:GetEntityByPath(slotPath)
+				if isvalid(slotEntity) then
+					local itemName = qslots[i] or ""
+					local iconEntity = slotEntity:GetChildByName("Icon")
+					local countTextEntity = slotEntity:GetChildByName("Count")
+					local borderEntity = slotEntity:GetChildByName("Border")
+		
+					-- Highlight if selected
+					local isSelected = (inv.SelectedQuickSlotIndex == i)
+					if isvalid(borderEntity) then
+						borderEntity.Enable = isSelected
+					end
+		
+					if itemName ~= "" then
+						-- Get Icon from dataset
+						local iconRuid = ""
+						local ds = _DataService:GetTable("item_dataset")
+						if ds ~= nil then
+							local row = ds:FindRow("Name", itemName)
+							if row ~= nil then
+								iconRuid = row:GetItem("IconRUID") or ""
+							end
+						end
+		
+						if isvalid(iconEntity) then
+							iconEntity.Enable = true
+							if isvalid(iconEntity.SpriteGUIRendererComponent) then
+								iconEntity.SpriteGUIRendererComponent.ImageRUID = iconRuid
+								-- Dim if count is 0
+								local count = inv:GetItemCount(itemName)
+								if count <= 0 then
+									iconEntity.SpriteGUIRendererComponent.Color = Color(1.0, 1.0, 1.0, 0.4)
+								else
+									iconEntity.SpriteGUIRendererComponent.Color = Color.white
+								end
+							end
+						end
+		
+						if isvalid(countTextEntity) and isvalid(countTextEntity.TextComponent) then
+							countTextEntity.TextComponent.Text = tostring(inv:GetItemCount(itemName))
+						end
+					else
+						-- Clear Slot
+						if isvalid(iconEntity) then
+							iconEntity.Enable = false
+						end
+						if isvalid(countTextEntity) and isvalid(countTextEntity.TextComponent) then
+							countTextEntity.TextComponent.Text = ""
+						end
+					end
+				end
+			end
+		end
+	end
+
+end

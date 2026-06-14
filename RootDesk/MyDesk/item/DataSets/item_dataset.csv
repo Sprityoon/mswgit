@@ -1,0 +1,14 @@
+﻿id,Name,ModelName,EntryId,Category,ToolType,ToolPower,IconRUID,PlacedTileName
+wood,Wood,Item_Wood,2cb8f37e-ef6b-4e17-86fb-d940f18a7412,resource,,0,b952164321fd4c9c94cb0d3e7c73b182,
+stone,Stone,Item_Stone,05fa541a-a48d-4f36-bf82-0c60784a4a53,resource,,0,5ed8bdcf520044c0a1660873beb30b10,
+copper ore,Copper Ore,Item_CopperOre,3484bbf6-1973-4b23-a720-9d1b0754aa6f,resource,,0,914eb87802b64924b5f78bb97a55faeb,
+grass,Grass,Item_Grass,896c7bd8-8a8a-48a8-a7c7-fc8c337c2a9b,resource,,0,f0bce7f800f140559f35a12a93de9c9e,
+hand_axe,Hand Axe,Item_HandAxe,8fdc2947-7735-4aa3-90ad-208438aeb809,tool,axe,0,57345d4aa6a640419af19e340c29940f,
+stone_pickaxe,Stone Pickaxe,Item_StonePickaxe,0f6274e2-70fd-409b-8a20-7999c099c721,tool,pickaxe,2,428577ffb2964719b8ab0bb18e5171e1,
+stone_axe,Stone Axe,Item_StoneAxe,08cec3b5-eaaa-4b36-9957-0e96f0708161,tool,axe,2,2e0751aabbb14ccf85cfb99c024511c9,
+wooden_chest,Wooden Chest,Item_WoodenChest,ebd82997-e2b7-4a6f-b3cc-0dc9380e529b,furniture,,0,22e9f409617b4e4180f9c92fb26b13f7,
+furnace,Furnace,Item_Furnace,f2d3a4b5-67c8-49d0-bfd1-ebd3c4a2a1b9,furniture,,0,8cb667c940834bb9b19c11ae242a0aa1,
+iron_ore,Iron Ore,Item_IronOre,71d8820c-c72e-4b2a-b7a4-ef8b337c2a01,resource,,0,79f438d0427142f09f979b58e982b1bd,
+copper_bar,Copper Bar,Item_CopperBar,1234cdef-5678-4321-abcd-ef1234567890,resource,,0,d7429bc723034933b9b51de9b6b912fc,
+iron_bar,Iron Bar,Item_IronBar,9876fedc-5432-1234-abcd-ef9876543210,resource,,0,7ac77c77fdc0480080303b2dc0b96c35,
+wood_floor,Wood Floor,Item_WoodFloor,a0123456-789a-bcde-f012-3456789abcde,furniture,,0,22e9f409617b4e4180f9c92fb26b13f7,Baram_167

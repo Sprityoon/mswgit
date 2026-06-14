@@ -1,0 +1,12 @@
+@Struct
+script ItemDropEntry
+
+	property string itemId = ""
+
+	property number minCount = 1
+
+	property number maxCount = 1
+
+	property number probability = 1.0
+
+end

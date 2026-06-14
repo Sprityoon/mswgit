@@ -1,0 +1,44 @@
+@State
+script MineState extends StateType
+
+	property number duration = 0.5
+
+	property number startTime = 0
+
+	method void OnEnter()
+		self.startTime = _UtilLogic.ElapsedSeconds
+		local entity = self.ParentComponent.Entity
+		
+		-- TODO: 실제 인벤토리/장비 시스템과 연동하여 장착 중인 도구 타입을 가져오세요.
+		-- (아래는 테스트를 위한 임시 하드코딩 변수입니다.)
+		local equippedItemType = "None"
+		
+		local animName = "stabO2"
+		if equippedItemType == "Pickaxe" then
+			animName = "swingT1"
+		elseif equippedItemType == "Axe" then
+			animName = "swingT2"
+		end
+		
+		local avatarRenderer = entity.AvatarRendererComponent
+		if isvalid(avatarRenderer) then
+			local body = avatarRenderer:GetBodyEntity()
+			if isvalid(body) then
+				local event = ActionStateChangedEvent()
+				event.CoreActionName = animName
+				event.PartsActionName = animName
+				event.PlayType = SpriteAnimClipPlayType.Onetime
+				event.PlayRate = 1.33
+				body:SendEvent(event)
+			end
+		end
+	end
+
+	method void OnUpdate()
+		-- 채광/벌목 모션이 끝날 즈음(duration) 자동으로 IDLE 상태로 복귀
+		if _UtilLogic.ElapsedSeconds - self.startTime >= self.duration then
+			self.ParentComponent:ChangeState("IDLE")
+		end
+	end
+
+end

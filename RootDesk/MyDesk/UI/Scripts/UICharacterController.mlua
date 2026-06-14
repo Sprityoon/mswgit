@@ -1,0 +1,263 @@
+@Component
+script UICharacterController extends Component
+
+	property Entity characterPopup = "d069e6fa-bcb5-4bd0-b1a9-accf919aafb3"
+
+	property ButtonComponent btnClose = "1fbacf8c-7528-4613-9ec6-a00269c0fdbe"
+
+	property TextComponent charName = "339fef99-6df2-40cf-b8a1-f775a76519ef"
+
+	property SpriteGUIRendererComponent hpFill = "6b43b473-b55e-43d3-b431-8c7e40446021"
+
+	property TextComponent hpValText = "b0da5b8a-17ff-4911-95c1-734e111d861f"
+
+	property SpriteGUIRendererComponent staFill = "c88da1f0-bbda-417c-81a5-607c29601848"
+
+	property TextComponent staValText = "32902774-1860-484a-bd65-2db3179e40f5"
+
+	property SpriteGUIRendererComponent xpFill = "60e5616c-1cad-4faf-b606-1de580b89326"
+
+	property TextComponent xpValText = "f33261f3-c6b4-4fd1-8d40-ccf4fca953f8"
+
+	property TextComponent atkVal = "34854a38-0424-4767-84a3-b5883c4bf74e"
+
+	property TextComponent defVal = "66ae439f-1ce4-4b45-8cd5-87399add8a00"
+
+	property TextComponent gatherVal = "bd427cca-754e-4607-b268-6ea5f6cfb025"
+
+	property TextComponent moveVal = "4da3bd83-450d-4206-b066-d89a4849b055"
+
+	property SpriteGUIRendererComponent weaponIcon = "b70c04a0-3a94-49be-9baf-fa10d6359665"
+
+	property number CurrentScale = 1.0
+
+	property number TargetScale = 1.0
+
+	property any ScaleTimer = nil
+
+	property any closeHandler = nil
+
+	@ExecSpace("ClientOnly")
+	method void OnBeginPlay()
+		self.characterPopup.Enable = false
+		self.closeHandler = self.btnClose.Entity:ConnectEvent(ButtonClickEvent, function() self:Close() end)
+		self:UpdateDimmer()
+	end
+
+	@ExecSpace("ClientOnly")
+	method void OnEndPlay()
+		if isvalid(self.btnClose) then
+			self.btnClose.Entity:DisconnectEvent(ButtonClickEvent, self.closeHandler)
+		end
+	end
+
+	@ExecSpace("ClientOnly")
+	method void Toggle()
+		if self.TargetScale > 0.9 and self.characterPopup.Enable then
+			self:Close()
+		else
+			self:Open()
+		end
+	end
+
+	@ExecSpace("ClientOnly")
+	method void Open()
+		self.characterPopup.Enable = true
+		local transform = self.characterPopup.UITransformComponent
+		if isvalid(transform) then
+			self.CurrentScale = 0.8
+			transform.Scale = Vector3(0.8, 0.8, 1.0)
+		end
+		self:ApplyScaleTween(1.0)
+		
+		self:RefreshStats()
+		self:UpdateDimmer()
+	end
+
+	@ExecSpace("ClientOnly")
+	method void Close()
+		self:ApplyScaleTween(0.8)
+	end
+
+	@ExecSpace("ClientOnly")
+	method void ApplyScaleTween(number targetScale)
+		self.TargetScale = targetScale
+		
+		if self.ScaleTimer then
+			_TimerService:ClearTimer(self.ScaleTimer)
+			self.ScaleTimer = nil
+		end
+		
+		local transform = self.characterPopup.UITransformComponent
+		if not isvalid(transform) then return end
+		
+		self.ScaleTimer = _TimerService:SetTimerRepeat(function()
+			if not isvalid(transform) then
+				if self.ScaleTimer then
+					_TimerService:ClearTimer(self.ScaleTimer)
+					self.ScaleTimer = nil
+				end
+				return
+			end
+			
+			local diff = self.TargetScale - self.CurrentScale
+			if math.abs(diff) < 0.01 then
+				self.CurrentScale = self.TargetScale
+				transform.Scale = Vector3(self.CurrentScale, self.CurrentScale, 1.0)
+				
+				_TimerService:ClearTimer(self.ScaleTimer)
+				self.ScaleTimer = nil
+				
+				if self.TargetScale < 0.9 then
+					self.characterPopup.Enable = false
+					self:UpdateDimmer()
+				end
+			else
+				self.CurrentScale = self.CurrentScale + diff * 0.3
+				transform.Scale = Vector3(self.CurrentScale, self.CurrentScale, 1.0)
+			end
+		end, 1/60)
+	end
+
+	@ExecSpace("ClientOnly")
+	method void RefreshStats()
+		local player = _UserService.LocalPlayer
+		if not isvalid(player) then return end
+		
+		-- Update HP
+		local playerComp = player.PlayerComponent
+		if isvalid(playerComp) then
+			local hp = playerComp.Hp
+			local maxHp = playerComp.MaxHp
+			if isvalid(self.hpFill) then
+				self.hpFill.FillAmount = math.max(0, math.min(1, hp / maxHp))
+			end
+			if isvalid(self.hpValText) then
+				self.hpValText.Text = hp .. " / " .. maxHp
+			end
+		end
+		
+		-- Update level, name, stamina, XP, and stats from PlayerController
+		local controller = player:GetComponent("script.PlayerController")
+		if isvalid(controller) then
+			local name = controller.PlayerName or player.Name
+			local lvl = controller.Level or 12
+			if isvalid(self.charName) then
+				self.charName.Text = "Lv. " .. lvl .. " Explorer " .. name
+			end
+		
+			local sta = controller.Stamina or 60
+			local maxSta = controller.MaxStamina or 100
+			if isvalid(self.staFill) then
+				self.staFill.FillAmount = math.max(0, math.min(1, sta / maxSta))
+			end
+			if isvalid(self.staValText) then
+				self.staValText.Text = sta .. " / " .. maxSta
+			end
+		
+			local xp = controller.XP or 450
+			local maxXP = controller.MaxXP or 1200
+			if isvalid(self.xpFill) then
+				self.xpFill.FillAmount = math.max(0, math.min(1, xp / maxXP))
+			end
+			if isvalid(self.xpValText) then
+				local pct = math.floor((xp / maxXP) * 1000) / 10
+				self.xpValText.Text = xp .. " / " .. maxXP .. " (" .. pct .. "%)"
+			end
+		
+			-- Attributes (reflect the equipped tool)
+			local equippedTool = ""
+			local inv = player:GetComponent("script.PlayerInventory")
+			if isvalid(inv) then
+				equippedTool = inv.EquippedTool or ""
+			end
+		
+			-- Update weapon slot icon
+			if isvalid(self.weaponIcon) then
+				if equippedTool ~= "" then
+					self.weaponIcon.ImageRUID = self:GetItemIcon(equippedTool)
+					if isvalid(self.weaponIcon.Entity.TextComponent) then
+						self.weaponIcon.Entity.TextComponent.Text = ""
+					end
+				else
+					self.weaponIcon.ImageRUID = ""
+					if isvalid(self.weaponIcon.Entity.TextComponent) then
+						self.weaponIcon.Entity.TextComponent.Text = "None"
+					end
+				end
+			end
+		
+			if isvalid(self.atkVal) then
+				if equippedTool ~= "" then
+					self.atkVal.Text = tostring(controller.Attack or 15) .. " (" .. equippedTool .. ")"
+				else
+					self.atkVal.Text = tostring(controller.Attack or 15) .. " (Bare hands)"
+				end
+			end
+			if isvalid(self.defVal) then
+				self.defVal.Text = tostring(controller.Defense or 10)
+			end
+			if isvalid(self.gatherVal) then
+				if equippedTool ~= "" then
+					local stats = self:GetToolStats(equippedTool)
+					local toolType = stats.Type
+					local toolPower = stats.Power
+					if toolType ~= "" then
+						self.gatherVal.Text = toolType .. " · +" .. tostring(toolPower)
+					else
+						self.gatherVal.Text = "Boosted (" .. equippedTool .. ")"
+					end
+				else
+					self.gatherVal.Text = "+" .. tostring(controller.GatheringSpeed or 10) .. "%"
+				end
+			end
+			if isvalid(self.moveVal) then
+				self.moveVal.Text = tostring(controller.MovementSpeed or 100) .. "%"
+			end
+		end
+	end
+
+	@ExecSpace("ClientOnly")
+	method table GetToolStats(string itemName)
+		-- Looks up the equipped tool's ToolType/ToolPower from item_dataset.
+		local ds = _DataService:GetTable("item_dataset")
+		if ds == nil then return {Type = "", Power = 0} end
+		local rowCount = ds:GetRowCount()
+		for i = 1, rowCount do
+			if ds:GetCell(i, "Name") == itemName then
+				local toolType = ds:GetCell(i, "ToolType") or ""
+				local toolPower = tonumber(ds:GetCell(i, "ToolPower")) or 0
+				return {Type = toolType, Power = toolPower}
+			end
+		end
+		return {Type = "", Power = 0}
+	end
+
+	@ExecSpace("ClientOnly")
+	method string GetItemIcon(string itemName)
+		-- Looks up the item's IconRUID (item model sprite) from item_dataset.
+		local ds = _DataService:GetTable("item_dataset")
+		if ds == nil then return "" end
+		local rowCount = ds:GetRowCount()
+		for i = 1, rowCount do
+			if ds:GetCell(i, "Name") == itemName then
+				return ds:GetCell(i, "IconRUID") or ""
+			end
+		end
+		return ""
+	end
+
+	@ExecSpace("ClientOnly")
+	method void UpdateDimmer()
+		local dimmer = _EntityService:GetEntityByPath("/ui/PopupGroup/Dimmer")
+		if not isvalid(dimmer) then return end
+		
+		local inv = _EntityService:GetEntityByPath("/ui/PopupGroup/InventoryPopup")
+		local craft = _EntityService:GetEntityByPath("/ui/PopupGroup/CraftingPopup")
+		local char = _EntityService:GetEntityByPath("/ui/PopupGroup/CharacterPopup")
+		
+		local anyOpen = (isvalid(inv) and inv.Enable) or (isvalid(craft) and craft.Enable) or (isvalid(char) and char.Enable)
+		dimmer.Enable = anyOpen
+	end
+
+end

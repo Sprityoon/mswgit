@@ -1,0 +1,16 @@
+﻿Row,C0,C1,C2,C3,C4,C5,C6,C7,C8,C9,C10,C11,C12,C13,C14
+14,snowfield,snowfield,snowfield,snowfield,snowfield,snowfield,snowfield,snowfield,snowfield,snowfield,snowfield,snowfield,snowfield,snowfield,snowfield
+13,snowfield,snowfield,snowfield,earth_field,earth_field,snowfield,snowfield,snowfield,earth_field,snowfield,rocky,rocky,snowfield,snowfield,snowfield
+12,snowfield,snowfield,earth_field,earth_field,snowfield,snowfield,earth_field,earth_field,earth_field,snowfield,rocky,rocky,earth_field,snowfield,snowfield
+11,rocky,earth_field,earth_field,green_island,green_island,earth_field,earth_field,earth_field,green_island,green_island,earth_field,earth_field,earth_field,earth_field,snowfield
+10,rocky,earth_field,green_island,green_island,green_island,green_island,earth_field,green_island,green_island,green_island,green_island,earth_field,rocky,rocky,snowfield
+9,rocky,earth_field,green_island,green_island,green_island,green_island,earth_field,earth_field,green_island,green_island,earth_field,earth_field,rocky,rocky,earth_field
+8,earth_field,earth_field,earth_field,green_island,green_island,earth_field,earth_field,green_island,green_island,green_island,earth_field,desert,desert,earth_field,earth_field
+7,earth_field,green_island,green_island,green_island,green_island,earth_field,green_island,green_island,green_island,green_island,earth_field,desert,desert,desert,earth_field
+6,earth_field,green_island,green_island,green_island,green_island,earth_field,green_island,green_island,green_island,earth_field,earth_field,desert,desert,desert,earth_field
+5,rocky,earth_field,green_island,green_island,earth_field,earth_field,earth_field,earth_field,earth_field,earth_field,desert,desert,desert,desert,earth_field
+4,rocky,rocky,earth_field,earth_field,earth_field,rocky,rocky,earth_field,earth_field,desert,desert,desert,desert,earth_field,earth_field
+3,rocky,rocky,earth_field,earth_field,rocky,rocky,earth_field,earth_field,desert,desert,desert,desert,earth_field,earth_field,earth_field
+2,earth_field,earth_field,earth_field,earth_field,rocky,earth_field,earth_field,desert,desert,desert,desert,earth_field,earth_field,rocky,rocky
+1,desert,desert,earth_field,earth_field,earth_field,earth_field,desert,desert,desert,earth_field,earth_field,earth_field,rocky,rocky,rocky
+0,desert,desert,desert,desert,desert,desert,desert,desert,desert,earth_field,earth_field,earth_field,rocky,rocky,rocky

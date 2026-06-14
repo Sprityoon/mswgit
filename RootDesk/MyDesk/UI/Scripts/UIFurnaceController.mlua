@@ -1,0 +1,386 @@
+@Component
+script UIFurnaceController extends Component
+
+	property Entity btnClose = "36df69c9-352c-480b-a864-c20f2ee58045"
+
+	property Entity inputSlot = "e2e002a8-3e8d-43c4-b324-61b739186a1d"
+
+	property Entity fuelSlot = "3d3dd7cb-0714-4a1c-a6c7-935f0e0355d1"
+
+	property Entity outputSlot = "53bc5ca2-071f-4396-b241-6bbf4bd11720"
+
+	property Entity progressBar = "7103badb-66c6-49e9-9ffa-e29537894f02"
+
+	property Entity fuelText = "d433e69c-0f95-4318-a297-e82d5513d61d"
+
+	property Entity CurrentFurnace = nil
+
+	property any closeHandler = nil
+
+	property any inputHandler = nil
+
+	property any fuelHandler = nil
+
+	property any outputHandler = nil
+
+	@ExecSpace("ClientOnly")
+	method void OnBeginPlay()
+		self.Entity.Enable = false
+		
+		if isvalid(self.btnClose) then
+			self.closeHandler = self.btnClose:ConnectEvent(ButtonClickEvent, self.OnCloseClicked)
+		end
+		if isvalid(self.inputSlot) then
+			self.inputHandler = self.inputSlot:ConnectEvent(ButtonClickEvent, self.OnInputClicked)
+		end
+		if isvalid(self.fuelSlot) then
+			self.fuelHandler = self.fuelSlot:ConnectEvent(ButtonClickEvent, self.OnFuelClicked)
+		end
+		if isvalid(self.outputSlot) then
+			self.outputHandler = self.outputSlot:ConnectEvent(ButtonClickEvent, self.OnOutputClicked)
+		end
+	end
+
+	@ExecSpace("ClientOnly")
+	method void OnEndPlay()
+		if self.closeHandler and isvalid(self.btnClose) then
+			self.btnClose:DisconnectEvent(ButtonClickEvent, self.closeHandler)
+		end
+		if self.inputHandler and isvalid(self.inputSlot) then
+			self.inputSlot:DisconnectEvent(ButtonClickEvent, self.inputHandler)
+		end
+		if self.fuelHandler and isvalid(self.fuelSlot) then
+			self.fuelSlot:DisconnectEvent(ButtonClickEvent, self.fuelHandler)
+		end
+		if self.outputHandler and isvalid(self.outputSlot) then
+			self.outputSlot:DisconnectEvent(ButtonClickEvent, self.outputHandler)
+		end
+	end
+
+	@ExecSpace("ClientOnly")
+	method void Open(Entity furnaceEntity)
+		if not isvalid(furnaceEntity) then return end
+		self.CurrentFurnace = furnaceEntity
+		self.Entity.Enable = true
+		log("[FURNACE-UI] Opened Furnace UI for: " .. furnaceEntity.Name)
+		
+		local bg = self.Entity:GetChildByName("Bg")
+		if isvalid(bg) and isvalid(bg.UITransformComponent) then
+			bg.UITransformComponent.anchoredPosition = Vector2(330, 0)
+		end
+		
+		local invPopup = _EntityService:GetEntityByPath("/ui/PopupGroup/InventoryPopup")
+		if isvalid(invPopup) then
+			if isvalid(invPopup.UITransformComponent) then
+				invPopup.UITransformComponent.anchoredPosition = Vector2(-310, 0)
+			end
+			local invController = invPopup:GetComponent("script.UIInventoryController")
+			if isvalid(invController) then
+				invController:Open()
+			end
+		end
+	end
+
+	@ExecSpace("ClientOnly")
+	method void Close()
+		self.Entity.Enable = false
+		self.CurrentFurnace = nil
+		log("[FURNACE-UI] Closed Furnace UI.")
+		
+		local bg = self.Entity:GetChildByName("Bg")
+		if isvalid(bg) and isvalid(bg.UITransformComponent) then
+			bg.UITransformComponent.anchoredPosition = Vector2(0, 0)
+		end
+		
+		local invPopup = _EntityService:GetEntityByPath("/ui/PopupGroup/InventoryPopup")
+		if isvalid(invPopup) then
+			if isvalid(invPopup.UITransformComponent) then
+				invPopup.UITransformComponent.anchoredPosition = Vector2(0, 0)
+			end
+			local invController = invPopup:GetComponent("script.UIInventoryController")
+			if isvalid(invController) then
+				invController:Close()
+			end
+		end
+	end
+
+	@ExecSpace("ClientOnly")
+	method void OnUpdate(number delta)
+		if not self.Entity.Enable or not isvalid(self.CurrentFurnace) then return end
+		
+		local furnace = self.CurrentFurnace:GetComponent("script.Furnace")
+		if not isvalid(furnace) then return end
+		
+		local inputIcon = self.inputSlot:GetChildByName("Icon")
+		local inputCountText = self.inputSlot:GetChildByName("Count")
+		if isvalid(inputIcon) and isvalid(inputCountText) then
+			if furnace.InputItemName ~= "" and furnace.InputItemCount > 0 then
+				inputIcon.Enable = true
+				local iconRuid = self:GetItemIconRUID(furnace.InputItemName)
+				inputIcon.SpriteGUIRendererComponent.ImageRUID = iconRuid
+				inputCountText.TextComponent.Text = tostring(furnace.InputItemCount)
+			else
+				inputIcon.Enable = false
+				inputCountText.TextComponent.Text = ""
+			end
+		end
+		
+		local fuelIcon = self.fuelSlot:GetChildByName("Icon")
+		local fuelCountText = self.fuelSlot:GetChildByName("Count")
+		if isvalid(fuelIcon) and isvalid(fuelCountText) then
+			if furnace.FuelItemName ~= "" and furnace.FuelItemCount > 0 then
+				fuelIcon.Enable = true
+				local iconRuid = self:GetItemIconRUID(furnace.FuelItemName)
+				fuelIcon.SpriteGUIRendererComponent.ImageRUID = iconRuid
+				fuelCountText.TextComponent.Text = tostring(furnace.FuelItemCount)
+			else
+				fuelIcon.Enable = false
+				fuelCountText.TextComponent.Text = ""
+			end
+		end
+		
+		local outputIcon = self.outputSlot:GetChildByName("Icon")
+		local outputCountText = self.outputSlot:GetChildByName("Count")
+		if isvalid(outputIcon) and isvalid(outputCountText) then
+			if furnace.OutputItemName ~= "" and furnace.OutputItemCount > 0 then
+				outputIcon.Enable = true
+				local iconRuid = self:GetItemIconRUID(furnace.OutputItemName)
+				outputIcon.SpriteGUIRendererComponent.ImageRUID = iconRuid
+				outputCountText.TextComponent.Text = tostring(furnace.OutputItemCount)
+			else
+				outputIcon.Enable = false
+				outputCountText.TextComponent.Text = ""
+			end
+		end
+		
+		local progressBarEnt = self.progressBar
+		if isvalid(progressBarEnt) and isvalid(progressBarEnt.SliderComponent) then
+			local duration = self:GetSmeltDuration(furnace.InputItemName)
+			if duration <= 0.0 then duration = 1.0 end
+			local ratio = 0.0
+			if furnace.ProgressTime > 0 then
+				ratio = math.min(1.0, furnace.ProgressTime / duration)
+			end
+			progressBarEnt.SliderComponent.Value = ratio
+		end
+		
+		local fuelTextEnt = self.fuelText
+		if isvalid(fuelTextEnt) and isvalid(fuelTextEnt.TextComponent) then
+			fuelTextEnt.TextComponent.Text = string.format("Fuel: %.1fs", furnace.FuelTimeRemaining)
+		end
+	end
+
+	@ExecSpace("ClientOnly")
+	method string GetItemIconRUID(string itemName)
+		local ds = _DataService:GetTable("item_dataset")
+		if ds ~= nil then
+			local row = ds:FindRow("Name", itemName)
+			if row ~= nil then
+				return row:GetItem("IconRUID") or ""
+			end
+		end
+		return ""
+	end
+
+	@ExecSpace("ClientOnly")
+	method boolean IsSmeltable(string itemName)
+		-- True if the item is registered as a smelting input.
+		if itemName == nil or itemName == "" then return false end
+		local ds = _DataService:GetTable("SmeltingRecipeDataSet")
+		if ds == nil then return false end
+		return ds:FindRow("InputItem", itemName) ~= nil
+	end
+
+	@ExecSpace("ClientOnly")
+	method boolean IsFuel(string itemName)
+		-- True if the item is registered as a furnace fuel.
+		if itemName == nil or itemName == "" then return false end
+		local ds = _DataService:GetTable("FurnaceFuelDataSet")
+		if ds == nil then return false end
+		return ds:FindRow("FuelItem", itemName) ~= nil
+	end
+
+	@ExecSpace("ClientOnly")
+	method number GetSmeltDuration(string itemName)
+		-- Returns the smelt duration for the given ore, or 0 if not smeltable.
+		if itemName == nil or itemName == "" then return 0.0 end
+		local ds = _DataService:GetTable("SmeltingRecipeDataSet")
+		if ds == nil then return 0.0 end
+		local row = ds:FindRow("InputItem", itemName)
+		if row == nil then return 0.0 end
+		return tonumber(row:GetItem("SmeltDuration")) or 0.0
+	end
+
+	@ExecSpace("ClientOnly")
+	method string FindOwnedByColumn(string datasetName, string columnName)
+		-- Scans a dataset's item column and returns the first item the local player owns.
+		local ds = _DataService:GetTable(datasetName)
+		if ds == nil then return "" end
+		local localPlayer = _UserService.LocalPlayer
+		if not isvalid(localPlayer) then return "" end
+		local inv = localPlayer:GetComponent("script.PlayerInventory")
+		if not isvalid(inv) then return "" end
+		local count = ds:GetRowCount()
+		for i = 1, count do
+			local itemName = ds:GetCell(i, columnName)
+			if itemName ~= nil and itemName ~= "" and inv:GetItemCount(itemName) > 0 then
+				return itemName
+			end
+		end
+		return ""
+	end
+
+	@ExecSpace("ClientOnly")
+	method void FlashSlot(Entity slotEntity, Color flashColor)
+		if not isvalid(slotEntity) or not isvalid(slotEntity.SpriteGUIRendererComponent) then return end
+		local original = slotEntity.SpriteGUIRendererComponent.Color
+		slotEntity.SpriteGUIRendererComponent.Color = flashColor
+		_TimerService:SetTimerOnce(function()
+			if isvalid(slotEntity) and isvalid(slotEntity.SpriteGUIRendererComponent) then
+				slotEntity.SpriteGUIRendererComponent.Color = original
+			end
+		end, 0.3)
+	end
+
+	@ExecSpace("ClientOnly")
+	method boolean TryPutSelectedItem(string slotType)
+		local invPopup = _EntityService:GetEntityByPath("/ui/PopupGroup/InventoryPopup")
+		if not isvalid(invPopup) then return false end
+		local invController = invPopup:GetComponent("script.UIInventoryController")
+		if not isvalid(invController) then return false end
+		
+		local selectedName = invController.SelectedForFurnace
+		if selectedName == nil or selectedName == "" then return false end
+		
+		if not isvalid(self.CurrentFurnace) then return false end
+		local furnace = self.CurrentFurnace:GetComponent("script.Furnace")
+		if not isvalid(furnace) then return false end
+		
+		local localPlayer = _UserService.LocalPlayer
+		if not isvalid(localPlayer) then return false end
+		local inv = localPlayer:GetComponent("script.PlayerInventory")
+		if not isvalid(inv) then return false end
+		
+		local ownedCount = inv:GetItemCount(selectedName)
+		if ownedCount <= 0 then
+			invController.SelectedForFurnace = ""
+			return false
+		end
+		
+		if slotType == "input" then
+			if not self:IsSmeltable(selectedName) then return false end
+			if furnace.InputItemName ~= "" and furnace.InputItemName ~= selectedName then return false end
+			local curCount = furnace.InputItemCount
+			local toPut = math.min(99 - curCount, ownedCount)
+			if toPut <= 0 then return false end
+			furnace:RequestPutItem("input", selectedName, toPut)
+			self:FlashSlot(self.inputSlot, Color(0.2, 0.8, 0.2, 1.0))
+		elseif slotType == "fuel" then
+			if not self:IsFuel(selectedName) then return false end
+			if furnace.FuelItemName ~= "" and furnace.FuelItemName ~= selectedName then return false end
+			local curCount = furnace.FuelItemCount
+			local toPut = math.min(99 - curCount, ownedCount)
+			if toPut <= 0 then return false end
+			furnace:RequestPutItem("fuel", selectedName, toPut)
+			self:FlashSlot(self.fuelSlot, Color(0.2, 0.8, 0.2, 1.0))
+		else
+			return false
+		end
+		
+		invController.SelectedForFurnace = ""
+		_TimerService:SetTimerOnce(function()
+			if isvalid(invController) then
+				invController:RefreshInventoryData()
+			end
+		end, 0.15)
+		return true
+	end
+
+	@ExecSpace("ClientOnly")
+	method void OnCloseClicked(ButtonClickEvent event)
+		self:Close()
+	end
+
+	@ExecSpace("ClientOnly")
+	method void OnInputClicked(ButtonClickEvent event)
+		if self:TryPutSelectedItem("input") then return end
+		
+		if not isvalid(self.CurrentFurnace) then return end
+		local furnace = self.CurrentFurnace:GetComponent("script.Furnace")
+		if not isvalid(furnace) then return end
+		
+		local localPlayer = _UserService.LocalPlayer
+		if not isvalid(localPlayer) then return end
+		local inv = localPlayer:GetComponent("script.PlayerInventory")
+		if not isvalid(inv) then return end
+		
+		if furnace.InputItemName ~= "" then
+			local curCount = furnace.InputItemCount
+			local ownedCount = inv:GetItemCount(furnace.InputItemName)
+		
+			if curCount < 99 and ownedCount > 0 then
+				local toPut = math.min(99 - curCount, ownedCount)
+				furnace:RequestPutItem("input", furnace.InputItemName, toPut)
+				self:FlashSlot(self.inputSlot, Color(0.2, 0.8, 0.2, 1.0))
+			else
+				furnace:RequestTakeItem("input")
+				self:FlashSlot(self.inputSlot, Color(0.8, 0.6, 0.2, 1.0))
+			end
+		else
+			local oreName = self:FindOwnedByColumn("SmeltingRecipeDataSet", "InputItem")
+			if oreName ~= "" then
+				local toPut = math.min(99, inv:GetItemCount(oreName))
+				furnace:RequestPutItem("input", oreName, toPut)
+				self:FlashSlot(self.inputSlot, Color(0.2, 0.8, 0.2, 1.0))
+			end
+		end
+	end
+
+	@ExecSpace("ClientOnly")
+	method void OnFuelClicked(ButtonClickEvent event)
+		if self:TryPutSelectedItem("fuel") then return end
+		
+		if not isvalid(self.CurrentFurnace) then return end
+		local furnace = self.CurrentFurnace:GetComponent("script.Furnace")
+		if not isvalid(furnace) then return end
+		
+		local localPlayer = _UserService.LocalPlayer
+		if not isvalid(localPlayer) then return end
+		local inv = localPlayer:GetComponent("script.PlayerInventory")
+		if not isvalid(inv) then return end
+		
+		if furnace.FuelItemCount > 0 then
+			local curCount = furnace.FuelItemCount
+			local ownedCount = inv:GetItemCount(furnace.FuelItemName)
+		
+			if curCount < 99 and ownedCount > 0 then
+				local toPut = math.min(99 - curCount, ownedCount)
+				furnace:RequestPutItem("fuel", furnace.FuelItemName, toPut)
+				self:FlashSlot(self.fuelSlot, Color(0.2, 0.8, 0.2, 1.0))
+			else
+				furnace:RequestTakeItem("fuel")
+				self:FlashSlot(self.fuelSlot, Color(0.8, 0.6, 0.2, 1.0))
+			end
+		else
+			local fuelName = self:FindOwnedByColumn("FurnaceFuelDataSet", "FuelItem")
+			if fuelName ~= "" then
+				local toPut = math.min(99, inv:GetItemCount(fuelName))
+				furnace:RequestPutItem("fuel", fuelName, toPut)
+				self:FlashSlot(self.fuelSlot, Color(0.2, 0.8, 0.2, 1.0))
+			end
+		end
+	end
+
+	@ExecSpace("ClientOnly")
+	method void OnOutputClicked(ButtonClickEvent event)
+		if not isvalid(self.CurrentFurnace) then return end
+		local furnace = self.CurrentFurnace:GetComponent("script.Furnace")
+		if not isvalid(furnace) then return end
+		
+		if furnace.OutputItemCount > 0 then
+			furnace:RequestTakeItem("output")
+			self:FlashSlot(self.outputSlot, Color(0.8, 0.6, 0.2, 1.0))
+		end
+	end
+
+end

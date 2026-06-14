@@ -53,6 +53,67 @@
         }
       },
       {
+        "id": "739a8261-0000-4000-8000-000000000001",
+        "path": "/maps/map01/PlacementPreview",
+        "componentNames": "MOD.Core.TransformComponent,MOD.Core.SpriteRendererComponent",
+        "jsonString": {
+          "name": "PlacementPreview",
+          "path": "/maps/map01/PlacementPreview",
+          "nameEditable": true,
+          "enable": false,
+          "visible": true,
+          "localize": true,
+          "displayOrder": 0,
+          "pathConstraints": "///",
+          "revision": 0,
+          "modelId": null,
+          "@components": [
+            {
+              "@type": "MOD.Core.TransformComponent",
+              "Rotation": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+              },
+              "Position": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+              },
+              "QuaternionRotation": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0,
+                "w": 1.0
+              },
+              "Scale": {
+                "x": 1.0,
+                "y": 1.0,
+                "z": 1.0
+              },
+              "ZRotation": 0.0,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.SpriteRendererComponent",
+              "ActionSheet": {},
+              "IgnoreMapLayerCheck": true,
+              "RenderSetting": 0,
+              "SortingLayer": "MapLayer2",
+              "SpriteRUID": "",
+              "Color": {
+                "r": 0.2,
+                "g": 1.0,
+                "b": 0.2,
+                "a": 0.6
+              },
+              "Enable": true
+            }
+          ],
+          "@version": 1
+        }
+      },
+      {
         "id": "b2de4c9b-9ad0-4a93-82d8-3020c38f90ef",
         "path": "/maps/map01/Background",
         "componentNames": "MOD.Core.BackgroundComponent",
@@ -63,7 +124,7 @@
           "enable": true,
           "visible": true,
           "localize": false,
-          "displayOrder": 0,
+          "displayOrder": 1,
           "pathConstraints": "///",
           "revision": 1,
           "modelId": null,
@@ -95,7 +156,7 @@
           "enable": true,
           "visible": true,
           "localize": false,
-          "displayOrder": 1,
+          "displayOrder": 2,
           "pathConstraints": "///",
           "revision": 1,
           "origin": {
@@ -131,7 +192,7 @@
           "enable": true,
           "visible": true,
           "localize": false,
-          "displayOrder": 2,
+          "displayOrder": 3,
           "pathConstraints": "///",
           "revision": 1,
           "origin": {
@@ -40509,7 +40570,7 @@
           "enable": true,
           "visible": true,
           "localize": false,
-          "displayOrder": 3,
+          "displayOrder": 4,
           "pathConstraints": "///",
           "revision": 1,
           "origin": {
@@ -40545,7 +40606,7 @@
           "enable": true,
           "visible": true,
           "localize": false,
-          "displayOrder": 4,
+          "displayOrder": 5,
           "pathConstraints": "///",
           "revision": 1,
           "origin": {
@@ -50227,7 +50288,7 @@
           "enable": true,
           "visible": true,
           "localize": false,
-          "displayOrder": 5,
+          "displayOrder": 6,
           "pathConstraints": "///",
           "revision": 1,
           "origin": {
@@ -50263,7 +50324,7 @@
           "enable": true,
           "visible": true,
           "localize": false,
-          "displayOrder": 6,
+          "displayOrder": 7,
           "pathConstraints": "///",
           "revision": 1,
           "origin": {
@@ -50312,7 +50373,7 @@
           "enable": true,
           "visible": true,
           "localize": false,
-          "displayOrder": 7,
+          "displayOrder": 8,
           "pathConstraints": "///",
           "revision": 1,
           "origin": {

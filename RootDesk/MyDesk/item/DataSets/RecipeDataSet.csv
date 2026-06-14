@@ -1,0 +1,7 @@
+﻿RecipeName,Desc,Icon,Ing1Name,Ing1Count,Ing2Name,Ing2Count
+Hand Axe,A simple axe made of stone. Used to cut trees.,57345d4aa6a640419af19e340c29940f,Stone,2,,0
+Stone Pickaxe,A sturdy tool for mining ores and breaking large stones.,428577ffb2964719b8ab0bb18e5171e1,Wood,1,Stone,3
+Stone Axe,A sturdy axe made of stone and wood. Used to cut trees faster.,2e0751aabbb14ccf85cfb99c024511c9,Stone,3,Wood,1
+Wooden Chest,A simple chest to store your extra materials.,22e9f409617b4e4180f9c92fb26b13f7,Wood,8,,0
+Furnace,A stone furnace for smelting metal ores.,8cb667c940834bb9b19c11ae242a0aa1,Stone,8,Wood,4
+Wood Floor,A wooden floor tile for construction.,22e9f409617b4e4180f9c92fb26b13f7,Wood,2,,0

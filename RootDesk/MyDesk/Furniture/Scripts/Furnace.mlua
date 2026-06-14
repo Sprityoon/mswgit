@@ -1,0 +1,216 @@
+@Component
+script Furnace extends Component
+
+	@Sync
+	property string InputItemName = ""
+
+	@Sync
+	property integer InputItemCount = 0
+
+	@Sync
+	property string FuelItemName = ""
+
+	@Sync
+	property integer FuelItemCount = 0
+
+	@Sync
+	property string OutputItemName = ""
+
+	@Sync
+	property integer OutputItemCount = 0
+
+	@Sync
+	property number FuelTimeRemaining = 0.0
+
+	@Sync
+	property number ProgressTime = 0.0
+
+	@Sync
+	property boolean IsSmelting = false
+
+	@ExecSpace("ServerOnly")
+	method void OnBeginPlay()
+		-- Initializes the furnace state on the server.
+		self.InputItemName = ""
+		self.InputItemCount = 0
+		self.FuelItemName = ""
+		self.FuelItemCount = 0
+		self.OutputItemName = ""
+		self.OutputItemCount = 0
+		self.FuelTimeRemaining = 0.0
+		self.ProgressTime = 0.0
+		self.IsSmelting = false
+	end
+
+	@ExecSpace("ServerOnly")
+	method any GetRecipeForInput(string itemName)
+		-- Returns the smelting recipe row for the given ore, or nil if it is not smeltable.
+		if itemName == nil or itemName == "" then return nil end
+		local ds = _DataService:GetTable("SmeltingRecipeDataSet")
+		if ds == nil then return nil end
+		return ds:FindRow("InputItem", itemName)
+	end
+
+	@ExecSpace("ServerOnly")
+	method number GetFuelBurnTime(string itemName)
+		-- Returns the burn time per unit for the given fuel item, or 0 if it is not a fuel.
+		if itemName == nil or itemName == "" then return 0.0 end
+		local ds = _DataService:GetTable("FurnaceFuelDataSet")
+		if ds == nil then return 0.0 end
+		local row = ds:FindRow("FuelItem", itemName)
+		if row == nil then return 0.0 end
+		return tonumber(row:GetItem("BurnTime")) or 0.0
+	end
+
+	@ExecSpace("ServerOnly")
+	method void OnUpdate(number delta)
+		-- Processes the smelting and fuel burn logic on the server frame updates.
+		local targetBar = nil
+		local smeltDuration = 0.0
+		local requiredInput = 0
+		
+		local recipe = self:GetRecipeForInput(self.InputItemName)
+		if recipe ~= nil then
+			requiredInput = math.floor(tonumber(recipe:GetItem("InputCount")) or 0)
+			if requiredInput > 0 and self.InputItemCount >= requiredInput then
+				targetBar = recipe:GetItem("OutputItem")
+				smeltDuration = tonumber(recipe:GetItem("SmeltDuration")) or 0.0
+			end
+		end
+		
+		local canSmelt = false
+		if targetBar ~= nil and targetBar ~= "" then
+			if (self.OutputItemName == "" or self.OutputItemName == targetBar) and self.OutputItemCount < 99 then
+				canSmelt = true
+			end
+		end
+		
+		if canSmelt then
+			if self.FuelTimeRemaining <= 0.0 and self.FuelItemCount > 0 then
+				local burnTime = self:GetFuelBurnTime(self.FuelItemName)
+				self.FuelItemCount = self.FuelItemCount - 1
+				self.FuelTimeRemaining = self.FuelTimeRemaining + burnTime
+				if self.FuelItemCount == 0 then
+					self.FuelItemName = ""
+				end
+			end
+		
+			if self.FuelTimeRemaining > 0.0 then
+				self.IsSmelting = true
+				self.FuelTimeRemaining = math.max(0.0, self.FuelTimeRemaining - delta)
+				self.ProgressTime = self.ProgressTime + delta
+		
+				if self.ProgressTime >= smeltDuration then
+					self.InputItemCount = self.InputItemCount - requiredInput
+					if self.InputItemCount == 0 then
+						self.InputItemName = ""
+					end
+					self.OutputItemName = targetBar
+					self.OutputItemCount = self.OutputItemCount + 1
+					self.ProgressTime = 0.0
+				end
+			else
+				self.IsSmelting = false
+				self.ProgressTime = 0.0
+			end
+		else
+			self.IsSmelting = false
+			self.ProgressTime = 0.0
+		end
+		
+		-- Visual representation toggle based on smelting state
+		local sprite = self.Entity.SpriteRendererComponent
+		if isvalid(sprite) then
+			local targetRuid = "a3b810b8178847a0b9ec54bc4b63ba96" -- stand
+			if self.IsSmelting then
+				targetRuid = "3f06b48247e5497190ca26e57bf4729e" -- condition2/stand
+			end
+		
+			if sprite.SpriteRUID ~= targetRuid then
+				sprite.SpriteRUID = targetRuid
+			end
+		end
+	end
+
+	@ExecSpace("Server")
+	method void RequestPutItem(string slotType, string itemName, integer amount)
+		-- Processes the player request to transfer ore or fuel into the furnace slots.
+		local playerEntity = nil
+		for _, user in ipairs(_UserService.UserEntities.Values) do
+			if isvalid(user) and user.PlayerComponent and user.PlayerComponent.UserId == senderUserId then
+				playerEntity = user
+				break
+			end
+		end
+		
+		if not isvalid(playerEntity) then return end
+		local inv = playerEntity:GetComponent("script.PlayerInventory")
+		if not isvalid(inv) then return end
+		
+		if amount <= 0 then return end
+		
+		if slotType == "input" then
+			-- Only items defined as smelting inputs in SmeltingRecipeDataSet are accepted.
+			if self:GetRecipeForInput(itemName) == nil then return end
+			if self.InputItemName ~= "" and self.InputItemName ~= itemName then return end
+			if self.InputItemCount + amount > 99 then return end
+		
+			if inv:RemoveItem(itemName, amount) then
+				self.InputItemName = itemName
+				self.InputItemCount = self.InputItemCount + amount
+				log(string.format("[FURNACE] Loaded %d %s into Input slot.", amount, itemName))
+			end
+		elseif slotType == "fuel" then
+			-- Only items defined in FurnaceFuelDataSet are accepted as fuel.
+			if self:GetFuelBurnTime(itemName) <= 0.0 then return end
+			if self.FuelItemName ~= "" and self.FuelItemName ~= itemName then return end
+			if self.FuelItemCount + amount > 99 then return end
+		
+			if inv:RemoveItem(itemName, amount) then
+				self.FuelItemName = itemName
+				self.FuelItemCount = self.FuelItemCount + amount
+				log(string.format("[FURNACE] Loaded %d %s into Fuel slot.", amount, itemName))
+			end
+		end
+	end
+
+	@ExecSpace("Server")
+	method void RequestTakeItem(string slotType)
+		-- Processes the player request to take items back from the furnace slots.
+		local playerEntity = nil
+		for _, user in ipairs(_UserService.UserEntities.Values) do
+			if isvalid(user) and user.PlayerComponent and user.PlayerComponent.UserId == senderUserId then
+				playerEntity = user
+				break
+			end
+		end
+		
+		if not isvalid(playerEntity) then return end
+		local inv = playerEntity:GetComponent("script.PlayerInventory")
+		if not isvalid(inv) then return end
+		
+		if slotType == "input" then
+			if self.InputItemCount > 0 then
+				inv:AddItem(self.InputItemName, self.InputItemCount)
+				log(string.format("[FURNACE] Returned %d %s to player inventory.", self.InputItemCount, self.InputItemName))
+				self.InputItemName = ""
+				self.InputItemCount = 0
+			end
+		elseif slotType == "fuel" then
+			if self.FuelItemCount > 0 then
+				inv:AddItem(self.FuelItemName, self.FuelItemCount)
+				log(string.format("[FURNACE] Returned %d Wood to player inventory.", self.FuelItemCount))
+				self.FuelItemName = ""
+				self.FuelItemCount = 0
+			end
+		elseif slotType == "output" then
+			if self.OutputItemCount > 0 then
+				inv:AddItem(self.OutputItemName, self.OutputItemCount)
+				log(string.format("[FURNACE] Collected %d %s from Output slot.", self.OutputItemCount, self.OutputItemName))
+				self.OutputItemName = ""
+				self.OutputItemCount = 0
+			end
+		end
+	end
+
+end

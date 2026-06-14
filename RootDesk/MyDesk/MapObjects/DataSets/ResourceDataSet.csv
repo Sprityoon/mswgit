@@ -1,0 +1,7 @@
+﻿SourceId,MaxDurability,RequiredToolType
+Stone,2,pickaxe
+Big Stone1,20,pickaxe
+Big Stone2,30,pickaxe
+Tree1,15,axe
+Tree2,30,axe
+GrownGrass,1,

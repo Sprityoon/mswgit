@@ -1,0 +1,375 @@
+@Component
+script UICraftingController extends Component
+
+	property Entity craftingPopup = "ec3aa4ff-fb85-423f-9b57-a47e502af4c8"
+
+	property ButtonComponent btnClose = "7b022360-a0b1-4187-b688-894dfab91aa0"
+
+	property Entity recipeList = "e4e191a3-504a-48bc-8f77-eaf1c1cf6b49"
+
+	property Entity recipeTemplate = "88533105-c6c6-4a5a-bd9a-d14315027775"
+
+	property TextComponent detailName = "787a348a-96df-482d-a5c4-05f7c7fdb711"
+
+	property TextComponent detailDesc = "d70d0810-df90-4a69-8228-bf0af8160675"
+
+	property SpriteGUIRendererComponent detailIcon = "36f298bf-f4dd-4c72-91d6-50c02e7306ba"
+
+	property Entity ingSlot1 = "8bc9ca06-d678-4aaf-abb8-3736dbd03a0b"
+
+	property SpriteGUIRendererComponent ingIcon1 = "9a1e28f5-8035-48f2-840a-0dff019eb05f"
+
+	property TextComponent ingCount1 = "187340dd-39ca-4dcc-b4c4-d3bf716b5e21"
+
+	property Entity ingSlot2 = "127bdf4f-8397-40db-8ac3-95cd22aa6abf"
+
+	property SpriteGUIRendererComponent ingIcon2 = "e72c1e6d-b8b5-496c-aadd-25e5c37b11d0"
+
+	property TextComponent ingCount2 = "8dbcf786-4ae1-4bea-88aa-da36be44e131"
+
+	property ButtonComponent btnCraft = "7a2ffe94-43c4-4857-8915-64bdf3c18993"
+
+	property string selectedRecipe = "Stone Pickaxe"
+
+	property table recipes = {}
+
+	property table recipeOrder = {}
+
+	property table recipeButtons = {}
+
+	property table recipeClickHandlers = {}
+
+	property number CurrentScale = 1.0
+
+	property number TargetScale = 1.0
+
+	property any ScaleTimer = nil
+
+	property any closeHandler = nil
+
+	property any craftHandler = nil
+
+	property boolean isCrafting = false
+
+	@ExecSpace("ClientOnly")
+	method void OnBeginPlay()
+		self.Entity.Enable = false
+		self:UpdateDimmer()
+		
+		-- Load recipe data from RecipeDataSet (single source of truth shared with the server)
+		self:LoadRecipes()
+		self:BuildRecipeList()
+		
+		self.closeHandler = self.btnClose.Entity:ConnectEvent(ButtonClickEvent, function() self:Close() end)
+		self.craftHandler = self.btnCraft.Entity:ConnectEvent(ButtonClickEvent, function() self:TryCraft() end)
+	end
+
+	@ExecSpace("ClientOnly")
+	method void LoadRecipes()
+		-- Builds self.recipes (and self.recipeOrder) from RecipeDataSet rows.
+		self.recipes = {}
+		self.recipeOrder = {}
+		local ds = _DataService:GetTable("RecipeDataSet")
+		if ds == nil then
+			log_error("UICraftingController: RecipeDataSet not found.")
+			return
+		end
+		
+		local rowCount = ds:GetRowCount()
+		for i = 1, rowCount do
+			local recipeName = ds:GetCell(i, "RecipeName")
+			local entry = {
+				name = recipeName,
+				desc = ds:GetCell(i, "Desc"),
+				icon = ds:GetCell(i, "Icon"),
+				ingredients = {}
+			}
+		
+			local ing1Name = ds:GetCell(i, "Ing1Name") or ""
+			local ing1Count = tonumber(ds:GetCell(i, "Ing1Count")) or 0
+			local ing2Name = ds:GetCell(i, "Ing2Name") or ""
+			local ing2Count = tonumber(ds:GetCell(i, "Ing2Count")) or 0
+		
+			if ing1Name ~= "" and ing1Count > 0 then
+				table.insert(entry.ingredients, { name = ing1Name, required = ing1Count })
+			end
+			if ing2Name ~= "" and ing2Count > 0 then
+				table.insert(entry.ingredients, { name = ing2Name, required = ing2Count })
+			end
+		
+			self.recipes[recipeName] = entry
+			table.insert(self.recipeOrder, recipeName)
+		end
+		log("UICraftingController: Loaded " .. rowCount .. " recipes from RecipeDataSet.")
+	end
+
+	@ExecSpace("ClientOnly")
+	method void BuildRecipeList()
+		-- Clones recipeTemplate once per recipe and wires its click handler.
+		if not isvalid(self.recipeTemplate) then return end
+		self.recipeTemplate.Enable = false
+		
+		for _, recipeName in ipairs(self.recipeOrder) do
+			local recipe = self.recipes[recipeName]
+			local item = self.recipeTemplate:Clone("Recipe_" .. recipeName)
+			item.Enable = true
+		
+			local nameText = item:GetChildByName("Name").TextComponent
+			if isvalid(nameText) then nameText.Text = recipe.name end
+		
+			local icon = item:GetChildByName("Icon").SpriteGUIRendererComponent
+			if isvalid(icon) then icon.ImageRUID = recipe.icon end
+		
+			local clickHandler = item:ConnectEvent(ButtonClickEvent, function() self:SelectRecipe(recipeName) end)
+		
+			self.recipeButtons[recipeName] = item
+			self.recipeClickHandlers[recipeName] = clickHandler
+		end
+	end
+
+	@ExecSpace("ClientOnly")
+	method void OnEndPlay()
+		if isvalid(self.btnClose) then self.btnClose.Entity:DisconnectEvent(ButtonClickEvent, self.closeHandler) end
+		if isvalid(self.btnCraft) then self.btnCraft.Entity:DisconnectEvent(ButtonClickEvent, self.craftHandler) end
+		
+		for recipeName, item in pairs(self.recipeButtons) do
+			if isvalid(item) then
+				item:DisconnectEvent(ButtonClickEvent, self.recipeClickHandlers[recipeName])
+				item:Destroy()
+			end
+		end
+		self.recipeButtons = {}
+		self.recipeClickHandlers = {}
+	end
+
+	@ExecSpace("ClientOnly")
+	method void Toggle()
+		if self.TargetScale > 0.9 and self.Entity.Enable then
+			self:Close()
+		else
+			self:Open()
+		end
+	end
+
+	@ExecSpace("ClientOnly")
+	method void Open()
+		-- description: Opens the crafting popup and resets crafting state.
+		self.isCrafting = false
+		self.Entity.Enable = true
+		local transform = self.Entity.UITransformComponent
+		if isvalid(transform) then
+			self.CurrentScale = 0.8
+			transform.Scale = Vector3(0.8, 0.8, 1.0)
+		end
+		self:ApplyScaleTween(1.0)
+		
+		self:SelectRecipe("Stone Pickaxe")
+		self:UpdateDimmer()
+	end
+
+	@ExecSpace("ClientOnly")
+	method void Close()
+		self:ApplyScaleTween(0.8)
+	end
+
+	@ExecSpace("ClientOnly")
+	method void ApplyScaleTween(number targetScale)
+		self.TargetScale = targetScale
+		
+		if self.ScaleTimer then
+			_TimerService:ClearTimer(self.ScaleTimer)
+			self.ScaleTimer = nil
+		end
+		
+		local transform = self.Entity.UITransformComponent
+		if not isvalid(transform) then return end
+		
+		self.ScaleTimer = _TimerService:SetTimerRepeat(function()
+			if not isvalid(transform) then
+				if self.ScaleTimer then
+					_TimerService:ClearTimer(self.ScaleTimer)
+					self.ScaleTimer = nil
+				end
+				return
+			end
+			
+			local diff = self.TargetScale - self.CurrentScale
+			if math.abs(diff) < 0.01 then
+				self.CurrentScale = self.TargetScale
+				transform.Scale = Vector3(self.CurrentScale, self.CurrentScale, 1.0)
+				
+				_TimerService:ClearTimer(self.ScaleTimer)
+				self.ScaleTimer = nil
+				
+				if self.TargetScale < 0.9 then
+					self.Entity.Enable = false
+					self:UpdateDimmer()
+				end
+			else
+				self.CurrentScale = self.CurrentScale + diff * 0.3
+				transform.Scale = Vector3(self.CurrentScale, self.CurrentScale, 1.0)
+			end
+		end, 1/60)
+	end
+
+	@ExecSpace("ClientOnly")
+	method void SelectRecipe(string recipeName)
+		self.selectedRecipe = recipeName
+		
+		-- Highlight active list item
+		for name, item in pairs(self.recipeButtons) do
+			if isvalid(item) then
+				if name == recipeName then
+					item.SpriteGUIRendererComponent.Color = Color(0.18, 0.34, 0.15, 1) -- Highlight Forest Green
+				else
+					item.SpriteGUIRendererComponent.Color = Color(0.15, 0.18, 0.15, 1) -- Dark surface
+				end
+			end
+		end
+		
+		self:UpdateDetails()
+	end
+
+	@ExecSpace("ClientOnly")
+	method void UpdateDetails()
+		local recipe = self.recipes[self.selectedRecipe]
+		if not recipe then return end
+		
+		if isvalid(self.detailName) then self.detailName.Text = recipe.name end
+		if isvalid(self.detailDesc) then self.detailDesc.Text = recipe.desc end
+		
+		if isvalid(self.detailIcon) then
+			self.detailIcon.ImageRUID = recipe.icon
+		end
+		
+		local player = _UserService.LocalPlayer
+		if not isvalid(player) then return end
+		local inv = player:GetComponent("script.PlayerInventory")
+		if not isvalid(inv) then return end
+		
+		-- Hide slot 2 by default, show if needed
+		if isvalid(self.ingSlot2) then self.ingSlot2.Enable = false end
+		if isvalid(self.ingSlot1) then self.ingSlot1.Enable = false end
+		
+		local canCraft = true
+		
+		-- Ingredient 1
+		local ing1 = recipe.ingredients[1]
+		if ing1 and isvalid(self.ingSlot1) then
+			self.ingSlot1.Enable = true
+			local owned = inv:GetItemCount(ing1.name)
+			
+			if isvalid(self.ingIcon1) then
+				self.ingIcon1.ImageRUID = self:GetIngredientIcon(ing1.name)
+			end
+		
+			if isvalid(self.ingCount1) then
+				self.ingCount1.Text = owned .. " / " .. ing1.required
+				if owned >= ing1.required then
+					self.ingCount1.FontColor = Color.green
+				else
+					self.ingCount1.FontColor = Color.red
+					canCraft = false
+				end
+			end
+		end
+		
+		-- Ingredient 2
+		local ing2 = recipe.ingredients[2]
+		if ing2 and isvalid(self.ingSlot2) then
+			self.ingSlot2.Enable = true
+			local owned = inv:GetItemCount(ing2.name)
+		
+			if isvalid(self.ingIcon2) then
+				self.ingIcon2.ImageRUID = self:GetIngredientIcon(ing2.name)
+			end
+		
+			if isvalid(self.ingCount2) then
+				self.ingCount2.Text = owned .. " / " .. ing2.required
+				if owned >= ing2.required then
+					self.ingCount2.FontColor = Color.green
+				else
+					self.ingCount2.FontColor = Color.red
+					canCraft = false
+				end
+			end
+		end
+		
+		-- Update craft button state
+		if isvalid(self.btnCraft) then
+			if self.isCrafting then
+				self.btnCraft.Entity.SpriteGUIRendererComponent.Color = Color(0.3, 0.3, 0.3, 1) -- Gray
+				self.btnCraft.Enable = false
+				local textComp = self.btnCraft.Entity.TextComponent
+				if isvalid(textComp) then textComp.Text = "Crafting..." end
+			elseif canCraft then
+				self.btnCraft.Entity.SpriteGUIRendererComponent.Color = Color(0.18, 0.34, 0.15, 1) -- Forest Green
+				self.btnCraft.Enable = true
+				local textComp = self.btnCraft.Entity.TextComponent
+				if isvalid(textComp) then textComp.Text = "CRAFT (Space)" end
+			else
+				self.btnCraft.Entity.SpriteGUIRendererComponent.Color = Color(0.3, 0.1, 0.1, 1) -- Dark Red
+				self.btnCraft.Enable = false
+				local textComp = self.btnCraft.Entity.TextComponent
+				if isvalid(textComp) then textComp.Text = "Insufficient Materials" end
+			end
+		end
+	end
+
+	@ExecSpace("ClientOnly")
+	method string GetIngredientIcon(string ingName)
+		-- Looks up the ingredient's IconRUID (item model sprite) from item_dataset.
+		local ds = _DataService:GetTable("item_dataset")
+		if ds == nil then return "" end
+		local rowCount = ds:GetRowCount()
+		for i = 1, rowCount do
+			if ds:GetCell(i, "Name") == ingName then
+				return ds:GetCell(i, "IconRUID") or ""
+			end
+		end
+		return ""
+	end
+
+	@ExecSpace("ClientOnly")
+	method void TryCraft()
+		-- description: Triggers a craft request if the player has enough ingredients and is not already crafting.
+		if self.isCrafting then return end
+		
+		local recipe = self.recipes[self.selectedRecipe]
+		if not recipe then return end
+		
+		local player = _UserService.LocalPlayer
+		if not isvalid(player) then return end
+		local inv = player:GetComponent("script.PlayerInventory")
+		if not isvalid(inv) then return end
+		
+		local canCraft = true
+		for _, ing in ipairs(recipe.ingredients) do
+			if inv:GetItemCount(ing.name) < ing.required then
+				canCraft = false
+				break
+			end
+		end
+		
+		if canCraft then
+			self.isCrafting = true
+			self:UpdateDetails()
+			log("Requesting craft for " .. recipe.name)
+			inv:ServerRequestCraft(recipe.name)
+		end
+	end
+
+	@ExecSpace("ClientOnly")
+	method void UpdateDimmer()
+		local dimmer = _EntityService:GetEntityByPath("/ui/PopupGroup/Dimmer")
+		if not isvalid(dimmer) then return end
+		
+		local inv = _EntityService:GetEntityByPath("/ui/PopupGroup/InventoryPopup")
+		local craft = _EntityService:GetEntityByPath("/ui/PopupGroup/CraftingPopup")
+		local char = _EntityService:GetEntityByPath("/ui/PopupGroup/CharacterPopup")
+		
+		local anyOpen = (isvalid(inv) and inv.Enable) or (isvalid(craft) and craft.Enable) or (isvalid(char) and char.Enable)
+		dimmer.Enable = anyOpen
+	end
+
+end

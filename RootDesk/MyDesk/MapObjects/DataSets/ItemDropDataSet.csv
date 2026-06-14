@@ -1,0 +1,9 @@
+﻿SourceId,ItemId,MinCount,MaxCount,Probability
+Big Stone1,stone,8,12,1.0
+Big Stone1,copper ore,1,2,0.2
+Big Stone2,stone,16,20,1.0
+Big Stone2,copper ore,1,3,0.3
+Stone,stone,1,2,1.0
+Tree1,wood,4,6,1.0
+Tree2,wood,10,15,1.0
+GrownGrass,grass,1,1,1.0

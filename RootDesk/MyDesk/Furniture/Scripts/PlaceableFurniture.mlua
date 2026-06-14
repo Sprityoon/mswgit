@@ -1,0 +1,6 @@
+@Component
+script PlaceableFurniture extends Component
+
+	property string ItemId = ""
+
+end

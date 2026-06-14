@@ -252,6 +252,84 @@
             "type": "System.Single, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089"
           },
           "Value": 60.0
+        },
+        {
+          "TargetType": "MOD.Core.AvatarStateAnimationComponent",
+          "Name": "StateToAvatarBodyActionSheet",
+          "ValueType": {
+            "$type": "MODNativeType",
+            "type": "MOD.Core.MODSyncDictionary`2[[System.String, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089],[MOD.Core.AvatarBodyActionElement, MOD.Core, Version=26.5.0.0, Culture=neutral, PublicKeyToken=null]], MOD.Core, Version=26.5.0.0, Culture=neutral, PublicKeyToken=null"
+          },
+          "Value": {
+            "$type": "MOD.Core.MODSyncDictionary`2[[System.String, mscorlib],[MOD.Core.AvatarBodyActionElement, MOD.Core]], MOD.Core",
+            "IDLE": {
+              "AvatarBodyActionStateName": "stand",
+              "PlayRate": 1.0
+            },
+            "MOVE": {
+              "AvatarBodyActionStateName": "walk",
+              "PlayRate": 1.68
+            },
+            "HIT": {
+              "AvatarBodyActionStateName": "hit",
+              "PlayRate": 1.0
+            },
+            "CROUCH": {
+              "AvatarBodyActionStateName": "crouch",
+              "PlayRate": 1.0
+            },
+            "FALL": {
+              "AvatarBodyActionStateName": "fall",
+              "PlayRate": 1.0
+            },
+            "JUMP": {
+              "AvatarBodyActionStateName": "fall",
+              "PlayRate": 1.0
+            },
+            "CLIMB": {
+              "AvatarBodyActionStateName": "rope",
+              "PlayRate": 1.0
+            },
+            "LADDER": {
+              "AvatarBodyActionStateName": "ladder",
+              "PlayRate": 1.0
+            },
+            "DEAD": {
+              "AvatarBodyActionStateName": "dead",
+              "PlayRate": 1.0
+            },
+            "SIT": {
+              "AvatarBodyActionStateName": "sit",
+              "PlayRate": 1.0
+            }
+          }
+        },
+        {
+          "TargetType": "MOD.Core.StateComponent",
+          "Name": "StateSetId",
+          "ValueType": {
+            "$type": "MODNativeType",
+            "type": "System.String, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089"
+          },
+          "Value": "stateset://55d60acb-9839-45e2-a932-32265682f65e"
+        },
+        {
+          "TargetType": "MOD.Core.StateComponent",
+          "Name": "IsLegacy",
+          "ValueType": {
+            "$type": "MODNativeType",
+            "type": "System.Boolean, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089"
+          },
+          "Value": false
+        },
+        {
+          "TargetType": "MOD.Core.AvatarStateAnimationComponent",
+          "Name": "Enable",
+          "ValueType": {
+            "$type": "MODNativeType",
+            "type": "System.Boolean, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089"
+          },
+          "Value": false
         }
       ],
       "EventLinks": [],

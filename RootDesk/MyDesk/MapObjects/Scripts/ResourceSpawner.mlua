@@ -1,0 +1,815 @@
+@Logic
+script ResourceSpawner extends Logic
+
+	property table BaseGrassPositions = {}
+
+	property integer GrowthTimerId = 0
+
+	property table SpawnedEntities = {}
+
+	property table GridToEntity = {}
+
+	property integer LoadingTimerId = 0
+
+	property integer PrngSeed = 12345
+
+	property integer MapRadius = 75
+
+	property integer SpawnZoneRadius = 5
+
+	property integer MacroCellSize = 10
+
+	property integer MacroGridCount = 15
+
+	property string GrownGrassModelId = ""
+
+	property Entity MapEntity = nil
+
+	@Sync
+	property string PlacedTilesJson = "[]"
+
+	@Sync
+	property string PlacedFurnitureJson = "[]"
+
+	method number Hash2D(number x, number y, number seed)
+		-- Deterministic hash returning value in [0, 1)
+		local dot = x * 12.9898 + y * 78.233 + seed
+		local val = math.sin(dot) * 43758.5453123
+		return val - math.floor(val)
+	end
+
+	method number Noise2D(number x, number y, number seed)
+		-- Smoothstep-interpolated value noise in [0, 1)
+		local x0 = math.floor(x)
+		local x1 = x0 + 1
+		local y0 = math.floor(y)
+		local y1 = y0 + 1
+		
+		local tx = x - x0
+		local ty = y - y0
+		
+		local sx = tx * tx * (3.0 - 2.0 * tx)
+		local sy = ty * ty * (3.0 - 2.0 * ty)
+		
+		local h00 = self:Hash2D(x0, y0, seed)
+		local h10 = self:Hash2D(x1, y0, seed)
+		local h01 = self:Hash2D(x0, y1, seed)
+		local h11 = self:Hash2D(x1, y1, seed)
+		
+		local nx0 = h00 * (1.0 - sx) + h10 * sx
+		local nx1 = h01 * (1.0 - sx) + h11 * sx
+		return nx0 * (1.0 - sy) + nx1 * sy
+	end
+
+	@ExecSpace("ServerOnly")
+	method void OnBeginPlay()
+		-- Kick off biome-driven world generation.
+		self:TryStartSpawning()
+	end
+
+	@ExecSpace("ServerOnly")
+	method void TryStartSpawning()
+		-- Wait until every resource model referenced by BiomeResourceDataSet (plus GrownGrass) is registered, then generate.
+		local resDs = _DataService:GetTable("BiomeResourceDataSet")
+		if resDs == nil then
+			log_warning("ResourceSpawner: BiomeResourceDataSet not found. Retrying...")
+			_TimerService:SetTimerOnce(function() self:TryStartSpawning() end, 0.5)
+			return
+		end
+		
+		local neededNames = {}
+		local nameSet = {}
+		local rowCount = resDs:GetRowCount()
+		for i = 1, rowCount do
+			local resName = resDs:GetCell(i, "ResourceName")
+			if resName ~= nil and resName ~= "" and not nameSet[resName] then
+				nameSet[resName] = true
+				table.insert(neededNames, resName)
+			end
+		end
+		table.insert(neededNames, "GrownGrass")
+		
+		local allReady = true
+		for _, resName in ipairs(neededNames) do
+			local modelId = _EntryService:GetModelIdByName(resName)
+			if not modelId then
+				log("ResourceSpawner: Model not ready yet: " .. resName)
+				allReady = false
+				break
+			end
+		end
+		
+		if not allReady then
+			_TimerService:SetTimerOnce(function() self:TryStartSpawning() end, 0.5)
+			return
+		end
+		
+		self.GrownGrassModelId = _EntryService:GetModelIdByName("GrownGrass")
+		self:SpawnInitialResources()
+	end
+
+	@ExecSpace("ServerOnly")
+	method void OnEndPlay()
+		-- Release generation timers.
+		if self.GrowthTimerId > 0 then
+			_TimerService:ClearTimer(self.GrowthTimerId)
+			self.GrowthTimerId = 0
+		end
+		if self.LoadingTimerId > 0 then
+			_TimerService:ClearTimer(self.LoadingTimerId)
+			self.LoadingTimerId = 0
+		end
+	end
+
+	@ExecSpace("ServerOnly")
+	method void SpawnInitialResources()
+		-- Generates terrain tiles and resource entities, fully driven by the biome datasets:
+		-- BiomeMapDataSet (macro grid), BiomeDataSet (per-biome noise), BiomeTerrainDataSet (tile mix), BiomeResourceDataSet (spawn table).
+		local map = _EntityService:GetEntityByPath("/maps/map01")
+		if not isvalid(map) then
+			log_warning("ResourceSpawner: Map /maps/map01 not found.")
+			return
+		end
+		self.MapEntity = map
+		
+		if isvalid(map) and not map:GetComponent("PhysicsSimulatorComponent") then
+			map:AddComponent("PhysicsSimulatorComponent")
+			log("ResourceSpawner: Added PhysicsSimulatorComponent to map.")
+		end
+		
+		local layer1Entity = map:GetChildByName("RectTileMap")
+		local layer2Entity = map:GetChildByName("RectTileMap2")
+		local layer3Entity = map:GetChildByName("RectTileMap3")
+		
+		if not isvalid(layer1Entity) or not isvalid(layer2Entity) or not isvalid(layer3Entity) then
+			log_warning("ResourceSpawner: Missing one of the map layer entities.")
+			return
+		end
+		
+		---@type RectTileMapComponent
+		local tilemap1 = layer1Entity.RectTileMapComponent
+		---@type RectTileMapComponent
+		local tilemap2 = layer2Entity.RectTileMapComponent
+		---@type RectTileMapComponent
+		local tilemap3 = layer3Entity.RectTileMapComponent
+		
+		if not isvalid(tilemap1) or not isvalid(tilemap2) or not isvalid(tilemap3) then
+			log_warning("ResourceSpawner: Missing one of the RectTileMapComponents.")
+			return
+		end
+		
+		tilemap1:Clear()
+		tilemap2:Clear()
+		tilemap3:Clear()
+		log("ResourceSpawner: Cleared all tile map layers. Generating biome-driven layout.")
+		
+		local mapComp = map.MapComponent
+		if isvalid(mapComp) then
+			mapComp.LeftBottom = Vector2(-90, -90)
+			mapComp.RightTop = Vector2(90, 90)
+		end
+		
+		local seedVal = self.PrngSeed
+		local mapRadius = self.MapRadius
+		local macroSize = self.MacroCellSize
+		local spawnZoneRadius = self.SpawnZoneRadius
+		self.SpawnedEntities = {}
+		self.GridToEntity = {}
+		
+		-- ── Load biome datasets ──
+		local macroGrid = {}
+		local biomeMapDs = _DataService:GetTable("BiomeMapDataSet")
+		if biomeMapDs == nil then
+			log_warning("ResourceSpawner: BiomeMapDataSet not found. Aborting generation.")
+			return
+		end
+		local maxMacroIndex = self.MacroGridCount - 1
+		for i = 1, biomeMapDs:GetRowCount() do
+			local r = tonumber(biomeMapDs:GetCell(i, "Row"))
+			if r ~= nil then
+				macroGrid[r] = {}
+				for c = 0, maxMacroIndex do
+					local cellVal = biomeMapDs:GetCell(i, "C" .. c)
+					if cellVal ~= nil and cellVal ~= "" then
+						macroGrid[r][c] = cellVal
+					end
+				end
+			end
+		end
+		
+		local biomeInfo = {}
+		local biomeDs = _DataService:GetTable("BiomeDataSet")
+		if biomeDs ~= nil then
+			for i = 1, biomeDs:GetRowCount() do
+				local bid = biomeDs:GetCell(i, "BiomeId")
+				if bid ~= nil and bid ~= "" then
+					biomeInfo[bid] = {
+						scale = tonumber(biomeDs:GetCell(i, "NoiseScale")) or 0.12,
+						seedOffset = tonumber(biomeDs:GetCell(i, "NoiseSeedOffset")) or 5555
+					}
+				end
+			end
+		end
+		
+		local biomeTerrain = {}
+		local terrainDs = _DataService:GetTable("BiomeTerrainDataSet")
+		if terrainDs ~= nil then
+			for i = 1, terrainDs:GetRowCount() do
+				local bid = terrainDs:GetCell(i, "BiomeId")
+				if bid ~= nil and bid ~= "" then
+					if biomeTerrain[bid] == nil then biomeTerrain[bid] = {} end
+					table.insert(biomeTerrain[bid], {
+						tile = terrainDs:GetCell(i, "TileName") or "BaseEarth",
+						nMin = tonumber(terrainDs:GetCell(i, "NoiseMin")) or 0,
+						nMax = tonumber(terrainDs:GetCell(i, "NoiseMax")) or 1.01
+					})
+				end
+			end
+		end
+		
+		local biomeResources = {}
+		local resDs = _DataService:GetTable("BiomeResourceDataSet")
+		if resDs ~= nil then
+			for i = 1, resDs:GetRowCount() do
+				local bid = resDs:GetCell(i, "BiomeId")
+				local resName = resDs:GetCell(i, "ResourceName")
+				if bid ~= nil and bid ~= "" and resName ~= nil and resName ~= "" then
+					if biomeResources[bid] == nil then biomeResources[bid] = {} end
+					table.insert(biomeResources[bid], {
+						name = resName,
+						chance = tonumber(resDs:GetCell(i, "SpawnChance")) or 0,
+						requiredTile = resDs:GetCell(i, "RequiredTile") or "",
+						modelId = _EntryService:GetModelIdByName(resName),
+						salt = i * 101
+					})
+				end
+			end
+		end
+		
+		-- ── Biome lookup with boundary dithering ──
+		-- Macro cell edges are jittered by noise so biome borders are organic instead of straight lines.
+		local function biomeAt(x, y)
+			local jx = (self:Noise2D(x * 0.35, y * 0.35, seedVal + 4242) - 0.5) * 5.0
+			local jy = (self:Noise2D(x * 0.35, y * 0.35, seedVal + 2424) - 0.5) * 5.0
+			local sx = math.max(-mapRadius, math.min(mapRadius, x + jx))
+			local sy = math.max(-mapRadius, math.min(mapRadius, y + jy))
+			local c = math.floor((sx + mapRadius) / macroSize)
+			local r = math.floor((sy + mapRadius) / macroSize)
+			if c > maxMacroIndex then c = maxMacroIndex end
+			if r > maxMacroIndex then r = maxMacroIndex end
+			if c < 0 then c = 0 end
+			if r < 0 then r = 0 end
+			local rowT = macroGrid[r]
+			if rowT ~= nil and rowT[c] ~= nil then
+				return rowT[c]
+			end
+			return "earth_field"
+		end
+		
+		-- ── Pass 1: decide per-tile terrain + grass presence ──
+		local grassMap = {}
+		local tileChoice = {}
+		local cellBiome = {}
+		for x = -mapRadius - 1, mapRadius + 1 do
+			grassMap[x] = {}
+			tileChoice[x] = {}
+			cellBiome[x] = {}
+			for y = -mapRadius - 1, mapRadius + 1 do
+				local biomeId = biomeAt(x, y)
+				cellBiome[x][y] = biomeId
+				local info = biomeInfo[biomeId]
+				local scale = (info and info.scale) or 0.12
+				local seedOffset = (info and info.seedOffset) or 5555
+				local nVal = self:Noise2D(x * scale, y * scale, seedVal + seedOffset)
+		
+				local tileName = "BaseEarth"
+				local terrainRows = biomeTerrain[biomeId]
+				if terrainRows ~= nil then
+					for _, t in ipairs(terrainRows) do
+						if nVal >= t.nMin and nVal < t.nMax then
+							tileName = t.tile
+							break
+						end
+					end
+				end
+		
+				tileChoice[x][y] = tileName
+				grassMap[x][y] = (tileName == "BaseGrass")
+			end
+		end
+		
+		local function isGrassAt(cx, cy)
+			if grassMap[cx] and grassMap[cx][cy] then
+				return true
+			end
+			return false
+		end
+		
+		-- ── Pass 1.5: grass-shape regularization ──
+		-- The 13-tile autotile set cannot express lone cells, 1-wide necks/protrusions,
+		-- or diagonal-only contacts. Reshape grassMap until only expressible shapes remain.
+		local function setGrass(cx, cy, value)
+			if grassMap[cx] ~= nil then
+				grassMap[cx][cy] = value
+				if tileChoice[cx] ~= nil then
+					if value then
+						tileChoice[cx][cy] = "BaseGrass"
+					elseif tileChoice[cx][cy] == "BaseGrass" then
+						tileChoice[cx][cy] = "BaseEarth"
+					end
+				end
+			end
+		end
+		
+		local diagonalDirs = { {1, 1}, {1, -1}, {-1, 1}, {-1, -1} }
+		
+		for pass = 1, 6 do
+			local changed = false
+		
+			-- (1) Demote lone cells, thin protrusions, and 1-wide necks
+			for x = -mapRadius - 1, mapRadius + 1 do
+				for y = -mapRadius - 1, mapRadius + 1 do
+					if isGrassAt(x, y) then
+						local t = isGrassAt(x, y + 1)
+						local d = isGrassAt(x, y - 1)
+						local l = isGrassAt(x - 1, y)
+						local r = isGrassAt(x + 1, y)
+						local orthoCount = (t and 1 or 0) + (d and 1 or 0) + (l and 1 or 0) + (r and 1 or 0)
+						if orthoCount < 2 or (not t and not d) or (not l and not r) then
+							setGrass(x, y, false)
+							changed = true
+						end
+					end
+				end
+			end
+		
+			-- (2) Connect diagonal-only contacts by filling the horizontal bridge cell
+			for x = -mapRadius, mapRadius do
+				for y = -mapRadius, mapRadius do
+					if isGrassAt(x, y) then
+						for _, dxy in ipairs(diagonalDirs) do
+							local dx = dxy[1]
+							local dy = dxy[2]
+							if isGrassAt(x + dx, y + dy) and not isGrassAt(x + dx, y) and not isGrassAt(x, y + dy) then
+								setGrass(x + dx, y, true)
+								changed = true
+							end
+						end
+					end
+				end
+			end
+		
+			-- (3) Resolve inexpressible inner-corner combinations (2-wide diagonal corridors).
+			-- An "inner-corner demand" = a missing diagonal whose both adjacent orthos are grass.
+			-- The 13-tile set allows at most ONE such demand per cell, and only when all 4 orthos are grass.
+			-- Any cell violating that gets its demanded diagonals filled with grass.
+			for x = -mapRadius, mapRadius do
+				for y = -mapRadius, mapRadius do
+					if isGrassAt(x, y) then
+						local t = isGrassAt(x, y + 1)
+						local d = isGrassAt(x, y - 1)
+						local l = isGrassAt(x - 1, y)
+						local r = isGrassAt(x + 1, y)
+						local orthoMissing = (not t) or (not d) or (not l) or (not r)
+		
+						local demands = {}
+						for _, dxy in ipairs(diagonalDirs) do
+							local dx = dxy[1]
+							local dy = dxy[2]
+							if not isGrassAt(x + dx, y + dy) and isGrassAt(x + dx, y) and isGrassAt(x, y + dy) then
+								table.insert(demands, dxy)
+							end
+						end
+		
+						if #demands > 0 and (orthoMissing or #demands >= 2) then
+							for _, dxy in ipairs(demands) do
+								setGrass(x + dxy[1], y + dxy[2], true)
+							end
+							changed = true
+						end
+					end
+				end
+			end
+		
+			if not changed then break end
+		end
+		
+		-- ── Pass 2: set tiles with grass autotiling ──
+		for x = -mapRadius, mapRadius do
+			for y = -mapRadius, mapRadius do
+				tilemap1:SetTile("BaseEarth", x, y)
+		
+				if isGrassAt(x, y) then
+					local t = isGrassAt(x, y + 1)
+					local d = isGrassAt(x, y - 1)
+					local l = isGrassAt(x - 1, y)
+					local r = isGrassAt(x + 1, y)
+		
+					local tl = isGrassAt(x - 1, y + 1)
+					local tr = isGrassAt(x + 1, y + 1)
+					local dl = isGrassAt(x - 1, y - 1)
+					local dr = isGrassAt(x + 1, y - 1)
+		
+					local tileName = "BaseGrass"
+		
+					-- Outer Corners
+					if not t and not l then
+						tileName = "BaseGrassLT2"
+					elseif not t and not r then
+						tileName = "BaseGrassRT2"
+					elseif not d and not l then
+						tileName = "BaseGrassLD2"
+					elseif not d and not r then
+						tileName = "BaseGrassRD2"
+					-- Edges
+					elseif not t then
+						tileName = "BaseGrassT"
+					elseif not d then
+						tileName = "BaseGrassD"
+					elseif not l then
+						tileName = "BaseGrassL"
+					elseif not r then
+						tileName = "BaseGrassR"
+					-- Inner Corners
+					elseif not tl then
+						tileName = "BaseGrassLT1"
+					elseif not tr then
+						tileName = "BaseGrassRT1"
+					elseif not dl then
+						tileName = "BaseGrassLD1"
+					elseif not dr then
+						tileName = "BaseGrassRD1"
+					end
+		
+					tilemap2:SetTile(tileName, x, y)
+				else
+					-- Non-grass overlay tiles (future biome tiles like sand/snow) go to layer 2 without autotiling
+					local choice = tileChoice[x][y]
+					if choice ~= nil and choice ~= "BaseEarth" and choice ~= "BaseGrass" then
+						tilemap2:SetTile(choice, x, y)
+					end
+				end
+			end
+		end
+		log("ResourceSpawner: Biome-driven tile generation complete.")
+		
+		-- ── Occupancy grid ──
+		local occupied = {}
+		local function isOccupied(cx, cy)
+			if occupied[cx] and occupied[cx][cy] then
+				return true
+			end
+			return false
+		end
+		local function setOccupied(cx, cy)
+			if not occupied[cx] then
+				occupied[cx] = {}
+			end
+			occupied[cx][cy] = true
+		end
+		
+		-- Pre-occupy spawn zone around center (0,0)
+		for sx = -spawnZoneRadius, spawnZoneRadius do
+			for sy = -spawnZoneRadius, spawnZoneRadius do
+				setOccupied(sx, sy)
+			end
+		end
+		
+		-- ── Restore Placed Tiles ──
+		local placedTiles = _HttpService:JSONDecode(self.PlacedTilesJson) or {}
+		for _, t in ipairs(placedTiles) do
+			local tx, ty = math.floor(t.x), math.floor(t.y)
+			if tilemap3 ~= nil then
+				tilemap3:SetTile(t.tileName, tx, ty)
+			end
+			setOccupied(tx, ty)
+			local key = tx .. "_" .. ty
+			self.GridToEntity[key] = { entity = nil, pivotX = tx, pivotY = ty, isTile = true, tileName = t.tileName }
+		end
+		log("ResourceSpawner: Restored " .. #placedTiles .. " placed tiles.")
+
+		-- ── Restore Placed Furniture ──
+		local placedFurniture = _HttpService:JSONDecode(self.PlacedFurnitureJson) or {}
+		for _, f in ipairs(placedFurniture) do
+			local fx, fy = math.floor(f.x), math.floor(f.y)
+			local modelId = _EntryService:GetModelIdByName("Furniture_" .. string.gsub(f.itemName, " ", ""))
+			if modelId ~= nil and modelId ~= "" then
+				local spawnPos = Vector3(fx + 0.5, fy + 0.5, 0)
+				local spawnedEntity = _SpawnService:SpawnByModelId(
+					modelId,
+					f.itemName,
+					spawnPos,
+					map
+				)
+				if isvalid(spawnedEntity) then
+					local sprite = spawnedEntity.SpriteRendererComponent
+					if isvalid(sprite) then
+						sprite.IgnoreMapLayerCheck = true
+						sprite.SortingLayer = "MapLayer2"
+						sprite.OrderInLayer = math.floor((mapRadius - fy) * 100)
+					end
+					setOccupied(fx, fy)
+					local key = fx .. "_" .. fy
+					self.GridToEntity[key] = { entity = spawnedEntity, pivotX = fx, pivotY = fy, isFurniture = true, itemName = f.itemName }
+					self.SpawnedEntities[key] = spawnedEntity
+				else
+					log_error("ResourceSpawner: Failed to restore furniture: " .. f.itemName)
+				end
+			else
+				log_error("ResourceSpawner: Missing model for restored furniture: " .. f.itemName)
+			end
+		end
+		log("ResourceSpawner: Restored " .. #placedFurniture .. " placed furniture entities.")
+		
+		-- Shared helper: spawn a resource entity, read its ResourceOccupiedArea, check + mark grid
+		local function trySpawnResource(modelId, name, x, y)
+			local spawnPos = Vector3(x + 0.5, y + 0.5, 0)
+			local resEntity = _SpawnService:SpawnByModelId(
+				modelId,
+				name,
+				spawnPos,
+				map
+			)
+		
+			if not isvalid(resEntity) then
+				return nil
+			end
+		
+			local xMin, xMax, yMin, yMax = x, x, y, y
+			local occupiedArea = resEntity:GetComponent("script.ResourceOccupiedArea")
+			if isvalid(occupiedArea) then
+				xMin = math.floor(x + occupiedArea.OffsetXMin)
+				xMax = math.floor(x + occupiedArea.OffsetXMax)
+				yMin = math.floor(y + occupiedArea.OffsetYMin)
+				yMax = math.floor(y + occupiedArea.OffsetYMax)
+			end
+		
+			-- Check clearance in target area (with 1 grid margin for spacing to prevent blocking)
+			local canPlace = true
+			for nx = xMin - 1, xMax + 1 do
+				for ny = yMin - 1, yMax + 1 do
+					if isOccupied(nx, ny) then
+						canPlace = false
+						break
+					end
+				end
+				if not canPlace then break end
+			end
+		
+			if not canPlace then
+				resEntity:Destroy()
+				return nil
+			end
+		
+			-- Set Y-Sorting Settings
+			local sprite = resEntity.SpriteRendererComponent
+			if isvalid(sprite) then
+				sprite.IgnoreMapLayerCheck = true
+				sprite.SortingLayer = "MapLayer2"
+				sprite.OrderInLayer = math.floor((mapRadius - y) * 100)
+			end
+		
+			-- Mark occupied area and grid mapping
+			for nx = xMin, xMax do
+				for ny = yMin, yMax do
+					local ix = math.floor(nx)
+					local iy = math.floor(ny)
+					setOccupied(ix, iy)
+					local gKey = ix .. "_" .. iy
+					self.GridToEntity[gKey] = { entity = resEntity, pivotX = math.floor(x), pivotY = math.floor(y) }
+				end
+			end
+		
+			return resEntity
+		end
+		
+		-- ── Pass 3: biome-driven resource spawning ──
+		local resourceCount = 0
+		for x = -mapRadius, mapRadius do
+			for y = -mapRadius, mapRadius do
+				if not isOccupied(x, y) then
+					local biomeId = cellBiome[x][y]
+					local resRows = biomeResources[biomeId]
+					if resRows ~= nil then
+						for _, res in ipairs(resRows) do
+							if res.modelId ~= nil and (res.requiredTile == "" or res.requiredTile == tileChoice[x][y]) then
+								local roll = self:Hash2D(x, y, seedVal + res.salt)
+								if roll < res.chance then
+									local resEntity = trySpawnResource(res.modelId, res.name, x, y)
+									if isvalid(resEntity) then
+										local key = x .. "_" .. y
+										self.SpawnedEntities[key] = resEntity
+										resourceCount = resourceCount + 1
+									end
+									break
+								end
+							end
+						end
+					end
+				end
+			end
+		end
+		
+		log("ResourceSpawner: Biome resource spawning complete! Scattered " .. resourceCount .. " resources.")
+		
+		self:InitGrassGrowth(map, tilemap2, tilemap3, trySpawnResource)
+		
+		-- Set up proximity loading checking timer
+		local loadCallback = function()
+			self:CheckProximityLoading(map)
+		end
+		self.LoadingTimerId = _TimerService:SetTimerRepeat(loadCallback, 0.5)
+	end
+
+	@ExecSpace("ServerOnly")
+	method void CheckProximityLoading(Entity map)
+		-- Enables only resources within loadDistance of any player to save perf.
+		local mapComp = map.MapComponent
+		if not isvalid(mapComp) then return end
+		
+		local users = _UserService:GetUsersByMapComponent(mapComp)
+		if not users or #users == 0 then
+			for _, entity in pairs(self.SpawnedEntities) do
+				if isvalid(entity) then
+					entity.Enable = false
+				end
+			end
+			return
+		end
+		
+		local playerPositions = {}
+		for _, user in ipairs(users) do
+			if isvalid(user) then
+				table.insert(playerPositions, user.TransformComponent.WorldPosition)
+			end
+		end
+		
+		local loadDistance = 15.0
+		for _, entity in pairs(self.SpawnedEntities) do
+			if isvalid(entity) then
+				local entityPos = entity.TransformComponent.WorldPosition
+				local isNearAnyPlayer = false
+				for _, pPos in ipairs(playerPositions) do
+					local dist = Vector2.Distance(Vector2(entityPos.x, entityPos.y), Vector2(pPos.x, pPos.y))
+					if dist <= loadDistance then
+						isNearAnyPlayer = true
+						break
+					end
+				end
+				entity.Enable = isNearAnyPlayer
+			end
+		end
+	end
+
+	@ExecSpace("ServerOnly")
+	method void InitGrassGrowth(Entity map, RectTileMapComponent tilemap2, RectTileMapComponent tilemap3, any spawnFn)
+		-- Collects BaseGrass positions and starts the periodic grass-growth timer.
+		self.BaseGrassPositions = {}
+		local positions = tilemap2:GetAllTilePositions()
+		if not positions then
+			log_warning("ResourceSpawner: GetAllTilePositions returned nil for Layer 2.")
+			return
+		end
+		
+		local posTable = positions:ToTable()
+		for _, pos in ipairs(posTable) do
+			local tile = tilemap2:GetTile(pos)
+			if tile and tile.Name == "BaseGrass" then
+				table.insert(self.BaseGrassPositions, pos)
+			end
+		end
+		
+		log("ResourceSpawner: Found " .. #self.BaseGrassPositions .. " BaseGrass tiles for growth.")
+		
+		local grownGrassModelId = self.GrownGrassModelId
+		local growCallback = function()
+			self:TickGrassGrowth(map, tilemap2, grownGrassModelId)
+		end
+		self.GrowthTimerId = _TimerService:SetTimerRepeat(growCallback, 5.0)
+	end
+
+	@ExecSpace("ServerOnly")
+	method void TickGrassGrowth(Entity map, RectTileMapComponent tilemap2, string grownGrassModelId)
+		-- Periodically grows GrownGrass entities on free BaseGrass tiles.
+		if #self.BaseGrassPositions == 0 then return end
+		if not isvalid(map) then return end
+		if not grownGrassModelId or grownGrassModelId == "" then return end
+		
+		local mapRadius = self.MapRadius
+		
+		local attempts = math.random(1, 3)
+		for i = 1, attempts do
+			local randIdx = math.random(1, #self.BaseGrassPositions)
+			local cellPos = self.BaseGrassPositions[randIdx]
+		
+			local tile2 = tilemap2:GetTile(cellPos)
+			if tile2 and tile2.Name == "BaseGrass" then
+				local cx, cy = cellPos.x, cellPos.y
+				local key = cx .. "_" .. cy
+				local hasEntity = self.GridToEntity[key] ~= nil
+		
+				if not hasEntity then
+					local spawnPos = Vector3(cx + 0.5, cy + 0.5, 0)
+					local grownEntity = _SpawnService:SpawnByModelId(
+						grownGrassModelId,
+						"GrownGrass",
+						spawnPos,
+						map
+					)
+					if isvalid(grownEntity) then
+						local sprite = grownEntity.SpriteRendererComponent
+						if isvalid(sprite) then
+							sprite.IgnoreMapLayerCheck = true
+							sprite.SortingLayer = "MapLayer2"
+							sprite.OrderInLayer = math.floor((mapRadius - cy) * 100)
+						end
+						self.SpawnedEntities[key] = grownEntity
+						self.GridToEntity[key] = { entity = grownEntity, pivotX = cx, pivotY = cy }
+						log("ResourceSpawner: GrownGrass entity spawned at cell (" .. cx .. ", " .. cy .. ")")
+					end
+				end
+			end
+		end
+	end
+
+	@ExecSpace("ServerOnly")
+	method void RemoveEntity(string pivotKey)
+		-- Removes a destroyed resource from the spawner registries.
+		local entity = self.SpawnedEntities[pivotKey]
+		if isvalid(entity) then
+			self.SpawnedEntities[pivotKey] = nil
+		end
+		for gKey, data in pairs(self.GridToEntity) do
+			local pKey = math.floor(data.pivotX) .. "_" .. math.floor(data.pivotY)
+			if pKey == pivotKey then
+				self.GridToEntity[gKey] = nil
+			end
+		end
+		log("ResourceSpawner: Entity " .. pivotKey .. " removed from spawner registry.")
+	end
+
+	@ExecSpace("ServerOnly")
+	method void AddPlacedTile(string tileName, integer x, integer y)
+		-- description: Registers a painted construction tile, blocks resource/furniture placement, and syncs json.
+		local json = self.PlacedTilesJson
+		local tiles = (json ~= nil and json ~= "") and _HttpService:JSONDecode(json) or {}
+		table.insert(tiles, { tileName = tileName, x = x, y = y })
+		self.PlacedTilesJson = _HttpService:JSONEncode(tiles)
+		
+		local key = x .. "_" .. y
+		self.GridToEntity[key] = { entity = nil, pivotX = x, pivotY = y, isTile = true, tileName = tileName }
+		log("Added placed tile " .. tileName .. " at (" .. x .. ", " .. y .. ")")
+	end
+
+	@ExecSpace("ServerOnly")
+	method void AddPlacedFurniture(string itemName, integer x, integer y, Entity spawnedEntity)
+		-- description: Registers placed furniture entity, binds PlaceableFurniture data, blocks space, and syncs json.
+		local json = self.PlacedFurnitureJson
+		local furniture = (json ~= nil and json ~= "") and _HttpService:JSONDecode(json) or {}
+		table.insert(furniture, { itemName = itemName, x = x, y = y })
+		self.PlacedFurnitureJson = _HttpService:JSONEncode(furniture)
+		
+		local key = x .. "_" .. y
+		self.GridToEntity[key] = { entity = spawnedEntity, pivotX = x, pivotY = y, isFurniture = true, itemName = itemName }
+		self.SpawnedEntities[key] = spawnedEntity
+		log("Added placed furniture " .. itemName .. " at (" .. x .. ", " .. y .. ")")
+	end
+
+	@ExecSpace("ServerOnly")
+	method void RemovePlacedTile(integer x, integer y)
+		-- description: Removes a construction tile from JSON registry and clears occupancy.
+		local json = self.PlacedTilesJson
+		local tiles = (json ~= nil and json ~= "") and _HttpService:JSONDecode(json) or {}
+		for i, t in ipairs(tiles) do
+			if t.x == x and t.y == y then
+				table.remove(tiles, i)
+				break
+			end
+		end
+		self.PlacedTilesJson = _HttpService:JSONEncode(tiles)
+		
+		local key = x .. "_" .. y
+		self.GridToEntity[key] = nil
+		log("Removed placed tile at (" .. x .. ", " .. y .. ")")
+	end
+
+	@ExecSpace("ServerOnly")
+	method void RemovePlacedFurniture(integer x, integer y)
+		-- description: Removes placed furniture from JSON registry and clears occupancy/entity mappings.
+		local json = self.PlacedFurnitureJson
+		local furniture = (json ~= nil and json ~= "") and _HttpService:JSONDecode(json) or {}
+		for i, f in ipairs(furniture) do
+			if f.x == x and f.y == y then
+				table.remove(furniture, i)
+				break
+			end
+		end
+		self.PlacedFurnitureJson = _HttpService:JSONEncode(furniture)
+		
+		local key = x .. "_" .. y
+		self.GridToEntity[key] = nil
+		self.SpawnedEntities[key] = nil
+		log("Removed placed furniture at (" .. x .. ", " .. y .. ")")
+	end
+
+end

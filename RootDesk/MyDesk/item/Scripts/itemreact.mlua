@@ -1,0 +1,139 @@
+@Component
+script itemreact extends Component
+
+	@Sync
+	property string ItemName = "Dirt"
+
+	property number ElapsedTime = 0
+
+	property Vector3 BasePosition = Vector3(0,0,0)
+
+	property boolean IsCollected = false
+
+	property Vector3 Velocity = Vector3(0,0,0)
+
+	property number ScatterTime = 0.0
+
+	method void OnBeginPlay()
+		if self:IsClient() then
+			-- 클라이언트 측에서는 별도 초기화 작업이 필요 없습니다.
+			-- 아이템 아이콘은 스폰 시 사용된 모델에 이미 설정되어 있습니다.
+		else
+			-- 서버에서는 물리 속성을 초기화합니다.
+			self.BasePosition = self.Entity.TransformComponent.WorldPosition
+			self.ElapsedTime = math.random() * 10 -- Randomize start phase for sine wave float
+			self.IsCollected = false
+		end
+	end
+
+	@ExecSpace("ServerOnly")
+	method void Init(string name)
+		self.ItemName = name
+		
+		-- Scatter effect initialization
+		-- Generate a random angle in the upper semi-circle (30 to 150 degrees) for natural upward/sideways spread
+		local minAngle = math.pi * 0.15 -- ~27 degrees
+		local maxAngle = math.pi * 0.85 -- ~153 degrees
+		local angle = minAngle + math.random() * (maxAngle - minAngle)
+		local speed = 1.2 + math.random() * 1.6
+		
+		self.Velocity = Vector3(math.cos(angle) * speed, math.sin(angle) * speed * 2.2, 0)
+		self.ScatterTime = 0.55 + math.random() * 0.15
+		self.BasePosition = self.Entity.TransformComponent.WorldPosition
+	end
+
+	@ExecSpace("ServerOnly")
+	method void OnUpdate(number delta)
+		if self.IsCollected then return end
+
+		self.ElapsedTime = self.ElapsedTime + delta
+
+		local transform = self.Entity.TransformComponent
+		if not isvalid(transform) then return end
+
+		-- 1. Apply scatter velocity if ScatterTime > 0
+		if self.ScatterTime > 0 then
+			self.ScatterTime = self.ScatterTime - delta
+			-- Apply gravity to vertical velocity
+			self.Velocity.y = self.Velocity.y - 9.8 * delta
+			-- Update base position based on velocity
+			self.BasePosition = self.BasePosition + self.Velocity * delta
+			
+			if self.ScatterTime <= 0 then
+				self.Velocity = Vector3(0, 0, 0)
+			end
+		end
+
+		-- 2. Apply floating visual offset (sine wave) after scatter is done
+		local floatOffset = 0
+		if self.ScatterTime <= 0 then
+			floatOffset = math.sin(self.ElapsedTime * 3.0) * 0.15
+		end
+		transform.WorldPosition = Vector3(self.BasePosition.x, self.BasePosition.y + floatOffset, self.BasePosition.z)
+
+		-- Don't start pull or pickup check until scattering is completed
+		if self.ScatterTime > 0 then
+			return
+		end
+
+		-- 3. Detect nearby players for pickup
+		local mapComp = self.Entity.CurrentMap.MapComponent
+		if not isvalid(mapComp) then return end
+
+		local users = _UserService:GetUsersByMapComponent(mapComp)
+		if not users then return end
+		
+		local closestPlayer = nil
+		local minDistance = 2.0 -- Detection/Magnet range (2.0 units)
+		
+		for _, user in ipairs(users) do
+			if isvalid(user) then
+				local playerPos = user.TransformComponent.WorldPosition
+				local dist = Vector2.Distance(Vector2(self.BasePosition.x, self.BasePosition.y), Vector2(playerPos.x, playerPos.y))
+				if dist < minDistance then
+					closestPlayer = user
+					minDistance = dist
+				end
+			end
+		end
+		
+		-- 4. Magnet Pull and Pickup
+		if closestPlayer then
+			local playerPos = closestPlayer.TransformComponent.WorldPosition
+			
+			-- Move towards player position
+			local dx = playerPos.x - transform.WorldPosition.x
+			local dy = playerPos.y - transform.WorldPosition.y
+			local dist = math.sqrt(dx * dx + dy * dy)
+			if dist > 0.01 then
+				local dirX = dx / dist
+				local dirY = dy / dist
+				-- Pull item towards player
+				self.BasePosition = self.BasePosition + Vector3(dirX, dirY, 0) * delta * 4.5
+			end
+		
+			-- Pickup threshold
+			if minDistance < 0.4 then
+				self.IsCollected = true
+				self:Collect(closestPlayer)
+			end
+		end
+	end
+
+	@ExecSpace("ServerOnly")
+	method void Collect(Entity player)
+		log("Collecting item: " .. self.ItemName .. " for player " .. player.Name)
+		
+		---@type PlayerInventory
+		local inventory = player:GetComponent("PlayerInventory")
+		if isvalid(inventory) then
+			inventory:AddItem(self.ItemName, 1)
+		else
+			log_warning("Player " .. player.Name .. " does not have a PlayerInventory component.")
+		end
+		
+		-- Destroy the item drop entity
+		self.Entity:Destroy()
+	end
+
+end

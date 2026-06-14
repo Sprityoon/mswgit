@@ -1,0 +1,159 @@
+@Component
+script ResourceReaction extends Component
+
+	property number ShakeTime = 0.0
+
+	property number RefusalShakeTime = 0.0
+
+	property number RefusalAmplitude = 6.0
+
+	property number RefusalPeriod = 90.0
+
+	property Vector3 OriginalScale = nil
+
+	property number OriginalRotation = 0.0
+
+	property string DropItemName = ""
+
+	property number DropMinCount = 1
+
+	property number DropMaxCount = 1
+
+	property string DropSpriteRuid = ""
+
+	method void OnBeginPlay()
+		local transform = self.Entity.TransformComponent
+		if isvalid(transform) then
+			self.OriginalScale = transform.Scale
+			self.OriginalRotation = transform.ZRotation
+		else
+			self.OriginalScale = Vector3(1.0, 1.0, 1.0)
+			self.OriginalRotation = 0.0
+		end
+	end
+
+	@ExecSpace("Client")
+	method void PlayShake()
+		local transform = self.Entity.TransformComponent
+		if isvalid(transform) and self.OriginalScale == nil then
+			self.OriginalScale = transform.Scale
+			self.OriginalRotation = transform.ZRotation
+		end
+		self.ShakeTime = 0.3
+	end
+
+	@ExecSpace("Client")
+	method void PlayRefusalShake()
+		-- Plays a short left-right "refusal" wobble (rotation only, no scale change),
+		-- distinct from the normal Hit Shake to signal a failed/blocked harvest.
+		local transform = self.Entity.TransformComponent
+		if isvalid(transform) and self.OriginalScale == nil then
+			self.OriginalScale = transform.Scale
+			self.OriginalRotation = transform.ZRotation
+		end
+		self.RefusalShakeTime = 0.25
+	end
+
+	method void OnUpdate(number delta)
+		-- Handle Player Alpha Occlusion (Alternative D)
+		if self:IsClient() then
+			local localPlayer = _UserService.LocalPlayer
+			if isvalid(localPlayer) then
+				local playerPos = localPlayer.TransformComponent.WorldPosition
+				local myPos = self.Entity.TransformComponent.WorldPosition
+				
+				local checkWidth = 1.0
+				local checkHeight = 1.5
+				local offset = Vector2(0, 0)
+				
+				local trigger = self.Entity.TriggerComponent
+				local collider = self.Entity.PhysicsColliderComponent
+				local boxSize = nil
+				
+				if isvalid(trigger) then
+					boxSize = trigger.BoxSize
+					offset = trigger.ColliderOffset
+				elseif isvalid(collider) then
+					boxSize = collider.BoxSize
+					offset = collider.ColliderOffset
+				end
+				
+				if boxSize then
+					checkWidth = math.max(1.0, boxSize.x * 0.7)
+					checkHeight = math.max(1.5, boxSize.y * 3.0, boxSize.x * 1.0)
+				end
+				
+				local distX = math.abs(playerPos.x - (myPos.x + offset.x))
+				local distY = playerPos.y - (myPos.y + offset.y)
+				
+				local isCovered = (distY > 0.0 and distY < checkHeight and distX < checkWidth)
+				
+				local sprite = self.Entity.SpriteRendererComponent
+				if isvalid(sprite) then
+					if isCovered then
+						sprite:SetAlpha(0.4)
+					else
+						sprite:SetAlpha(1.0)
+					end
+				end
+			end
+		end
+		
+		-- Handle Hit Shake
+		if self.ShakeTime > 0.0 then
+			self.ShakeTime = self.ShakeTime - delta
+			
+			local transform = self.Entity.TransformComponent
+			if isvalid(transform) then
+				if self.OriginalScale == nil then
+					self.OriginalScale = transform.Scale
+					self.OriginalRotation = transform.ZRotation
+				end
+				if self.OriginalScale == nil then
+					self.OriginalScale = Vector3(1.0, 1.0, 1.0)
+					self.OriginalRotation = 0.0
+				end
+		
+				local progress = self.ShakeTime / 0.3
+				-- Scale shake (compress/expand)
+				local scaleOffset = math.sin(self.ShakeTime * 50.0) * 0.15 * progress
+				transform.Scale = Vector3(self.OriginalScale.x + scaleOffset, self.OriginalScale.y - scaleOffset, self.OriginalScale.z)
+				
+				-- Rotation shake
+				local rotOffset = math.sin(self.ShakeTime * 60.0) * 10.0 * progress
+				transform.ZRotation = self.OriginalRotation + rotOffset
+			end
+			
+			if self.ShakeTime <= 0.0 then
+				if isvalid(transform) then
+					transform.Scale = self.OriginalScale
+					transform.ZRotation = self.OriginalRotation
+				end
+			end
+		end
+		
+		-- Handle Refusal Shake (harvest-fail "wobble" — rotation only, no scale change)
+		if self.RefusalShakeTime > 0.0 then
+			self.RefusalShakeTime = self.RefusalShakeTime - delta
+		
+			local transform = self.Entity.TransformComponent
+			if isvalid(transform) then
+				if self.OriginalScale == nil then
+					self.OriginalScale = transform.Scale
+					self.OriginalRotation = transform.ZRotation
+				end
+		
+				local progress = self.RefusalShakeTime / 0.25
+				local rotOffset = math.sin(self.RefusalShakeTime * self.RefusalPeriod) * self.RefusalAmplitude * progress
+				transform.ZRotation = self.OriginalRotation + rotOffset
+			end
+		
+			if self.RefusalShakeTime <= 0.0 then
+				if isvalid(transform) then
+					transform.ZRotation = self.OriginalRotation
+				end
+			end
+		end
+	end
+
+end

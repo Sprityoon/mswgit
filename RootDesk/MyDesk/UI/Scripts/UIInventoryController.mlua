@@ -1,0 +1,491 @@
+@Component
+script UIInventoryController extends Component
+
+	property Entity inventoryPopup = "4056e69c-09be-4e95-b7f6-7fe1c1681e93"
+
+	property ButtonComponent btnClose = "d5d37751-4933-4a50-a5ec-8047f8c3de7a"
+
+	property ButtonComponent tabAll = "8184738e-5a40-45e4-be39-ed99b264c864"
+
+	property ButtonComponent tabRes = "3b379672-b765-444d-a1db-56b714d7bad8"
+
+	property ButtonComponent tabEquip = "b62e05bd-1198-4515-b987-46329c89cfcc"
+
+	property GridViewComponent gridView = "3957ee4d-7fff-4556-ad91-4faff1946cf6"
+
+	property Entity itemSlotTemplate = "235c59fd-b346-4564-893a-46e22b300061"
+
+	property TextComponent capacityText = "285b48e7-bead-43d9-8b21-ee4bd20f2484"
+
+	property Entity tooltipPanel = "a13637cd-46a6-4e9c-9555-56da6e882b94"
+
+	property TextComponent tooltipName = "d555f5d8-2a82-467c-8ee5-6d089d6a9dee"
+
+	property TextComponent tooltipDesc = "465408f1-1092-4c35-8ada-5203a5b86687"
+
+	property TextComponent tooltipCount = "83cdedab-55a1-4fc0-8949-fb65ba390c6a"
+
+	property string activeTab = "All"
+
+	property table filteredItems = {}
+
+	property table slotHandlers = {}
+
+	property table lastClickTimes = {}
+
+	property any closeHandler = nil
+
+	property number CurrentScale = 1.0
+
+	property number TargetScale = 1.0
+
+	property any ScaleTimer = nil
+
+	property string inspectedItem = ""
+
+	property string SelectedForFurnace = ""
+
+	property any tabAllHandler = nil
+
+	property any tabResHandler = nil
+
+	property any tabEquipHandler = nil
+
+	property any keyDownHandler = nil
+
+	@ExecSpace("ClientOnly")
+	method void OnBeginPlay()
+		self.inventoryPopup.Enable = false
+		self.tooltipPanel.Enable = false
+		self:UpdateDimmer()
+		
+		-- Button clicks
+		self.closeHandler = self.btnClose.Entity:ConnectEvent(ButtonClickEvent, function()
+			self:Close()
+		end)
+		self.tabAllHandler = self.tabAll.Entity:ConnectEvent(ButtonClickEvent, function()
+			self:SetTab("All")
+		end)
+		self.tabResHandler = self.tabRes.Entity:ConnectEvent(ButtonClickEvent, function()
+			self:SetTab("Resources")
+		end)
+		self.tabEquipHandler = self.tabEquip.Entity:ConnectEvent(ButtonClickEvent, function()
+			self:SetTab("Equipment")
+		end)
+		
+		-- GridView setup — ItemEntity (clone source) MUST be injected at runtime,
+		-- otherwise the grid renders zero slots even though TotalCount is set.
+		if isvalid(self.itemSlotTemplate) then
+			self.gridView.ItemEntity = self.itemSlotTemplate
+		end
+		self.gridView.OnRefresh = function(index, entity)
+			self:RefreshGridItem(index, entity)
+		end
+
+		self.keyDownHandler = _InputService:ConnectEvent(KeyDownEvent, function(event)
+			if not self.inventoryPopup.Enable then return end
+			if self.inspectedItem == "" then return end
+			
+			local key = event.key
+			local slotIndex = -1
+			if key == KeyboardKey.Alpha1 then slotIndex = 1
+			elseif key == KeyboardKey.Alpha2 then slotIndex = 2
+			elseif key == KeyboardKey.Alpha3 then slotIndex = 3
+			elseif key == KeyboardKey.Alpha4 then slotIndex = 4
+			elseif key == KeyboardKey.Alpha5 then slotIndex = 5
+			elseif key == KeyboardKey.Alpha6 then slotIndex = 6
+			elseif key == KeyboardKey.Alpha7 then slotIndex = 7
+			elseif key == KeyboardKey.Alpha8 then slotIndex = 8
+			elseif key == KeyboardKey.Alpha9 then slotIndex = 9
+			elseif key == KeyboardKey.Alpha0 then slotIndex = 10
+			end
+
+			if slotIndex ~= -1 then
+				local player = _UserService.LocalPlayer
+				if isvalid(player) then
+					local inv = player:GetComponent("script.PlayerInventory")
+					if isvalid(inv) then
+						inv:ServerRegisterQuickSlot(slotIndex, self.inspectedItem)
+					end
+				end
+			end
+		end)
+	end
+
+	@ExecSpace("ClientOnly")
+	method void OnEndPlay()
+		if isvalid(self.btnClose) then
+			self.btnClose.Entity:DisconnectEvent(ButtonClickEvent, self.closeHandler)
+		end
+		if isvalid(self.tabAll) then
+			self.tabAll.Entity:DisconnectEvent(ButtonClickEvent, self.tabAllHandler)
+		end
+		if isvalid(self.tabRes) then
+			self.tabRes.Entity:DisconnectEvent(ButtonClickEvent, self.tabResHandler)
+		end
+		if isvalid(self.tabEquip) then
+			self.tabEquip.Entity:DisconnectEvent(ButtonClickEvent, self.tabEquipHandler)
+		end
+		for slotEntity, slotHandler in pairs(self.slotHandlers) do
+			if isvalid(slotEntity) then
+				slotEntity:DisconnectEvent(ButtonClickEvent, slotHandler)
+			end
+		end
+		self.slotHandlers = {}
+
+		if self.keyDownHandler then
+			_InputService:DisconnectEvent(KeyDownEvent, self.keyDownHandler)
+			self.keyDownHandler = nil
+		end
+	end
+
+	@ExecSpace("ClientOnly")
+	method void Toggle()
+		if self.TargetScale > 0.9 and self.inventoryPopup.Enable then
+			self:Close()
+		else
+			self:Open()
+		end
+	end
+
+	@ExecSpace("ClientOnly")
+	method void Open()
+		self.inventoryPopup.Enable = true
+		self.inspectedItem = ""
+		local transform = self.inventoryPopup.UITransformComponent
+		if isvalid(transform) then
+			self.CurrentScale = 0.8
+			transform.Scale = Vector3(0.8, 0.8, 1.0)
+		end
+		self:ApplyScaleTween(1.0)
+		
+		self:SetTab("All")
+		self:UpdateDimmer()
+	end
+
+	@ExecSpace("ClientOnly")
+	method void Close()
+		self.tooltipPanel.Enable = false
+		self.inspectedItem = ""
+		self:ApplyScaleTween(0.8)
+		
+		-- Restore position to centered
+		local transform = self.inventoryPopup.UITransformComponent
+		if isvalid(transform) then
+			transform.anchoredPosition = Vector2(0, 0)
+		end
+	end
+
+	@ExecSpace("ClientOnly")
+	method void ApplyScaleTween(number targetScale)
+		self.TargetScale = targetScale
+		
+		if self.ScaleTimer then
+			_TimerService:ClearTimer(self.ScaleTimer)
+			self.ScaleTimer = nil
+		end
+		
+		local transform = self.inventoryPopup.UITransformComponent
+		if not isvalid(transform) then return end
+		
+		self.ScaleTimer = _TimerService:SetTimerRepeat(function()
+			if not isvalid(transform) then
+				if self.ScaleTimer then
+					_TimerService:ClearTimer(self.ScaleTimer)
+					self.ScaleTimer = nil
+				end
+				return
+			end
+			
+			local diff = self.TargetScale - self.CurrentScale
+			if math.abs(diff) < 0.01 then
+				self.CurrentScale = self.TargetScale
+				transform.Scale = Vector3(self.CurrentScale, self.CurrentScale, 1.0)
+				
+				_TimerService:ClearTimer(self.ScaleTimer)
+				self.ScaleTimer = nil
+				
+				if self.TargetScale < 0.9 then
+					self.inventoryPopup.Enable = false
+					self:UpdateDimmer()
+				end
+			else
+				self.CurrentScale = self.CurrentScale + diff * 0.3
+				transform.Scale = Vector3(self.CurrentScale, self.CurrentScale, 1.0)
+			end
+		end, 1/60)
+	end
+
+	@ExecSpace("ClientOnly")
+	method void SetTab(string tabName)
+		self.activeTab = tabName
+		
+		-- Highlight active tab
+		local allColor = Color(0.3, 0.3, 0.3, 1)
+		local resColor = Color(0.3, 0.3, 0.3, 1)
+		local equipColor = Color(0.3, 0.3, 0.3, 1)
+		
+		if tabName == "All" then
+			allColor = Color(0.18, 0.34, 0.15, 1) -- Forest Green
+		elseif tabName == "Resources" then
+			resColor = Color(0.18, 0.34, 0.15, 1)
+		elseif tabName == "Equipment" then
+			equipColor = Color(0.18, 0.34, 0.15, 1)
+		end
+		
+		if isvalid(self.tabAll) then self.tabAll.Entity.SpriteGUIRendererComponent.Color = allColor end
+		if isvalid(self.tabRes) then self.tabRes.Entity.SpriteGUIRendererComponent.Color = resColor end
+		if isvalid(self.tabEquip) then self.tabEquip.Entity.SpriteGUIRendererComponent.Color = equipColor end
+		
+		self:RefreshInventoryData()
+	end
+
+	@ExecSpace("ClientOnly")
+	method void RefreshInventoryData()
+		local player = _UserService.LocalPlayer
+		if not isvalid(player) then return end
+		
+		local inv = player:GetComponent("script.PlayerInventory")
+		if not isvalid(inv) then return end
+		
+		local items = _HttpService:JSONDecode(inv.InventoryDataJson) or {}
+		
+		-- Filter items based on activeTab
+		self.filteredItems = {}
+		local totalCount = 0
+		
+		for itemName, count in pairs(items) do
+			if count > 0 then
+				totalCount = totalCount + 1
+				local category = self:GetItemCategory(itemName)
+		
+				if self.activeTab == "All" or self.activeTab == category then
+					table.insert(self.filteredItems, { name = itemName, count = count })
+				end
+			end
+		end
+		
+		-- Sort items alphabetically for clean display
+		table.sort(self.filteredItems, function(a, b)
+			return a.name < b.name
+		end)
+		
+		-- Update Capacity
+		if isvalid(self.capacityText) then
+			self.capacityText.Text = totalCount .. " / 24 items"
+		end
+		
+		-- Refresh GridView
+		if isvalid(self.gridView) then
+			self.gridView.TotalCount = #self.filteredItems
+			self.gridView:Refresh(true, true)
+		end
+	end
+
+	@ExecSpace("ClientOnly")
+	method string GetItemCategory(string itemName)
+		if itemName == "Wood" or itemName == "Stone" or itemName == "Grass" or itemName == "Big Stone" then
+			return "Resources"
+		elseif string.find(itemName, "Pickaxe") or string.find(itemName, "Axe") or string.find(itemName, "Chest") then
+			return "Equipment"
+		end
+		return "Resources"
+	end
+
+	@ExecSpace("ClientOnly")
+	method string GetItemIcon(string itemName)
+		-- Looks up the item's IconRUID (item model sprite) from item_dataset.
+		local ds = _DataService:GetTable("item_dataset")
+		if ds == nil then return "" end
+		local rowCount = ds:GetRowCount()
+		for i = 1, rowCount do
+			if ds:GetCell(i, "Name") == itemName then
+				return ds:GetCell(i, "IconRUID") or ""
+			end
+		end
+		return ""
+	end
+
+	@ExecSpace("ClientOnly")
+	method string GetItemDescription(string itemName)
+		if itemName == "Wood" then return "A flexible wooden branch. Useful for crafting basic tools."
+		elseif itemName == "Stone" then return "A common stone found in the wild. Used in crafting tools and buildings."
+		elseif itemName == "Grass" then return "Soft wild grass. Can be used for binding or insulation."
+		elseif itemName == "Big Stone" then return "A heavy, dense block of solid stone. Used for durable crafting."
+		elseif itemName == "Hand Axe" then return "A simple axe made of stone. Used to cut trees."
+		elseif itemName == "Stone Pickaxe" then return "A sturdy stone pickaxe. Ideal for mining large stones."
+		elseif itemName == "Stone Axe" then return "An upgraded axe. Efficiently cuts down trees."
+		elseif itemName == "Wooden Chest" then return "A simple chest to store your extra materials."
+		end
+		return "A mysterious item of unknown utility."
+	end
+
+	@ExecSpace("ClientOnly")
+	method void RefreshGridItem(integer index, Entity slotEntity)
+		-- index is 0-based
+		local data = self.filteredItems[index + 1]
+		if not data then return end
+		
+		-- Icon
+		local iconEntity = slotEntity:GetChildByName("Icon")
+		if isvalid(iconEntity) and isvalid(iconEntity.SpriteGUIRendererComponent) then
+			iconEntity.SpriteGUIRendererComponent.ImageRUID = self:GetItemIcon(data.name)
+		end
+		
+		-- Count (+ equipped marker)
+		local equippedTool = self:GetEquippedToolName()
+		local countTextEntity = slotEntity:GetChildByName("Count")
+		if isvalid(countTextEntity) and isvalid(countTextEntity.TextComponent) then
+			if data.name == equippedTool then
+				countTextEntity.TextComponent.Text = "[E] x" .. data.count
+				countTextEntity.TextComponent.FontColor = Color(0.4, 1.0, 0.4, 1)
+			else
+				countTextEntity.TextComponent.Text = "x" .. data.count
+				countTextEntity.TextComponent.FontColor = Color.white
+			end
+		end
+		
+		local btn = slotEntity.ButtonComponent
+		if isvalid(btn) then
+			if self.slotHandlers[slotEntity] then
+				slotEntity:DisconnectEvent(ButtonClickEvent, self.slotHandlers[slotEntity])
+			end
+			self.slotHandlers[slotEntity] = slotEntity:ConnectEvent(ButtonClickEvent, function()
+				local clickTime = _UtilLogic.ElapsedSeconds
+				local lastTime = self.lastClickTimes[data.name] or 0
+				self.lastClickTimes[data.name] = clickTime
+		
+				local furnacePopup = _EntityService:GetEntityByPath("/ui/PopupGroup/FurnacePopup")
+				local furnaceOpen = isvalid(furnacePopup) and furnacePopup.Enable
+		
+				if clickTime - lastTime < 0.3 then
+					-- Double click
+					if furnaceOpen then
+						self:TransferToFurnace(data.name, data.count, slotEntity)
+					else
+						local player = _UserService.LocalPlayer
+						if isvalid(player) then
+							local inv = player:GetComponent("script.PlayerInventory")
+							if isvalid(inv) then
+								local activeSlot = inv.SelectedQuickSlotIndex or 1
+								inv:ServerRegisterQuickSlot(activeSlot, data.name)
+							end
+						end
+					end
+				else
+					-- Single click
+					if furnaceOpen then
+						self.SelectedForFurnace = data.name
+						self:ShowTooltip(data.name, data.count)
+						self:FlashSlotEntity(slotEntity, Color(0.3, 0.7, 1.0, 1.0))
+					else
+						self:ShowTooltip(data.name, data.count)
+					end
+				end
+			end)
+		end
+	end
+
+	@ExecSpace("ClientOnly")
+	method string GetEquippedToolName()
+		-- Returns the locally synced equipped tool name.
+		local player = _UserService.LocalPlayer
+		if not isvalid(player) then return "" end
+		local inv = player:GetComponent("script.PlayerInventory")
+		if not isvalid(inv) then return "" end
+		return inv.EquippedTool or ""
+	end
+
+	@ExecSpace("ClientOnly")
+	method void ShowTooltip(string itemName, integer count)
+		if not isvalid(self.tooltipPanel) then return end
+		self.tooltipPanel.Enable = true
+		self.inspectedItem = itemName
+		
+		if isvalid(self.tooltipName) then
+			self.tooltipName.Text = itemName
+		end
+		if isvalid(self.tooltipDesc) then
+			self.tooltipDesc.Text = self:GetItemDescription(itemName)
+		end
+		if isvalid(self.tooltipCount) then
+			local suffix = ""
+			if itemName == self:GetEquippedToolName() then
+				suffix = "  (Equipped)"
+			elseif self:GetItemCategory(itemName) == "Equipment" then
+				suffix = "  (Double-click to register)"
+			end
+			self.tooltipCount.Text = "Owned: " .. count .. suffix
+		end
+	end
+
+	@ExecSpace("ClientOnly")
+	method void TransferToFurnace(string itemName, integer count, Entity slotEntity)
+		local furnacePopup = _EntityService:GetEntityByPath("/ui/PopupGroup/FurnacePopup")
+		if not isvalid(furnacePopup) then return end
+		local furnaceController = furnacePopup:GetComponent("script.UIFurnaceController")
+		if not isvalid(furnaceController) or not isvalid(furnaceController.CurrentFurnace) then return end
+		local furnaceComp = furnaceController.CurrentFurnace:GetComponent("script.Furnace")
+		if not isvalid(furnaceComp) then return end
+		
+		local transferred = false
+		local smeltDs = _DataService:GetTable("SmeltingRecipeDataSet")
+		local fuelDs = _DataService:GetTable("FurnaceFuelDataSet")
+		local isFuel = fuelDs ~= nil and fuelDs:FindRow("FuelItem", itemName) ~= nil
+		local isOre = smeltDs ~= nil and smeltDs:FindRow("InputItem", itemName) ~= nil
+		
+		if isFuel then
+			local curCount = furnaceComp.FuelItemCount
+			local toPut = math.min(99 - curCount, count)
+			if toPut > 0 then
+				furnaceComp:RequestPutItem("fuel", itemName, toPut)
+				transferred = true
+			end
+		elseif isOre then
+			local curCount = furnaceComp.InputItemCount
+			local toPut = math.min(99 - curCount, count)
+			if toPut > 0 then
+				furnaceComp:RequestPutItem("input", itemName, toPut)
+				transferred = true
+			end
+		end
+		
+		if transferred then
+			self:FlashSlotEntity(slotEntity, Color(0.2, 0.8, 0.2, 1.0))
+			self.SelectedForFurnace = ""
+			_TimerService:SetTimerOnce(function()
+				if isvalid(self) then
+					self:RefreshInventoryData()
+				end
+			end, 0.15)
+		else
+			self:FlashSlotEntity(slotEntity, Color(0.8, 0.2, 0.2, 1.0))
+		end
+	end
+
+	@ExecSpace("ClientOnly")
+	method void FlashSlotEntity(Entity slotEntity, Color flashColor)
+		if not isvalid(slotEntity) or not isvalid(slotEntity.SpriteGUIRendererComponent) then return end
+		local original = slotEntity.SpriteGUIRendererComponent.Color
+		slotEntity.SpriteGUIRendererComponent.Color = flashColor
+		_TimerService:SetTimerOnce(function()
+			if isvalid(slotEntity) and isvalid(slotEntity.SpriteGUIRendererComponent) then
+				slotEntity.SpriteGUIRendererComponent.Color = original
+			end
+		end, 0.3)
+	end
+
+	@ExecSpace("ClientOnly")
+	method void UpdateDimmer()
+		local dimmer = _EntityService:GetEntityByPath("/ui/PopupGroup/Dimmer")
+		if not isvalid(dimmer) then return end
+		
+		local inv = _EntityService:GetEntityByPath("/ui/PopupGroup/InventoryPopup")
+		local craft = _EntityService:GetEntityByPath("/ui/PopupGroup/CraftingPopup")
+		local char = _EntityService:GetEntityByPath("/ui/PopupGroup/CharacterPopup")
+		
+		local anyOpen = (isvalid(inv) and inv.Enable) or (isvalid(craft) and craft.Enable) or (isvalid(char) and char.Enable)
+		dimmer.Enable = anyOpen
+	end
+
+end

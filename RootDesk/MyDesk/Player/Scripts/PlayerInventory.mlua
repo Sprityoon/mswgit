@@ -1,0 +1,535 @@
+@Component
+script PlayerInventory extends Component
+
+	@Sync
+	property string InventoryDataJson = "{}"
+
+	@Sync
+	property string EquippedTool = ""
+
+	@Sync
+	property string QuickSlotsJson = "[\"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\"]"
+
+	@Sync
+	property integer SelectedQuickSlotIndex = 1
+
+	property table Items = {}
+
+	@ExecSpace("ServerOnly")
+	method void OnBeginPlay()
+		-- Initializes the server-side inventory state for this player.
+		self.Items = {}
+		self.InventoryDataJson = "{}"
+		self.EquippedTool = ""
+		self.QuickSlotsJson = "[\"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\"]"
+		self.SelectedQuickSlotIndex = 1
+		log("PlayerInventory initialized on server for player: " .. self.Entity.Name)
+	end
+
+	@ExecSpace("Server")
+	method void AddItem(string itemName, integer count)
+		-- Adds count items and pushes the synced JSON snapshot to clients.
+		if count <= 0 then return end
+		
+		local current = self.Items[itemName] or 0
+		self.Items[itemName] = current + count
+		
+		self.InventoryDataJson = _HttpService:JSONEncode(self.Items)
+		
+		log("Inventory updated: added " .. count .. " " .. itemName .. ". Total: " .. self.Items[itemName])
+		
+		self:ClientShowPickupMessage(itemName, count, self.Items[itemName])
+	end
+
+	@ExecSpace("ServerOnly")
+	method boolean RemoveItem(string itemName, integer count)
+		-- Removes count items if owned; returns false when insufficient.
+		if count <= 0 then return true end
+		local current = self.Items[itemName] or 0
+		if current < count then return false end
+		
+		self.Items[itemName] = current - count
+		if self.Items[itemName] <= 0 then
+			self.Items[itemName] = nil
+			-- Unequip if the equipped tool ran out
+			if self.EquippedTool == itemName then
+				self.EquippedTool = ""
+			end
+		end
+		self.InventoryDataJson = _HttpService:JSONEncode(self.Items)
+		return true
+	end
+
+	@ExecSpace("ClientOnly")
+	method void OnSyncProperty(string name, any value)
+		-- Live-refreshes open popups whenever the inventory or equipped tool syncs.
+		if name ~= "InventoryDataJson" and name ~= "EquippedTool" and name ~= "QuickSlotsJson" then return end
+		
+		-- Only react to the local player's own inventory
+		local localPlayer = _UserService.LocalPlayer
+		if not isvalid(localPlayer) or localPlayer ~= self.Entity then return end
+		
+		local invPopup = _EntityService:GetEntityByPath("/ui/PopupGroup/InventoryPopup")
+		if isvalid(invPopup) and invPopup.Enable then
+			local ctrl = invPopup:GetComponent("script.UIInventoryController")
+			if isvalid(ctrl) then
+				local c = ctrl
+				c:RefreshInventoryData()
+			end
+		end
+		
+		local craftPopup = _EntityService:GetEntityByPath("/ui/PopupGroup/CraftingPopup")
+		if isvalid(craftPopup) and craftPopup.Enable then
+			local ctrl = craftPopup:GetComponent("script.UICraftingController")
+			if isvalid(ctrl) then
+				local c = ctrl
+				c:UpdateDetails()
+			end
+		end
+		
+		local charPopup = _EntityService:GetEntityByPath("/ui/PopupGroup/CharacterPopup")
+		if isvalid(charPopup) and charPopup.Enable then
+			local ctrl = charPopup:GetComponent("script.UICharacterController")
+			if isvalid(ctrl) then
+				local c = ctrl
+				c:RefreshStats()
+			end
+		end
+		
+		local hudEntity = _EntityService:GetEntityByPath("/ui/HUDGroup")
+		if isvalid(hudEntity) then
+			local hudCtrl = hudEntity:GetComponent("script.UIHUDController")
+			if isvalid(hudCtrl) then
+				local hc = hudCtrl
+				hc:UpdateHUD()
+			end
+		end
+	end
+
+	@ExecSpace("ClientOnly")
+	method void ClientShowPickupMessage(string itemName, integer count, integer total)
+		-- Client-side pickup feedback log.
+		log("Picked up " .. count .. " " .. itemName .. " (Total: " .. total .. ")")
+	end
+
+	method boolean HasItem(string itemName, integer requiredCount)
+		-- Checks whether at least requiredCount of itemName is owned.
+		return self:GetItemCount(itemName) >= requiredCount
+	end
+
+	method integer GetItemCount(string itemName)
+		-- Returns the owned count; on the client it reads the synced JSON snapshot.
+		local count = self.Items[itemName] or 0
+		if self:IsClient() then
+			local clientItems = _HttpService:JSONDecode(self.InventoryDataJson)
+			if clientItems ~= nil then
+				count = clientItems[itemName] or 0
+			end
+		end
+		return count
+	end
+
+	@ExecSpace("ServerOnly")
+	method void Equip(string itemName)
+		-- Toggle off when re-equipping the same tool
+		if self.EquippedTool == itemName or itemName == "" then
+			self.EquippedTool = ""
+			log("[EQUIP] " .. self.Entity.Name .. " unequipped " .. itemName)
+			self:ClientOnEquipChanged("")
+			return
+		end
+		
+		if (self.Items[itemName] or 0) <= 0 then
+			log_warning("[EQUIP] " .. self.Entity.Name .. " does not own " .. itemName)
+			return
+		end
+		
+		-- Validate that the item is a tool via item_dataset (server-only dataset)
+		local ds = _DataService:GetTable("item_dataset")
+		if ds == nil then return end
+		local row = ds:FindRow("Name", itemName)
+		if row == nil or row:GetItem("Category") ~= "tool" then
+			log_warning("[EQUIP] " .. itemName .. " is not an equippable tool.")
+			return
+		end
+		
+		self.EquippedTool = itemName
+		log("[EQUIP] " .. self.Entity.Name .. " equipped " .. itemName)
+		self:ClientOnEquipChanged(itemName)
+	end
+
+	@ExecSpace("Server")
+	method void ServerRequestEquip(string itemName)
+		-- Equips/unequips a tool after validating ownership and item category.
+		local playerComp = self.Entity.PlayerComponent
+		if playerComp == nil or senderUserId ~= playerComp.UserId then
+			return
+		end
+		log("[EQUIP] ServerRequestEquip verified caller for: " .. itemName .. " by " .. self.Entity.Name)
+		self:Equip(itemName)
+	end
+
+	@ExecSpace("ServerOnly")
+	method table GetEquippedToolInfo()
+		-- Returns { toolType, power } of the equipped tool; empty toolType when bare-handed.
+		local info = { toolType = "", power = 0 }
+		if self.EquippedTool == "" then return info end
+		
+		local ds = _DataService:GetTable("item_dataset")
+		if ds == nil then return info end
+		local row = ds:FindRow("Name", self.EquippedTool)
+		if row == nil then return info end
+		
+		info.toolType = row:GetItem("ToolType") or ""
+		info.power = tonumber(row:GetItem("ToolPower")) or 0
+		return info
+	end
+
+	@ExecSpace("Client")
+	method void ClientOnEquipChanged(string itemName)
+		-- Refreshes the inventory popup after an equip change.
+		if itemName ~= "" then
+			log("Equipped tool: " .. itemName)
+		else
+			log("Tool unequipped.")
+		end
+		local popup = _EntityService:GetEntityByPath("/ui/PopupGroup/InventoryPopup")
+		if isvalid(popup) then
+			local ctrl = popup:GetComponent("script.UIInventoryController")
+			if isvalid(ctrl) then
+				local c = ctrl
+				c:RefreshInventoryData()
+			end
+		end
+	end
+
+	@ExecSpace("Server")
+	method void ServerRequestCraft(string recipeName)
+		-- Validates and executes a craft request using RecipeDataSet.
+		local playerComp = self.Entity.PlayerComponent
+		if playerComp == nil or senderUserId ~= playerComp.UserId then
+			return
+		end
+		
+		local ds = _DataService:GetTable("RecipeDataSet")
+		if ds == nil then
+			log_error("RecipeDataSet not found.")
+			return
+		end
+		
+		local row = ds:FindRow("RecipeName", recipeName)
+		if row == nil then return end
+		
+		local ingredients = {}
+		local ing1Name = row:GetItem("Ing1Name") or ""
+		local ing1Count = tonumber(row:GetItem("Ing1Count")) or 0
+		local ing2Name = row:GetItem("Ing2Name") or ""
+		local ing2Count = tonumber(row:GetItem("Ing2Count")) or 0
+		
+		if ing1Name ~= "" and ing1Count > 0 then
+			table.insert(ingredients, { itemName = ing1Name, required = ing1Count })
+		end
+		if ing2Name ~= "" and ing2Count > 0 then
+			table.insert(ingredients, { itemName = ing2Name, required = ing2Count })
+		end
+		
+		-- Validate materials
+		local canCraft = true
+		for _, ing in ipairs(ingredients) do
+			if (self.Items[ing.itemName] or 0) < ing.required then
+				canCraft = false
+				break
+			end
+		end
+		
+		if canCraft then
+			for _, ing in ipairs(ingredients) do
+				self:RemoveItem(ing.itemName, ing.required)
+			end
+			self:AddItem(recipeName, 1)
+		
+			log("[CRAFT] Player " .. self.Entity.Name .. " crafted " .. recipeName)
+			self:ClientOnCraftCompleted(recipeName, true, playerComp.UserId)
+
+			-- Auto-Equip Logic
+			local itemDs = _DataService:GetTable("item_dataset")
+			if itemDs ~= nil then
+				local itemRow = itemDs:FindRow("Name", recipeName)
+				if itemRow ~= nil then
+					local cat = itemRow:GetItem("Category")
+					if cat == "tool" or cat == "furniture" then
+						local slots = _HttpService:JSONDecode(self.QuickSlotsJson) or {}
+						local emptySlotIndex = -1
+						for i = 1, 10 do
+							if slots[i] == nil or slots[i] == "" then
+								emptySlotIndex = i
+								break
+							end
+						end
+						if emptySlotIndex ~= -1 then
+							self.SelectedQuickSlotIndex = emptySlotIndex
+							slots[emptySlotIndex] = recipeName
+							self.QuickSlotsJson = _HttpService:JSONEncode(slots)
+							log("[QUICKSLOT] Auto-registered crafted item " .. recipeName .. " to slot " .. emptySlotIndex)
+							self:SyncEquippedToolToSelectedSlot()
+						end
+					end
+				end
+			end
+		else
+			self:ClientOnCraftCompleted(recipeName, false, playerComp.UserId)
+		end
+	end
+
+	@ExecSpace("Client")
+	method void ClientOnCraftCompleted(string recipeName, boolean success)
+		-- description: Handles crafting result on client, displays private notice, and resets crafting status.
+		local popup = _EntityService:GetEntityByPath("/ui/PopupGroup/CraftingPopup")
+		local craftingCtrl = nil
+		if isvalid(popup) then
+			craftingCtrl = popup:GetComponent("script.UICraftingController")
+			if isvalid(craftingCtrl) then
+				craftingCtrl.isCrafting = false
+			end
+		end
+		
+		if success then
+			log("Crafting successful for: " .. recipeName)
+			_ScreenMessageLogic:PrivateMsg(string.format("[%s] 제작 및 획득 완료!", recipeName))
+			if isvalid(craftingCtrl) then
+				craftingCtrl:UpdateDetails()
+			end
+		else
+			log_warning("Crafting failed: Insufficient materials on server.")
+			if isvalid(craftingCtrl) then
+				craftingCtrl:UpdateDetails()
+			end
+		end
+	end
+
+	@ExecSpace("Server")
+	method void ServerRegisterQuickSlot(integer slotIndex, string itemName)
+		local playerComp = self.Entity.PlayerComponent
+		if playerComp == nil or senderUserId ~= playerComp.UserId then
+			return
+		end
+		
+		if slotIndex < 1 or slotIndex > 10 then
+			log_warning("Invalid quick slot index: " .. tostring(slotIndex))
+			return
+		end
+		
+		-- If itemName is not empty, check if player owns it
+		if itemName ~= "" then
+			local current = self.Items[itemName] or 0
+			if current <= 0 then
+				log_warning("Player " .. self.Entity.Name .. " does not own " .. itemName .. " to register in quick slot.")
+				return
+			end
+		end
+		
+		local slots = _HttpService:JSONDecode(self.QuickSlotsJson) or {}
+		slots[slotIndex] = itemName
+		self.QuickSlotsJson = _HttpService:JSONEncode(slots)
+		
+		log("[QUICKSLOT] Player " .. self.Entity.Name .. " registered slot " .. slotIndex .. " = " .. itemName)
+		self:SyncEquippedToolToSelectedSlot()
+	end
+
+	@ExecSpace("ServerOnly")
+	method void SyncEquippedToolToSelectedSlot()
+		-- description: Automatically equips the tool registered in the currently selected quickslot.
+		local slots = _HttpService:JSONDecode(self.QuickSlotsJson) or {}
+		local itemName = slots[self.SelectedQuickSlotIndex] or ""
+		
+		if itemName ~= "" then
+			local current = self.Items[itemName] or 0
+			if current > 0 then
+				local ds = _DataService:GetTable("item_dataset")
+				if ds ~= nil then
+					local row = ds:FindRow("Name", itemName)
+					if row ~= nil and row:GetItem("Category") == "tool" then
+						if self.EquippedTool ~= itemName then
+							self:Equip(itemName)
+						end
+						return
+					end
+				end
+			end
+		end
+		
+		if self.EquippedTool ~= "" then
+			self:Equip("")
+		end
+	end
+
+	@ExecSpace("Server")
+	method void ServerSelectQuickSlot(integer slotIndex)
+		-- description: Updates the active selected quick slot and updates equipped tool.
+		local playerComp = self.Entity.PlayerComponent
+		if playerComp == nil or senderUserId ~= playerComp.UserId then
+			return
+		end
+		
+		if slotIndex < 1 or slotIndex > 10 then
+			log_warning("Invalid quick slot index: " .. tostring(slotIndex))
+			return
+		end
+		
+		self.SelectedQuickSlotIndex = slotIndex
+		log("[QUICKSLOT] Player " .. self.Entity.Name .. " selected slot " .. slotIndex)
+		self:SyncEquippedToolToSelectedSlot()
+	end
+
+	@ExecSpace("Server")
+	method void ServerRequestPlace(string itemName, integer cellX, integer cellY)
+		-- description: Handles server-side validation and execution of placing furniture or construction tiles.
+		local cellPos = Vector2Int(cellX, cellY)
+		local playerComp = self.Entity.PlayerComponent
+		if playerComp == nil or senderUserId ~= playerComp.UserId then
+			return
+		end
+		
+		-- Validate item ownership
+		if not self:HasItem(itemName, 1) then
+			log_warning("Player " .. self.Entity.Name .. " does not own " .. itemName)
+			return
+		end
+		
+		local currentMap = self.Entity.CurrentMap
+		if not isvalid(currentMap) then return end
+		
+		local tilemap = currentMap:GetFirstChildComponentByTypeName("RectTileMapComponent", true)
+		if not isvalid(tilemap) then
+			log_warning("No RectTileMapComponent found on map.")
+			return
+		end
+		
+		-- Validate distance (Chebyshev distance <= 4)
+		local playerPos = self.Entity.TransformComponent.WorldPosition
+		local playerCell = tilemap:ToCellPosition(playerPos)
+		local dist = math.max(math.abs(cellPos.x - playerCell.x), math.abs(cellPos.y - playerCell.y))
+		if dist > 4 then
+			log_warning("Placement distance too far: " .. dist)
+			return
+		end
+		
+		-- Fetch item metadata from item_dataset
+		local ds = _DataService:GetTable("item_dataset")
+		if ds == nil then return end
+		local row = ds:FindRow("Name", itemName)
+		if row == nil then return end
+		local category = row:GetItem("Category")
+		if category ~= "furniture" then
+			log_warning("Item is not a placeable type: " .. itemName)
+			return
+		end
+		
+		local placedTileName = row:GetItem("PlacedTileName") or ""
+		local isTile = (placedTileName ~= "")
+		
+		-- Validate target base terrain (must be BaseEarth or BaseGrass tile underneath)
+		local layer1 = currentMap:GetChildByName("RectTileMap")
+		local layer2 = currentMap:GetChildByName("RectTileMap2")
+		local hasBase = false
+		if isvalid(layer1) and isvalid(layer1.RectTileMapComponent) then
+			if layer1.RectTileMapComponent:GetTile(cellPos) ~= nil then hasBase = true end
+		end
+		if isvalid(layer2) and isvalid(layer2.RectTileMapComponent) then
+			if layer2.RectTileMapComponent:GetTile(cellPos) ~= nil then hasBase = true end
+		end
+		if not hasBase then
+			log_warning("Cannot place on empty space.")
+			return
+		end
+		
+		local resourceSpawner = _ResourceSpawner
+		if resourceSpawner == nil then
+			log_warning("ResourceSpawner not available.")
+			return
+		end
+		
+		-- Validate grid footprint occupancy
+		if isTile then
+			local key = cellPos.x .. "_" .. cellPos.y
+			if resourceSpawner.GridToEntity[key] ~= nil then
+				log_warning("Grid cell occupied: " .. key)
+				return
+			end
+		else
+			-- Furniture footprint check (generic model lookup)
+			local modelId = _EntryService:GetModelIdByName("Furniture_" .. string.gsub(itemName, " ", ""))
+			if modelId == nil or modelId == "" then
+				log_error("Placed model not found for: " .. itemName)
+				return
+			end
+			
+			local xMin, xMax, yMin, yMax = cellPos.x, cellPos.x, cellPos.y, cellPos.y
+			
+			-- Check player collision overlap
+			local players = _UserService:GetUsersByMapComponent(currentMap.MapComponent)
+			if players then
+				for _, user in pairs(players) do
+					if isvalid(user) then
+						local uPos = user.TransformComponent.WorldPosition
+						local uCell = tilemap:ToCellPosition(uPos)
+						if uCell.x >= xMin and uCell.x <= xMax and uCell.y >= yMin and uCell.y <= yMax then
+							log_warning("Cannot place on a player.")
+							return
+						end
+					end
+				end
+			end
+			
+			-- Check occupancy in GridToEntity
+			for nx = xMin, xMax do
+				for ny = yMin, yMax do
+					local key = nx .. "_" .. ny
+					if resourceSpawner.GridToEntity[key] ~= nil then
+						log_warning("Grid cell occupied: " .. key)
+						return
+					end
+				end
+			end
+		end
+		
+		-- Deduct 1 item from inventory
+		if not self:RemoveItem(itemName, 1) then
+			log_warning("Failed to remove item: " .. itemName)
+			return
+		end
+		
+		if isTile then
+			-- Paint tile on RectTileMap3 (Layer 3)
+			local layer3 = currentMap:GetChildByName("RectTileMap3")
+			if isvalid(layer3) and isvalid(layer3.RectTileMapComponent) then
+				layer3.RectTileMapComponent:SetTile(placedTileName, cellPos.x, cellPos.y)
+				log("[PLACE] Painted tile " .. placedTileName .. " at cell " .. tostring(cellPos))
+			end
+			resourceSpawner:AddPlacedTile(placedTileName, cellPos.x, cellPos.y)
+		else
+			-- Spawn furniture entity
+			local modelId = _EntryService:GetModelIdByName("Furniture_" .. string.gsub(itemName, " ", ""))
+			local spawnPos = Vector3(cellPos.x + 0.5, cellPos.y + 0.5, 0)
+			local spawnedEntity = _SpawnService:SpawnByModelId(
+				modelId,
+				itemName,
+				spawnPos,
+				currentMap
+			)
+			if isvalid(spawnedEntity) then
+				local sprite = spawnedEntity.SpriteRendererComponent
+				if isvalid(sprite) then
+					sprite.IgnoreMapLayerCheck = true
+					sprite.SortingLayer = "MapLayer2"
+					sprite.OrderInLayer = math.floor((resourceSpawner.MapRadius - cellPos.y) * 100)
+				end
+				log("[PLACE] Spawned furniture " .. itemName .. " at cell " .. tostring(cellPos))
+				resourceSpawner:AddPlacedFurniture(itemName, cellPos.x, cellPos.y, spawnedEntity)
+			else
+				log_error("Failed to spawn furniture entity: " .. itemName)
+			end
+		end
+	end
+
+end
