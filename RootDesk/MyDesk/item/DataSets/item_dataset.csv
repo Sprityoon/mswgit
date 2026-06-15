@@ -12,3 +12,4 @@ iron_ore,Iron Ore,Item_IronOre,71d8820c-c72e-4b2a-b7a4-ef8b337c2a01,resource,,0,
 copper_bar,Copper Bar,Item_CopperBar,1234cdef-5678-4321-abcd-ef1234567890,resource,,0,d7429bc723034933b9b51de9b6b912fc,
 iron_bar,Iron Bar,Item_IronBar,9876fedc-5432-1234-abcd-ef9876543210,resource,,0,7ac77c77fdc0480080303b2dc0b96c35,
 wood_floor,Wood Floor,Item_WoodFloor,a0123456-789a-bcde-f012-3456789abcde,furniture,,0,22e9f409617b4e4180f9c92fb26b13f7,Baram_167
+portal,Portal,Item_Portal,f9d3a4b5-67c8-49d0-bfd1-ebd3c4a2a1a0,furniture,,0,aba58d2139ca4736bab39f6b4c39aa37,

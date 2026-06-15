@@ -4223,7 +4223,7 @@
         },
         {
           "Id": "f87cc224fd444f60b80b668bef4b368c",
-          "Name": "Baram_842",
+          "Name": "Snow",
           "IsCollidable": false
         },
         {
@@ -8278,7 +8278,7 @@
         },
         {
           "Id": "93041b205b3d406992ae4c35af8ee5ce",
-          "Name": "Baram_1654",
+          "Name": "Dessert",
           "IsCollidable": false
         },
         {
@@ -8293,7 +8293,7 @@
         },
         {
           "Id": "cfc89c37972c42998b7efd7741294faa",
-          "Name": "Baram_1657",
+          "Name": "DessertDeco1",
           "IsCollidable": false
         },
         {
@@ -8313,7 +8313,7 @@
         },
         {
           "Id": "44c1dbd418d443799ea6c7f8266d16c6",
-          "Name": "Baram_1661",
+          "Name": "DessertDeco2",
           "IsCollidable": false
         },
         {
@@ -8333,7 +8333,7 @@
         },
         {
           "Id": "82b0fcd58e754c6c8c5c0b8293ff4104",
-          "Name": "Baram_1665",
+          "Name": "DessertDeco3",
           "IsCollidable": false
         },
         {
@@ -9673,7 +9673,7 @@
         },
         {
           "Id": "d2a571e3bcc348bea51666070b7fc317",
-          "Name": "Baram_1933",
+          "Name": "Rocks",
           "IsCollidable": false
         },
         {

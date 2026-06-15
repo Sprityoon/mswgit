@@ -1,0 +1,310 @@
+@Logic
+script PersistenceManager extends Logic
+
+	property table DirtyPlayers = {}
+	property any PeriodicSaveTimerId = nil
+
+	@ExecSpace("ServerOnly")
+	method void OnBeginPlay()
+		self.DirtyPlayers = {}
+
+		_UserService:ConnectEvent(UserEnterEvent, self.OnUserEnter)
+		_UserService:ConnectEvent(UserLeaveEvent, self.OnUserLeave)
+
+		-- Setup 60s periodic save timer
+		self.PeriodicSaveTimerId = _TimerService:SetTimerRepeat(function()
+			self:SaveDirtyData()
+		end, 60.0)
+
+		log("PersistenceManager initialized on server.")
+	end
+
+	@ExecSpace("ServerOnly")
+	method void OnEndPlay()
+		if self.PeriodicSaveTimerId then
+			_TimerService:ClearTimer(self.PeriodicSaveTimerId)
+			self.PeriodicSaveTimerId = nil
+		end
+
+		-- Final synchronous save for all active players
+		log("PersistenceManager: Performing final sync save on OnEndPlay...")
+		local players = _UserService.UserEntities
+		if players then
+			for userId, player in pairs(players) do
+				if isvalid(player) then
+					self:SavePlayerData(player, true)
+				end
+			end
+		end
+		log("PersistenceManager: Final sync save completed.")
+	end
+
+	@ExecSpace("ServerOnly")
+	method void OnUserEnter(UserEnterEvent event)
+		local userId = event.UserId
+		log("PersistenceManager: Player entered: " .. userId .. ". Initializing home map...")
+		
+		-- Create dynamic home map if not exists
+		local mapName = "Home_" .. userId
+		local map = _EntityService:GetEntityByPath("/maps/" .. mapName)
+		if not isvalid(map) then
+			log("PersistenceManager: Creating dynamic home map for " .. userId)
+			local ec = _DynamicMapService:CreateDynamicMap("map01", mapName)
+			if ec == DynamicMapResultCode.Success then
+				map = _EntityService:GetEntityByPath("/maps/" .. mapName)
+				if isvalid(map) then
+					log("PersistenceManager: Dynamic home map created successfully. Spawning initial resources...")
+					_ResourceSpawner:SpawnInitialResourcesForMap(map)
+				else
+					log_error("PersistenceManager: Failed to get map entity after creation for " .. mapName)
+				end
+			else
+				log_error("PersistenceManager: CreateDynamicMap failed for " .. mapName .. " with error: " .. tostring(ec))
+				return
+			end
+		end
+
+		-- Load saved data and warp the player straight to their saved home position.
+		-- (No pre-teleport to a fixed cell + delayed reposition — that caused a visible
+		--  double-jump. LoadPlayerData applies data, reconstructs the home, then warps once.)
+		local player = _UserService:GetUserEntityByUserId(userId)
+		if isvalid(player) then
+			self:LoadPlayerData(player)
+
+			-- Reveal the world: fade out the spawn cover now that the player is placed.
+			local pc = player:GetComponent("script.PlayerController")
+			if isvalid(pc) then
+				---@type PlayerController
+				local controller = pc
+				controller:ClientHideSpawnFade(player.PlayerComponent.UserId)
+			end
+		else
+			log_warning("PersistenceManager: Player entity not found for teleport: " .. userId)
+		end
+	end
+
+	@ExecSpace("ServerOnly")
+	method void OnUserLeave(UserLeaveEvent event)
+		local userId = event.UserId
+		log("PersistenceManager: Player left: " .. userId .. ". Saving data...")
+		
+		local player = _UserService:GetUserEntityByUserId(userId)
+		if isvalid(player) then
+			self:SavePlayerData(player, true)
+			self.DirtyPlayers[userId] = nil
+		end
+		
+		-- Cleanup dynamic map if no players are left in it
+		local mapName = "Home_" .. userId
+		local map = _EntityService:GetEntityByPath("/maps/" .. mapName)
+		if isvalid(map) then
+			local mapComp = map.MapComponent
+			if isvalid(mapComp) then
+				local users = _UserService:GetUsersByMapComponent(mapComp)
+				if not users or #users == 0 then
+					log("PersistenceManager: Destroying empty dynamic map " .. mapName)
+					_DynamicMapService:DestroyDynamicMap(mapName)
+				end
+			end
+		end
+	end
+
+	@ExecSpace("ServerOnly")
+	method void MarkPlayerDirty(string userId)
+		if not userId or userId == "" then return end
+		self.DirtyPlayers[userId] = true
+	end
+
+	@ExecSpace("ServerOnly")
+	method void LoadPlayerData(Entity player)
+		if not isvalid(player) then return end
+		local userId = player.PlayerComponent.UserId
+		local mapName = "Home_" .. userId
+		local map = _EntityService:GetEntityByPath("/maps/" .. mapName)
+		if not isvalid(map) then return end
+
+		-- Resolved spawn position; the player is warped here once at the end of this method.
+		local spawnX, spawnY = -3.0, 0.0
+
+		local storage = _DataStorageService:GetUserDataStorage(userId)
+		if not storage then
+			log_error("PersistenceManager: Failed to get UserDataStorage for " .. userId)
+			return
+		end
+
+		local errorCode, raw = storage:GetAndWait("SaveData")
+		if errorCode == 0 and raw and raw ~= "" and raw ~= "{}" then
+			log("PersistenceManager: Load successful for " .. userId .. ". Parsing data...")
+			local success, data = pcall(function() return _HttpService:JSONDecode(raw) end)
+			if not success or not data then
+				log_error("PersistenceManager: JSON decode failed for " .. userId)
+				self:SetDefaultPlayerData(player)
+				return
+			end
+
+			-- Restore PlayerController stats
+			local pc = player:GetComponent("script.PlayerController")
+			if isvalid(pc) then
+				pc.Level = data.level or 1
+				pc.XP = data.xp or 0
+				pc.MaxXP = data.maxRawXp or 100
+				pc.Stamina = data.stamina or 100
+				pc.MaxStamina = data.maxStamina or 100
+				pc.GatheringSpeed = data.gatheringSpeed or 1.0
+				log("PersistenceManager: Stats restored (Lv " .. pc.Level .. ")")
+			end
+
+			-- Restore PlayerInventory
+			local inv = player:GetComponent("script.PlayerInventory")
+			if isvalid(inv) then
+				inv.InventoryDataJson = data.inventoryData or "{}"
+				inv.Items = _HttpService:JSONDecode(inv.InventoryDataJson) or {}
+				inv.EquippedTool = data.equippedTool or ""
+				inv.QuickSlotsJson = data.quickSlots or "[\"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\"]"
+				inv.SelectedQuickSlotIndex = data.selectedSlot or 1
+				log("PersistenceManager: Inventory restored.")
+			end
+
+			-- Restore Placed Tiles, Furniture, and Destroyed Resources for player's home map
+			local tilesRaw = data.homeTiles or "[]"
+			local furnRaw = data.homeFurniture
+			local destRaw = data.homeDestroyedResources or "[]"
+			
+			-- Anti-softlock starter portal: only auto-place a default Portal when the home has
+			-- NO placed furniture AND the player owns NO Portal item to place themselves.
+			-- (Granting unconditionally on empty furniture re-mints a free portal every relog
+			--  while the player still holds one in their bag, accumulating duplicate portals.)
+			if furnRaw == nil or furnRaw == "" or furnRaw == "[]" then
+				local ownsPortal = false
+				if isvalid(inv) and inv.Items ~= nil and (inv.Items["Portal"] or 0) > 0 then
+					ownsPortal = true
+				end
+				if ownsPortal then
+					furnRaw = "[]"
+				else
+					furnRaw = "[{\"itemName\":\"Portal\",\"x\":-5,\"y\":0}]"
+				end
+			end
+
+			_ResourceSpawner:SetPlacedTilesJson(mapName, tilesRaw)
+			_ResourceSpawner:SetPlacedFurnitureJson(mapName, furnRaw)
+			_ResourceSpawner:LoadDestroyedResourcesFromJson(mapName, destRaw)
+			_ResourceSpawner:ReconstructWorldPlacementsForMap(map)
+
+			-- Remember saved position; the single warp happens after this branch.
+			spawnX = data.posX or -3.0
+			spawnY = data.posY or 0.0
+		else
+			if errorCode == 1000002 or raw == nil or raw == "" or raw == "{}" then
+				log("PersistenceManager: No save data found (New Player) for " .. userId)
+			else
+				log_warning("PersistenceManager: Load failed for " .. userId .. " with error code: " .. tostring(errorCode))
+			end
+			self:SetDefaultPlayerData(player)
+			
+			_ResourceSpawner:SetPlacedTilesJson(mapName, "[]")
+			_ResourceSpawner:SetPlacedFurnitureJson(mapName, "[{\"itemName\":\"Portal\",\"x\":-5,\"y\":0}]")
+			_ResourceSpawner:LoadDestroyedResourcesFromJson(mapName, "[]")
+			_ResourceSpawner:ReconstructWorldPlacementsForMap(map)
+		end
+
+		-- Single warp from the start map straight to the resolved home position (no double-jump).
+		player.PlayerComponent:MoveToMapPosition(mapName, Vector2(spawnX, spawnY))
+		log("PersistenceManager: Player warped to home " .. mapName .. " at (" .. spawnX .. ", " .. spawnY .. ")")
+
+		self.DirtyPlayers[userId] = false
+	end
+
+	@ExecSpace("ServerOnly")
+	method void SetDefaultPlayerData(Entity player)
+		if not isvalid(player) then return end
+		log("PersistenceManager: Setting default player progress stats...")
+		local pc = player:GetComponent("script.PlayerController")
+		if isvalid(pc) then
+			pc.Level = 1
+			pc.XP = 0
+			pc.MaxXP = 100
+			pc.Stamina = 100
+			pc.MaxStamina = 100
+			pc.GatheringSpeed = 1.0
+		end
+	end
+
+	@ExecSpace("ServerOnly")
+	method void SavePlayerData(Entity player, boolean isSynchronous)
+		if not isvalid(player) then return end
+		local userId = player.PlayerComponent.UserId
+		local mapName = "Home_" .. userId
+		
+		local pc = player:GetComponent("script.PlayerController")
+		local inv = player:GetComponent("script.PlayerInventory")
+		if not isvalid(pc) or not isvalid(inv) then return end
+
+		local posX = player.TransformComponent.WorldPosition.x
+		local posY = player.TransformComponent.WorldPosition.y
+
+		-- Retrieve home map placements and destroyed resources to save to player user data
+		local tilesJson = _ResourceSpawner:GetPlacedTilesJson(mapName)
+		local furnJson = _ResourceSpawner:GetPlacedFurnitureJson(mapName)
+		local destJson = _ResourceSpawner:GetDestroyedResourcesAsJson(mapName)
+
+		local data = {
+			level = pc.Level,
+			xp = pc.XP,
+			maxRawXp = pc.MaxXP,
+			stamina = pc.Stamina,
+			maxStamina = pc.MaxStamina,
+			gatheringSpeed = pc.GatheringSpeed,
+			inventoryData = inv.InventoryDataJson,
+			equippedTool = inv.EquippedTool,
+			quickSlots = inv.QuickSlotsJson,
+			selectedSlot = inv.SelectedQuickSlotIndex,
+			posX = posX,
+			posY = posY,
+			homeTiles = tilesJson,
+			homeFurniture = furnJson,
+			homeDestroyedResources = destJson
+		}
+
+		local jsonStr = _HttpService:JSONEncode(data)
+		local storage = _DataStorageService:GetUserDataStorage(userId)
+		if not storage then
+			log_error("PersistenceManager: Failed to get UserDataStorage for saving " .. userId)
+			return
+		end
+
+		if isSynchronous then
+			local errorCode = storage:SetAndWait("SaveData", jsonStr)
+			if errorCode ~= 0 then
+				log_warning("PersistenceManager: Sync save failed for " .. userId .. ", error: " .. tostring(errorCode))
+			else
+				log("PersistenceManager: Sync save completed for " .. userId)
+			end
+		else
+			storage:SetAsync("SaveData", jsonStr, function(errorCode, key)
+				if errorCode ~= 0 then
+					log_warning("PersistenceManager: Async save failed for " .. userId .. ", error: " .. tostring(errorCode))
+				else
+					log("PersistenceManager: Async save completed for " .. userId)
+				end
+			end)
+		end
+	end
+
+	@ExecSpace("ServerOnly")
+	method void SaveDirtyData()
+		local players = _UserService.UserEntities
+		if players then
+			for userId, isDirty in pairs(self.DirtyPlayers) do
+				if isDirty then
+					local player = players[userId]
+					if isvalid(player) then
+						self:SavePlayerData(player, false)
+						self.DirtyPlayers[userId] = false
+					end
+				end
+			end
+		end
+	end
+
+end

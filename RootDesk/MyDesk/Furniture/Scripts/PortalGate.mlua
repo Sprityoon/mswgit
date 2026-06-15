@@ -1,0 +1,39 @@
+@Component
+script PortalGate extends Component
+
+	property string TargetMapName = "town"
+
+	property Vector2 TargetPosition = Vector2(0, 0)
+
+	@ExecSpace("ServerOnly")
+	method void OnBeginPlay()
+		self.Entity:ConnectEvent(TriggerEnterEvent, self.OnTriggerEnter)
+		self.Entity:ConnectEvent(TriggerLeaveEvent, self.OnTriggerLeave)
+	end
+
+	@ExecSpace("ServerOnly")
+	method void OnTriggerEnter(TriggerEnterEvent event)
+		local body = event.TriggerBodyEntity
+		if not isvalid(body) or body.PlayerComponent == nil then return end
+		
+		local pc = body:GetComponent("script.PlayerController")
+		if isvalid(pc) then
+			pc.ActivePortal = self.Entity
+			log("PortalGate: Player entered portal zone. Set ActivePortal.")
+			-- We can trigger client UI prompt here if needed.
+		end
+	end
+
+	@ExecSpace("ServerOnly")
+	method void OnTriggerLeave(TriggerLeaveEvent event)
+		local body = event.TriggerBodyEntity
+		if not isvalid(body) or body.PlayerComponent == nil then return end
+		
+		local pc = body:GetComponent("script.PlayerController")
+		if isvalid(pc) and pc.ActivePortal == self.Entity then
+			pc.ActivePortal = nil
+			log("PortalGate: Player left portal zone. Cleared ActivePortal.")
+		end
+	end
+
+end

@@ -11,6 +11,11 @@ script UIHUDController extends Component
 
 	property TextComponent staValText = "7346e45d-bd3c-4206-bc97-433bde1dee36"
 
+	-- Black spawn cover shown until the server signals the home is ready (injected by UIBuilder).
+	property SpriteGUIRendererComponent spawnFade = "2ca8de66-0bd0-4424-ad11-9649abe57bcc"
+
+	property any spawnFadeTimer = nil
+
 	property any updateTimer = nil
 
 	property table quickSlotHandlers = {}
@@ -25,8 +30,27 @@ script UIHUDController extends Component
 
 	property any btnInfoHandler = nil
 
+	property any btnInteractHandler = nil
+
 	@ExecSpace("ClientOnly")
 	method void OnBeginPlay()
+		-- Ensure the spawn cover is opaque and blocking from the first frame; the server
+		-- fades it out (FadeOutSpawn) once this client's home map is ready.
+		if isvalid(self.spawnFade) then
+			self.spawnFade.Color = Color(0, 0, 0, 1)
+			self.spawnFade.RaycastTarget = true
+			if isvalid(self.spawnFade.Entity) then
+				self.spawnFade.Entity.Enable = true
+			end
+			-- Safety net: if the server's ready signal never arrives, never trap the player
+			-- behind a black screen — auto-fade after a generous timeout.
+			_TimerService:SetTimerOnce(function()
+				if isvalid(self.spawnFade) and isvalid(self.spawnFade.Entity) and self.spawnFade.Entity.Enable then
+					self:FadeOutSpawn()
+				end
+			end, 8.0)
+		end
+
 		self.updateTimer = _TimerService:SetTimerRepeat(function()
 			self:UpdateHUD()
 		end, 1/10)
@@ -96,6 +120,20 @@ script UIHUDController extends Component
 					if isvalid(controller) then
 						local c = controller
 						c:Toggle()
+					end
+				end
+			end)
+		end
+		
+		local btnInteract = _EntityService:GetEntityByPath("/ui/HUDGroup/MobileUI/BtnInteract")
+		if isvalid(btnInteract) then
+			if isvalid(btnInteract.SpriteGUIRendererComponent) then btnInteract.SpriteGUIRendererComponent.RaycastTarget = true end
+			self.btnInteractHandler = btnInteract:ConnectEvent(ButtonClickEvent, function()
+				local player = _UserService.LocalPlayer
+				if isvalid(player) then
+					local controller = player:GetComponent("script.PlayerController")
+					if isvalid(controller) then
+						controller:OnInteractButton()
 					end
 				end
 			end)
@@ -173,6 +211,11 @@ script UIHUDController extends Component
 		local btnInfo = _EntityService:GetEntityByPath("/ui/HUDGroup/MobileUI/BtnInfo")
 		if isvalid(btnInfo) and self.btnInfoHandler then
 			btnInfo:DisconnectEvent(ButtonClickEvent, self.btnInfoHandler)
+		end
+		
+		local btnInteract = _EntityService:GetEntityByPath("/ui/HUDGroup/MobileUI/BtnInteract")
+		if isvalid(btnInteract) and self.btnInteractHandler then
+			btnInteract:DisconnectEvent(ButtonClickEvent, self.btnInteractHandler)
 		end
 		
 		-- Disconnect Quick Slot click events
@@ -280,6 +323,44 @@ script UIHUDController extends Component
 				end
 			end
 		end
+	end
+
+	@ExecSpace("ClientOnly")
+	method void FadeOutSpawn()
+		-- Smoothly fades the black spawn cover to transparent, then disables it.
+		if not isvalid(self.spawnFade) then return end
+		if self.spawnFadeTimer then
+			_TimerService:ClearTimer(self.spawnFadeTimer)
+			self.spawnFadeTimer = nil
+		end
+
+		local fade = self.spawnFade
+		fade.RaycastTarget = false
+
+		self.spawnFadeTimer = _TimerService:SetTimerRepeat(function()
+			if not isvalid(fade) then
+				if self.spawnFadeTimer then
+					_TimerService:ClearTimer(self.spawnFadeTimer)
+					self.spawnFadeTimer = nil
+				end
+				return
+			end
+
+			local col = fade.Color
+			local a = col.a - 0.06
+			if a <= 0 then
+				fade.Color = Color(col.r, col.g, col.b, 0)
+				if isvalid(fade.Entity) then
+					fade.Entity.Enable = false
+				end
+				if self.spawnFadeTimer then
+					_TimerService:ClearTimer(self.spawnFadeTimer)
+					self.spawnFadeTimer = nil
+				end
+			else
+				fade.Color = Color(col.r, col.g, col.b, a)
+			end
+		end, 1/60)
 	end
 
 end

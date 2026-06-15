@@ -43,6 +43,43 @@ script UIInventoryController extends Component
 
 	property string inspectedItem = ""
 
+	property integer inspectedCount = 0
+
+	-- Discard (버리기) UI bindings — injected by UIBuilder
+	property ButtonComponent btnDiscardOpen = "4dbc45ea-00a5-4412-badd-be4ada185aed"
+
+	property Entity discardPopup = "a160b3f7-d7a2-4019-8e7c-8b34bd5b6584"
+
+	property TextComponent discardItemText = "531426cf-99f2-4996-beb8-00811f50967d"
+
+	property TextComponent discardCountText = "77a1d770-31ee-40b1-9c96-6e11b160cbb5"
+
+	property ButtonComponent btnDiscardMinus = "861924c2-d4ec-4a7d-ae7b-85f34b2b48ad"
+
+	property ButtonComponent btnDiscardPlus = "6661dd37-c226-46cf-ab53-7f20ef9373a3"
+
+	property ButtonComponent btnDiscardDrop = "e8703251-7b5a-42f1-8b27-0809a25caca1"
+
+	property ButtonComponent btnDiscardDelete = "ae901ceb-e64f-493d-a87b-57227973df55"
+
+	property ButtonComponent btnDiscardCancel = "e34d901c-f08f-49cc-a561-10d2ddf7fe3c"
+
+	property integer discardCount = 1
+
+	property integer discardMax = 1
+
+	property any discardOpenHandler = nil
+
+	property any discardMinusHandler = nil
+
+	property any discardPlusHandler = nil
+
+	property any discardDropHandler = nil
+
+	property any discardDeleteHandler = nil
+
+	property any discardCancelHandler = nil
+
 	property string SelectedForFurnace = ""
 
 	property any tabAllHandler = nil
@@ -57,6 +94,9 @@ script UIInventoryController extends Component
 	method void OnBeginPlay()
 		self.inventoryPopup.Enable = false
 		self.tooltipPanel.Enable = false
+		if isvalid(self.discardPopup) then
+			self.discardPopup.Enable = false
+		end
 		self:UpdateDimmer()
 		
 		-- Button clicks
@@ -110,6 +150,38 @@ script UIInventoryController extends Component
 				end
 			end
 		end)
+
+		-- Discard (버리기) button wiring
+		if isvalid(self.btnDiscardOpen) then
+			self.discardOpenHandler = self.btnDiscardOpen.Entity:ConnectEvent(ButtonClickEvent, function()
+				self:OpenDiscard()
+			end)
+		end
+		if isvalid(self.btnDiscardMinus) then
+			self.discardMinusHandler = self.btnDiscardMinus.Entity:ConnectEvent(ButtonClickEvent, function()
+				self:ChangeDiscardCount(-1)
+			end)
+		end
+		if isvalid(self.btnDiscardPlus) then
+			self.discardPlusHandler = self.btnDiscardPlus.Entity:ConnectEvent(ButtonClickEvent, function()
+				self:ChangeDiscardCount(1)
+			end)
+		end
+		if isvalid(self.btnDiscardDrop) then
+			self.discardDropHandler = self.btnDiscardDrop.Entity:ConnectEvent(ButtonClickEvent, function()
+				self:DoDiscard("drop")
+			end)
+		end
+		if isvalid(self.btnDiscardDelete) then
+			self.discardDeleteHandler = self.btnDiscardDelete.Entity:ConnectEvent(ButtonClickEvent, function()
+				self:DoDiscard("delete")
+			end)
+		end
+		if isvalid(self.btnDiscardCancel) then
+			self.discardCancelHandler = self.btnDiscardCancel.Entity:ConnectEvent(ButtonClickEvent, function()
+				self:CloseDiscard()
+			end)
+		end
 	end
 
 	@ExecSpace("ClientOnly")
@@ -136,6 +208,25 @@ script UIInventoryController extends Component
 		if self.keyDownHandler then
 			_InputService:DisconnectEvent(KeyDownEvent, self.keyDownHandler)
 			self.keyDownHandler = nil
+		end
+
+		if isvalid(self.btnDiscardOpen) and self.discardOpenHandler then
+			self.btnDiscardOpen.Entity:DisconnectEvent(ButtonClickEvent, self.discardOpenHandler)
+		end
+		if isvalid(self.btnDiscardMinus) and self.discardMinusHandler then
+			self.btnDiscardMinus.Entity:DisconnectEvent(ButtonClickEvent, self.discardMinusHandler)
+		end
+		if isvalid(self.btnDiscardPlus) and self.discardPlusHandler then
+			self.btnDiscardPlus.Entity:DisconnectEvent(ButtonClickEvent, self.discardPlusHandler)
+		end
+		if isvalid(self.btnDiscardDrop) and self.discardDropHandler then
+			self.btnDiscardDrop.Entity:DisconnectEvent(ButtonClickEvent, self.discardDropHandler)
+		end
+		if isvalid(self.btnDiscardDelete) and self.discardDeleteHandler then
+			self.btnDiscardDelete.Entity:DisconnectEvent(ButtonClickEvent, self.discardDeleteHandler)
+		end
+		if isvalid(self.btnDiscardCancel) and self.discardCancelHandler then
+			self.btnDiscardCancel.Entity:DisconnectEvent(ButtonClickEvent, self.discardCancelHandler)
 		end
 	end
 
@@ -401,6 +492,7 @@ script UIInventoryController extends Component
 		if not isvalid(self.tooltipPanel) then return end
 		self.tooltipPanel.Enable = true
 		self.inspectedItem = itemName
+		self.inspectedCount = count
 		
 		if isvalid(self.tooltipName) then
 			self.tooltipName.Text = itemName
@@ -486,6 +578,73 @@ script UIInventoryController extends Component
 		
 		local anyOpen = (isvalid(inv) and inv.Enable) or (isvalid(craft) and craft.Enable) or (isvalid(char) and char.Enable)
 		dimmer.Enable = anyOpen
+	end
+
+	@ExecSpace("ClientOnly")
+	method void OpenDiscard()
+		-- Opens the quantity-stepper modal for the currently inspected item.
+		if self.inspectedItem == "" then return end
+		if self.inspectedCount <= 0 then return end
+		if not isvalid(self.discardPopup) then return end
+
+		self.discardMax = self.inspectedCount
+		self.discardCount = 1
+		if isvalid(self.discardItemText) then
+			self.discardItemText.Text = self.inspectedItem .. "  (보유 " .. self.inspectedCount .. ")"
+		end
+		self:UpdateDiscardCountText()
+		self.discardPopup.Enable = true
+	end
+
+	@ExecSpace("ClientOnly")
+	method void ChangeDiscardCount(integer delta)
+		-- Steps the discard quantity within [1, owned amount].
+		self.discardCount = self.discardCount + delta
+		if self.discardCount < 1 then self.discardCount = 1 end
+		if self.discardCount > self.discardMax then self.discardCount = self.discardMax end
+		self:UpdateDiscardCountText()
+	end
+
+	@ExecSpace("ClientOnly")
+	method void UpdateDiscardCountText()
+		-- Reflects the current discard quantity in the stepper label.
+		if isvalid(self.discardCountText) then
+			self.discardCountText.Text = tostring(self.discardCount)
+		end
+	end
+
+	@ExecSpace("ClientOnly")
+	method void CloseDiscard()
+		-- Hides the discard modal without acting.
+		if isvalid(self.discardPopup) then
+			self.discardPopup.Enable = false
+		end
+	end
+
+	@ExecSpace("ClientOnly")
+	method void DoDiscard(string mode)
+		-- Sends the discard request to the server (mode = "drop" or "delete"), then closes.
+		local itemName = self.inspectedItem
+		local count = self.discardCount
+		if itemName == "" or count <= 0 then
+			self:CloseDiscard()
+			return
+		end
+
+		local player = _UserService.LocalPlayer
+		if isvalid(player) then
+			local inv = player:GetComponent("script.PlayerInventory")
+			if isvalid(inv) then
+				---@type PlayerInventory
+				local pi = inv
+				pi:ServerRequestDiscard(itemName, count, mode)
+			end
+		end
+
+		self:CloseDiscard()
+		self.tooltipPanel.Enable = false
+		self.inspectedItem = ""
+		self.inspectedCount = 0
 	end
 
 end

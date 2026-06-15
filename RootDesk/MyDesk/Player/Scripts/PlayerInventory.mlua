@@ -39,6 +39,10 @@ script PlayerInventory extends Component
 		log("Inventory updated: added " .. count .. " " .. itemName .. ". Total: " .. self.Items[itemName])
 		
 		self:ClientShowPickupMessage(itemName, count, self.Items[itemName])
+		
+		if _PersistenceManager and self.Entity.PlayerComponent then
+			_PersistenceManager:MarkPlayerDirty(self.Entity.PlayerComponent.UserId)
+		end
 	end
 
 	@ExecSpace("ServerOnly")
@@ -57,7 +61,57 @@ script PlayerInventory extends Component
 			end
 		end
 		self.InventoryDataJson = _HttpService:JSONEncode(self.Items)
+		
+		if _PersistenceManager and self.Entity.PlayerComponent then
+			_PersistenceManager:MarkPlayerDirty(self.Entity.PlayerComponent.UserId)
+		end
+
 		return true
+	end
+
+	@ExecSpace("Server")
+	method void ServerRequestDiscard(string itemName, integer count, string mode)
+		-- Discards up to `count` of itemName from the requester's inventory.
+		-- mode == "drop": spawn the items on the ground (re-pickable after a short grace window);
+		-- any other mode (e.g. "delete"): remove them permanently. Count is clamped to owned amount.
+		local playerComp = self.Entity.PlayerComponent
+		if playerComp == nil or senderUserId ~= playerComp.UserId then
+			return
+		end
+		if itemName == nil or itemName == "" then return end
+
+		local owned = self.Items[itemName] or 0
+		if owned <= 0 then return end
+
+		local dropCount = count
+		if dropCount > owned then dropCount = owned end
+		if dropCount <= 0 then return end
+
+		if mode == "drop" then
+			local map = self.Entity.CurrentMap
+			if isvalid(map) and _TileDurabilityManager ~= nil then
+				-- Resolve the lowercase item id from the inventory display name.
+				local itemId = ""
+				local ds = _DataService:GetTable("item_dataset")
+				if ds ~= nil then
+					local row = ds:FindRow("Name", itemName)
+					if row ~= nil then
+						itemId = row:GetItem("id")
+					end
+				end
+				if itemId ~= "" then
+					local pos = self.Entity.TransformComponent.WorldPosition
+					local dropPos = Vector3(pos.x, pos.y, 0)
+					-- 2s pickup grace so the player can step away before the magnet re-collects.
+					_TileDurabilityManager:SpawnResourceDrop(map, dropPos, itemId, dropCount, dropCount, 2.0)
+				else
+					log_warning("ServerRequestDiscard: no item_dataset id for '" .. itemName .. "'; deleting instead of dropping.")
+				end
+			end
+		end
+
+		self:RemoveItem(itemName, dropCount)
+		log("[DISCARD] Player " .. self.Entity.Name .. " discarded " .. dropCount .. " " .. itemName .. " (mode=" .. tostring(mode) .. ")")
 	end
 
 	@ExecSpace("ClientOnly")
@@ -136,6 +190,9 @@ script PlayerInventory extends Component
 			self.EquippedTool = ""
 			log("[EQUIP] " .. self.Entity.Name .. " unequipped " .. itemName)
 			self:ClientOnEquipChanged("")
+			if _PersistenceManager and self.Entity.PlayerComponent then
+				_PersistenceManager:MarkPlayerDirty(self.Entity.PlayerComponent.UserId)
+			end
 			return
 		end
 		
@@ -156,6 +213,9 @@ script PlayerInventory extends Component
 		self.EquippedTool = itemName
 		log("[EQUIP] " .. self.Entity.Name .. " equipped " .. itemName)
 		self:ClientOnEquipChanged(itemName)
+		if _PersistenceManager and self.Entity.PlayerComponent then
+			_PersistenceManager:MarkPlayerDirty(self.Entity.PlayerComponent.UserId)
+		end
 	end
 
 	@ExecSpace("Server")
@@ -334,6 +394,10 @@ script PlayerInventory extends Component
 		
 		log("[QUICKSLOT] Player " .. self.Entity.Name .. " registered slot " .. slotIndex .. " = " .. itemName)
 		self:SyncEquippedToolToSelectedSlot()
+		
+		if _PersistenceManager and self.Entity.PlayerComponent then
+			_PersistenceManager:MarkPlayerDirty(self.Entity.PlayerComponent.UserId)
+		end
 	end
 
 	@ExecSpace("ServerOnly")
@@ -379,6 +443,10 @@ script PlayerInventory extends Component
 		self.SelectedQuickSlotIndex = slotIndex
 		log("[QUICKSLOT] Player " .. self.Entity.Name .. " selected slot " .. slotIndex)
 		self:SyncEquippedToolToSelectedSlot()
+		
+		if _PersistenceManager and self.Entity.PlayerComponent then
+			_PersistenceManager:MarkPlayerDirty(self.Entity.PlayerComponent.UserId)
+		end
 	end
 
 	@ExecSpace("Server")
@@ -452,7 +520,7 @@ script PlayerInventory extends Component
 		-- Validate grid footprint occupancy
 		if isTile then
 			local key = cellPos.x .. "_" .. cellPos.y
-			if resourceSpawner.GridToEntity[key] ~= nil then
+			if resourceSpawner:GetGridToEntity(currentMap.Name)[key] ~= nil then
 				log_warning("Grid cell occupied: " .. key)
 				return
 			end
@@ -485,7 +553,7 @@ script PlayerInventory extends Component
 			for nx = xMin, xMax do
 				for ny = yMin, yMax do
 					local key = nx .. "_" .. ny
-					if resourceSpawner.GridToEntity[key] ~= nil then
+					if resourceSpawner:GetGridToEntity(currentMap.Name)[key] ~= nil then
 						log_warning("Grid cell occupied: " .. key)
 						return
 					end
@@ -506,7 +574,7 @@ script PlayerInventory extends Component
 				layer3.RectTileMapComponent:SetTile(placedTileName, cellPos.x, cellPos.y)
 				log("[PLACE] Painted tile " .. placedTileName .. " at cell " .. tostring(cellPos))
 			end
-			resourceSpawner:AddPlacedTile(placedTileName, cellPos.x, cellPos.y)
+			resourceSpawner:AddPlacedTile(currentMap.Name, placedTileName, cellPos.x, cellPos.y)
 		else
 			-- Spawn furniture entity
 			local modelId = _EntryService:GetModelIdByName("Furniture_" .. string.gsub(itemName, " ", ""))
@@ -525,7 +593,22 @@ script PlayerInventory extends Component
 					sprite.OrderInLayer = math.floor((resourceSpawner.MapRadius - cellPos.y) * 100)
 				end
 				log("[PLACE] Spawned furniture " .. itemName .. " at cell " .. tostring(cellPos))
-				resourceSpawner:AddPlacedFurniture(itemName, cellPos.x, cellPos.y, spawnedEntity)
+				
+				-- If the placed furniture is a Portal, attach/initialize PortalGate
+				if itemName == "Portal" then
+					local portalGate = spawnedEntity:GetComponent("script.PortalGate")
+					if not isvalid(portalGate) then
+						spawnedEntity:AddComponent("script.PortalGate")
+						portalGate = spawnedEntity:GetComponent("script.PortalGate")
+					end
+					if isvalid(portalGate) then
+						portalGate.TargetMapName = "town"
+						portalGate.TargetPosition = Vector2(3, 0)
+						log("[PLACE] Attached and initialized PortalGate on placed Portal.")
+					end
+				end
+				
+				resourceSpawner:AddPlacedFurniture(currentMap.Name, itemName, cellPos.x, cellPos.y, spawnedEntity)
 			else
 				log_error("Failed to spawn furniture entity: " .. itemName)
 			end

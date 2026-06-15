@@ -12,19 +12,19 @@ script PlayerController extends Component
 	property any ScreenTouchHandler = nil
 
 	@Sync
-	property integer Level = 12
+	property integer Level = 1
 
 	@Sync
-	property integer Stamina = 60
+	property integer Stamina = 100
 
 	@Sync
 	property integer MaxStamina = 100
 
 	@Sync
-	property integer XP = 450
+	property integer XP = 0
 
 	@Sync
-	property integer MaxXP = 1200
+	property integer MaxXP = 100
 
 	@Sync
 	property integer Attack = 15
@@ -33,16 +33,23 @@ script PlayerController extends Component
 	property integer Defense = 10
 
 	@Sync
-	property number GatheringSpeed = 10
+	property number GatheringSpeed = 1.0
 
 	@Sync
 	property number MovementSpeed = 100
+
+	@Sync
+	property Entity ActivePortal = nil
 
 	property number LastMineTime = 0.0
 
 	property number MineCooldown = 0.6
 
 	property boolean HasRequestedInitialStones = false
+
+	property string ReticleSpriteRUID = "662fd2de11094cf08be40d8b3fab11bc"
+
+	property number ReticleScale = 0.5
 
 	method void OnBeginPlay()
 		-- description: Initialize key and screen touch event listeners on the client.
@@ -58,27 +65,39 @@ script PlayerController extends Component
 			log("PlayerController initialized on client. Current facing: " .. self.LastDirectionX .. ", " .. self.LastDirectionY)
 		else
 			log("PlayerController initialized on server for player: " .. self.Entity.Name)
+			self._T.StaminaTimer = _TimerService:SetTimerRepeat(function()
+				if self.Stamina < self.MaxStamina then
+					self.Stamina = math.min(self.MaxStamina, self.Stamina + 2)
+				end
+			end, 1.0)
 		end
 	end
 
-	@ExecSpace("ClientOnly")
 	method void OnEndPlay()
-		-- description: Clean up event listeners and local preview on client.
-		if self.KeyDownHandler then
-			_InputService:DisconnectEvent(KeyDownEvent, self.KeyDownHandler)
-			self.KeyDownHandler = nil
+		-- description: Clean up event listeners and local preview on client, and stamina timer on server.
+		if self:IsClient() then
+			if self.KeyDownHandler then
+				_InputService:DisconnectEvent(KeyDownEvent, self.KeyDownHandler)
+				self.KeyDownHandler = nil
+			end
+			if self.ScreenTouchHandler then
+				_InputService:DisconnectEvent(ScreenTouchEvent, self.ScreenTouchHandler)
+				self.ScreenTouchHandler = nil
+			end
+			local preview = self._T.PlacementPreviewEntity
+			if isvalid(preview) then
+				preview.Enable = false
+				preview.Visible = false
+				self._T.PlacementPreviewEntity = nil
+			end
+			log("PlayerController cleaned up on client.")
+		else
+			if self._T.StaminaTimer then
+				_TimerService:ClearTimer(self._T.StaminaTimer)
+				self._T.StaminaTimer = nil
+			end
+			log("PlayerController cleaned up on server.")
 		end
-		if self.ScreenTouchHandler then
-			_InputService:DisconnectEvent(ScreenTouchEvent, self.ScreenTouchHandler)
-			self.ScreenTouchHandler = nil
-		end
-		local preview = self._T.PlacementPreviewEntity
-		if isvalid(preview) then
-			preview.Enable = false
-			preview.Visible = false
-			self._T.PlacementPreviewEntity = nil
-		end
-		log("PlayerController cleaned up on client.")
 	end
 
 	@ExecSpace("ClientOnly")
@@ -98,28 +117,13 @@ script PlayerController extends Component
 
 	@ExecSpace("Server")
 	method void RequestInitialStones()
-		-- Client request to spawn initial stones around the player.
-		local playerComp = self.Entity.PlayerComponent
-		if playerComp == nil or senderUserId ~= playerComp.UserId then
-			return
-		end
-		
-		local psh = _PlayerSpawnHandler
-		if isvalid(psh) then
-			if not psh:HasSpawned(senderUserId) then
-				psh:SetSpawned(senderUserId, true)
-				psh:SpawnStonesForPlayer(self.Entity)
-			end
-		end
+		-- Client request to spawn initial stones (Disabled as per user request).
 	end
 
 	@ExecSpace("ClientOnly")
 	method void OnUpdate(number delta)
 		-- description: Monitor player movement inputs to track last facing direction and drive movement.
-		if self.Entity == _UserService.LocalPlayer and not self.HasRequestedInitialStones then
-			self.HasRequestedInitialStones = true
-			self:RequestInitialStones()
-		end
+		-- Initial stones request removed as per user request
 		
 		local dx = 0
 		local dy = 0
@@ -137,6 +141,7 @@ script PlayerController extends Component
 		end
 		
 		local inputDx = dx
+			local inputDy = dy
 		
 		-- Drive movement via MovementComponent
 		local movement = self.Entity.MovementComponent
@@ -181,13 +186,15 @@ script PlayerController extends Component
 			end
 		end
 		
-		-- Only update direction if there is active X movement input (MapleStory style: horizontal facing only)
-		if inputDx ~= 0 then
+		-- Aim follows the last movement input (4/8-dir target); visual facing stays horizontal via MovementComponent.
+		if inputDx ~= 0 or inputDy ~= 0 then
 			local newDirX = inputDx
-			local newDirY = 0
+			local newDirY = inputDy
 		
 			-- Send to server if direction changed
 			if newDirX ~= self.LastDirectionX or newDirY ~= self.LastDirectionY then
+				self.LastDirectionX = newDirX
+				self.LastDirectionY = newDirY
 				self:ServerSetDirection(newDirX, newDirY)
 			end
 		end
@@ -218,6 +225,12 @@ script PlayerController extends Component
 		end
 		self.LastMineTime = now
 		
+		local tilemap = self.Entity.CurrentMap:GetFirstChildComponentByTypeName("RectTileMapComponent")
+		if not isvalid(tilemap) then return end
+		local playerCell = tilemap:ToCellPosition(self.Entity.TransformComponent.WorldPosition)
+		if playerCell == nil then return end
+		local targetCell = Vector2Int(playerCell.x + self.LastDirectionX, playerCell.y + self.LastDirectionY)
+		
 		local isPlaceable = false
 		local activeItem = ""
 		local inv = self.Entity:GetComponent("script.PlayerInventory")
@@ -234,18 +247,10 @@ script PlayerController extends Component
 				end
 			end
 		end
-
+		
 		if isPlaceable then
-			local tilemap = self.Entity.CurrentMap:GetFirstChildComponentByTypeName("RectTileMapComponent")
-			if isvalid(tilemap) then
-				local playerWorldPos = self.Entity.TransformComponent.WorldPosition
-				local playerCell = tilemap:ToCellPosition(playerWorldPos)
-				if playerCell then
-					local targetCell = Vector2Int(playerCell.x + self.LastDirectionX, playerCell.y + self.LastDirectionY)
-					log("[PLACE] Requesting placement of " .. activeItem .. " at cell (" .. targetCell.x .. ", " .. targetCell.y .. ")")
-					inv:ServerRequestPlace(activeItem, targetCell.x, targetCell.y)
-				end
-			end
+			log("[PLACE] Requesting placement of " .. activeItem .. " at cell (" .. targetCell.x .. ", " .. targetCell.y .. ")")
+			inv:ServerRequestPlace(activeItem, targetCell.x, targetCell.y)
 			return
 		end
 		
@@ -255,7 +260,7 @@ script PlayerController extends Component
 		end
 		
 		local myPos = self.Entity.TransformComponent.WorldPosition
-		self:RequestMine(myPos)
+		self:RequestMine(myPos, targetCell.x, targetCell.y)
 	end
 
 	@ExecSpace("ClientOnly")
@@ -307,6 +312,10 @@ script PlayerController extends Component
 				end
 			end
 		elseif key == KeyboardKey.F then
+			if isvalid(self.ActivePortal) then
+				self:ServerRequestWarp()
+				return
+			end
 			local nearbyFurnace = self:FindNearbyFurnace()
 			if isvalid(nearbyFurnace) then
 				local popup = _EntityService:GetEntityByPath("/ui/PopupGroup/FurnacePopup")
@@ -395,7 +404,7 @@ script PlayerController extends Component
 	end
 
 	@ExecSpace("Server")
-	method void RequestMine(Vector3 playerWorldPos)
+	method void RequestMine(Vector3 playerWorldPos, integer targetCellX, integer targetCellY)
 		-- description: Execute mining verification and execution on the server.
 		local playerComp = self.Entity.PlayerComponent
 		if playerComp == nil or senderUserId ~= playerComp.UserId then
@@ -421,11 +430,17 @@ script PlayerController extends Component
 			return
 		end
 		
-		-- Convert the passed client-side world position to grid cell coordinate
+		-- Validate range to prevent exploitation
 		local cellPos = tilemap:ToCellPosition(playerWorldPos)
+		if cellPos == nil then return end
+		local dist = math.max(math.abs(cellPos.x - targetCellX), math.abs(cellPos.y - targetCellY))
+		if dist > 2 then
+			log_warning("Player " .. self.Entity.Name .. " attempted to mine too far: dist " .. dist)
+			return
+		end
 		
-		-- Locate cell in front of player
-		local targetCell = Vector2Int(cellPos.x + self.LastDirectionX, cellPos.y + self.LastDirectionY)
+		-- Locate cell targeted by client
+		local targetCell = Vector2Int(targetCellX, targetCellY)
 		
 		-- Query the spawned resource entity occupying the target cell (entity-only mining)
 		local key = math.floor(targetCell.x) .. "_" .. math.floor(targetCell.y)
@@ -434,8 +449,9 @@ script PlayerController extends Component
 		---@type Entity
 		local targetEntity = nil
 		
-		if resourceSpawner and resourceSpawner.GridToEntity then
-			local gridData = resourceSpawner.GridToEntity[key]
+		local gridToEntity = resourceSpawner and resourceSpawner:GetGridToEntity(currentMap.Name)
+		if gridToEntity then
+			local gridData = gridToEntity[key]
 			if gridData and (gridData.isTile or isvalid(gridData.entity)) then
 				pivotKey = math.floor(gridData.pivotX) .. "_" .. math.floor(gridData.pivotY)
 				targetEntity = gridData.entity
@@ -453,6 +469,21 @@ script PlayerController extends Component
 			-- Play air swing effect on all clients (attached to player)
 			self:ClientPlayMineEffect(false, nil)
 			log("No resource entity found at target cell " .. tostring(targetCell))
+		end
+	end
+
+	@ExecSpace("Server")
+	method void AddXP(integer amount)
+		self.XP = self.XP + amount
+		while self.XP >= self.MaxXP do
+			self.Level = self.Level + 1
+			self.XP = self.XP - self.MaxXP
+			self.MaxXP = math.floor(self.MaxXP * 1.5)
+			self.MaxStamina = self.MaxStamina + 10
+			self.Stamina = self.MaxStamina
+			self.GatheringSpeed = self.GatheringSpeed + 0.2
+			
+			self:ClientShowMineFeedback("LEVEL UP! Level " .. self.Level)
 		end
 	end
 
@@ -502,6 +533,7 @@ script PlayerController extends Component
 				if isvalid(preview) then
 					preview.Enable = true
 					preview.Visible = true
+					preview.TransformComponent.Scale = Vector3(1.0, 1.0, 1.0)
 					
 					local sprite = preview.SpriteRendererComponent
 					if isvalid(sprite) and self._T.LastActiveItem ~= activeItem then
@@ -572,18 +604,58 @@ script PlayerController extends Component
 				end
 			end
 		else
-			local preview = self._T.PlacementPreviewEntity
-			if isvalid(preview) then
-				preview.Enable = false
-				preview.Visible = false
-				self._T.LastActiveItem = ""
+				-- Mining mode (tool / bare-hand / empty slot): show the mining target-cell reticle.
+				self:UpdateMineReticle()
+		end
+	end
+
+	@ExecSpace("ClientOnly")
+	method void UpdateMineReticle()
+		-- Highlights the cell the next Ctrl mine will hit (aim = LastDirection*), reusing the
+		-- PlacementPreview entity. Mutually exclusive with the furniture placement preview.
+		local currentMap = self.Entity.CurrentMap
+		if not isvalid(currentMap) then return end
+		local tilemap = currentMap:GetFirstChildComponentByTypeName("RectTileMapComponent")
+		if not isvalid(tilemap) then return end
+		
+		local playerCell = tilemap:ToCellPosition(self.Entity.TransformComponent.WorldPosition)
+		if playerCell == nil then return end
+		local targetCell = Vector2Int(playerCell.x + self.LastDirectionX, playerCell.y + self.LastDirectionY)
+		local cellWorldPos = Vector3(targetCell.x + 0.5, targetCell.y + 0.5, 0)
+		
+		local preview = self._T.PlacementPreviewEntity
+		if not isvalid(preview) then
+			preview = currentMap:GetChildByName("PlacementPreview")
+			self._T.PlacementPreviewEntity = preview
+		end
+		if not isvalid(preview) then return end
+		
+		preview.Enable = true
+		preview.Visible = true
+		preview.TransformComponent.WorldPosition = cellWorldPos
+		preview.TransformComponent.Scale = Vector3(self.ReticleScale, self.ReticleScale, 1.0)
+		
+		local sprite = preview.SpriteRendererComponent
+		if isvalid(sprite) then
+			-- Swap to the reticle sprite once when entering mining mode.
+			if self._T.LastActiveItem ~= "__mine__" then
+				sprite.SpriteRUID = self.ReticleSpriteRUID
+				self._T.LastActiveItem = "__mine__"
 			end
+			sprite.Color = Color(1, 1, 1, 0.85)
+			local mapRadius = 75
+			if _ResourceSpawner then mapRadius = _ResourceSpawner.MapRadius end
+			sprite.OrderInLayer = math.floor((mapRadius - targetCell.y) * 100) + 1
 		end
 	end
 
 	@ExecSpace("ClientOnly")
 	method void OnInteractButton()
 		-- description: Handles interaction button press (mobile/UI).
+		if isvalid(self.ActivePortal) then
+			self:ServerRequestWarp()
+			return
+		end
 		local nearbyFurnace = self:FindNearbyFurnace()
 		if isvalid(nearbyFurnace) then
 			local popup = _EntityService:GetEntityByPath("/ui/PopupGroup/FurnacePopup")
@@ -608,6 +680,42 @@ script PlayerController extends Component
 		if _InputService:IsPointerOverUI() then return end
 		
 		-- Optionally, could add interaction logic here in the future
+	end
+
+	@ExecSpace("Server")
+	method void ServerRequestWarp()
+		local playerComp = self.Entity.PlayerComponent
+		if playerComp == nil or senderUserId ~= playerComp.UserId then
+			return
+		end
+		if not isvalid(self.ActivePortal) then return end
+		local portalGate = self.ActivePortal:GetComponent("script.PortalGate")
+		if not isvalid(portalGate) then return end
+		
+		local targetMap = portalGate.TargetMapName
+		if targetMap == "Home" then
+			targetMap = "Home_" .. playerComp.UserId
+		end
+		
+		local targetPos = portalGate.TargetPosition
+		playerComp:MoveToMapPosition(targetMap, targetPos)
+		log("PlayerController: Warped player " .. playerComp.UserId .. " to " .. targetMap .. " at " .. tostring(targetPos))
+	end
+
+	@ExecSpace("Client")
+	method void ClientHideSpawnFade()
+		-- Server tells this client its home is ready: fade out the black spawn cover.
+		local hudGroup = _EntityService:GetEntityByPath("/ui/HUDGroup")
+		if not isvalid(hudGroup) then return end
+		local ctrl = hudGroup:GetComponent("script.UIHUDController")
+		if not isvalid(ctrl) then
+			ctrl = hudGroup:GetFirstChildComponentByTypeName("script.UIHUDController", true)
+		end
+		if isvalid(ctrl) then
+			---@type UIHUDController
+			local c = ctrl
+			c:FadeOutSpawn()
+		end
 	end
 
 end

@@ -25,49 +25,7 @@ script PlayerSpawnHandler extends Logic
 
 	@ExecSpace("ServerOnly")
 	method void SpawnStonesForPlayer(Entity user)
-		-- Spawns initial stone drops around the player.
-		if not isvalid(user) then return end
-		local map = user.CurrentMap
-		if not isvalid(map) then return end
-		
-		local playerPos = user.TransformComponent.WorldPosition
-		log("PlayerSpawnHandler spawning initial stones for " .. user.Name .. " at position " .. tostring(playerPos))
-		
-		local itemModelId = _EntryService:GetModelIdByName("Item_Stone")
-		if not itemModelId or itemModelId == "" then
-			itemModelId = "05fa541a-a48d-4f36-bf82-0c60784a4a53"
-		end
-		
-		for i = 1, 5 do
-			local angle = (i * (2 * math.pi / 3)) + (math.random() * 0.4 - 0.2)
-			local dist = 2.4 + math.random() * 0.8
-			local spawnPos = playerPos + Vector3(math.cos(angle) * dist, math.sin(angle) * dist, 0)
-			
-			local drop = _SpawnService:SpawnByModelId(
-				itemModelId,
-				"Item_stone",
-				spawnPos,
-				map
-			)
-			
-			if isvalid(drop) then
-				local dropTransform = drop.TransformComponent
-				if isvalid(dropTransform) then
-					dropTransform.Scale = Vector3(2.0, 2.0, 1)
-				end
-				
-				local itemDropComp = drop:GetComponent("script.itemreact")
-				if not isvalid(itemDropComp) then
-					drop:AddComponent("script.itemreact")
-					itemDropComp = drop:GetComponent("script.itemreact")
-				end
-				if isvalid(itemDropComp) then
-					---@type itemreact
-					local idc = itemDropComp
-					idc:Init("Stone")
-				end
-			end
-		end
+		-- Spawns initial stone drops around the player (Disabled as per user request).
 	end
 
 end

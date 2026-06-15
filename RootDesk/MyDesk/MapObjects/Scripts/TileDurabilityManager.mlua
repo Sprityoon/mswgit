@@ -31,20 +31,27 @@ script TileDurabilityManager extends Logic
 		-- description: Processes a hit on a resource, tile, or furniture. Demolishes tiles and furniture in exactly 2 hits.
 		if not isvalid(mapEntity) then return end
 		
+		local mapName = mapEntity.Name
 		local resourceSpawner = _ResourceSpawner
-		if resourceSpawner == nil or resourceSpawner.GridToEntity == nil then
+		if resourceSpawner == nil then
 			log_warning("TileDurabilityManager: ResourceSpawner is not available.")
 			return
 		end
 		
-		local gridData = resourceSpawner.GridToEntity[pivotKey]
+		local gridToEntity = resourceSpawner:GetGridToEntity(mapName)
+		local gridData = gridToEntity[pivotKey]
 		if gridData == nil then
-			log("TileDurabilityManager: No entity or tile registered at " .. pivotKey)
+			log("TileDurabilityManager: No entity or tile registered at " .. pivotKey .. " in map " .. mapName)
 			return
 		end
 		
 		local isTile = gridData.isTile == true
 		local isFurniture = gridData.isFurniture == true
+		
+		if isFurniture and gridData.itemName == "Portal" and mapName == "town" then
+			log("TileDurabilityManager: Portal in town map is indestructible.")
+			return
+		end
 		
 		local resourceEntity = nil
 		if not isTile then
@@ -55,7 +62,8 @@ script TileDurabilityManager extends Logic
 			end
 		end
 		
-		local data = self.DamagedResources[pivotKey]
+		local damageKey = mapName .. "_" .. pivotKey
+		local data = self.DamagedResources[damageKey]
 		if data == nil then
 			local maxDurability = 2
 			if not isTile and not isFurniture then
@@ -65,7 +73,7 @@ script TileDurabilityManager extends Logic
 			data = {
 				currentHits = 0,
 				maxDurability = maxDurability,
-				lastHitTime = 0,
+				lastHitTime = os.clock(),
 				strikeCount = 0,
 				dropPool = {}
 			}
@@ -150,7 +158,7 @@ script TileDurabilityManager extends Logic
 				end
 			end
 			
-			self.DamagedResources[pivotKey] = data
+			self.DamagedResources[damageKey] = data
 		end
 		
 		-- Compute hit damage
@@ -214,6 +222,28 @@ script TileDurabilityManager extends Logic
 			return
 		end
 		
+		-- Stamina Check & Consumption
+		if isvalid(attacker) and attacker.PlayerComponent ~= nil then
+			local pc = attacker:GetComponent("script.PlayerController")
+			if isvalid(pc) then
+				if pc.Stamina > 0 then
+					pc.Stamina = math.max(0, pc.Stamina - 1)
+				else
+					-- Stamina is 0: 50% chance to fail
+					if math.random() < 0.5 then
+						pc:ClientShowMineFeedback("스태미나가 부족하여 채집에 실패했습니다!")
+						if not isTile and isvalid(resourceEntity) then
+							local reaction = resourceEntity:GetComponent("script.ResourceReaction")
+							if isvalid(reaction) then
+								reaction:PlayRefusalShake()
+							end
+						end
+						return
+					end
+				end
+			end
+		end
+
 		-- Trigger hit animation
 		if not isTile then
 			local reaction = resourceEntity:GetComponent("script.ResourceReaction")
@@ -247,7 +277,7 @@ script TileDurabilityManager extends Logic
 		end
 		
 		if data.currentHits >= data.maxDurability then
-			self.DamagedResources[pivotKey] = nil
+			self.DamagedResources[damageKey] = nil
 		
 			if isTile then
 				-- Clear tile from RectTileMap3 (Layer 3)
@@ -255,15 +285,36 @@ script TileDurabilityManager extends Logic
 				if isvalid(layer3) and isvalid(layer3.RectTileMapComponent) then
 					layer3.RectTileMapComponent:RemoveTile(gridData.pivotX, gridData.pivotY)
 				end
-				resourceSpawner:RemovePlacedTile(gridData.pivotX, gridData.pivotY)
+				resourceSpawner:RemovePlacedTile(mapName, gridData.pivotX, gridData.pivotY)
 				log("Tile demolished: " .. gridData.tileName .. " at " .. pivotKey)
 			elseif isFurniture then
-				resourceSpawner:RemovePlacedFurniture(gridData.pivotX, gridData.pivotY)
+				resourceSpawner:RemovePlacedFurniture(mapName, gridData.pivotX, gridData.pivotY)
 				resourceEntity:Destroy()
 				log("Furniture demolished: " .. gridData.itemName .. " at " .. pivotKey)
 			else
 				local sourceName = resourceEntity.Name or ""
-				resourceSpawner:RemoveEntity(pivotKey)
+				
+				-- Award XP to player
+				if isvalid(attacker) and attacker.PlayerComponent ~= nil then
+					local pc = attacker:GetComponent("script.PlayerController")
+					if isvalid(pc) then
+						local xpAmount = 5
+						if sourceName == "GrownGrass" then xpAmount = 5
+						elseif sourceName == "Stone" then xpAmount = 10
+						elseif sourceName == "Tree1" then xpAmount = 15
+						elseif sourceName == "Big Stone1" then xpAmount = 20
+						elseif sourceName == "Tree2" then xpAmount = 25
+						elseif sourceName == "Big Stone2" then xpAmount = 30
+						end
+						pc:AddXP(xpAmount)
+					end
+				end
+				
+				-- Register for respawn
+				local modelId = _EntryService:GetModelIdByName(sourceName)
+				resourceSpawner:RegisterDestroyedResource(mapName, sourceName, modelId, gridData.pivotX, gridData.pivotY)
+				
+				resourceSpawner:RemoveEntity(mapName, pivotKey)
 				resourceEntity:Destroy()
 				log("Resource entity destroyed: " .. sourceName .. " at " .. pivotKey)
 			end
@@ -271,7 +322,7 @@ script TileDurabilityManager extends Logic
 			-- Spawn remaining pool drops
 			for itemId, remainingCount in pairs(data.dropPool) do
 				if remainingCount > 0 then
-					self:SpawnResourceDrop(mapEntity, dropPos, itemId, remainingCount, remainingCount)
+					self:SpawnResourceDrop(mapEntity, dropPos, itemId, remainingCount, remainingCount, 0)
 				end
 			end
 		else
@@ -282,7 +333,7 @@ script TileDurabilityManager extends Logic
 					local remainingWood = data.dropPool["wood"] or 0
 					if remainingWood > 0 then
 						data.dropPool["wood"] = remainingWood - 1
-						self:SpawnResourceDrop(mapEntity, dropPos, "wood", 1, 1)
+						self:SpawnResourceDrop(mapEntity, dropPos, "wood", 1, 1, 0)
 						log("Intermediate drop: 1 Wood from " .. sourceName .. " (strikes=" .. data.strikeCount .. ", remaining=" .. (remainingWood - 1) .. ")")
 					end
 				elseif string.sub(sourceName, 1, 9) == "Big Stone" and data.strikeCount % 3 == 0 then
@@ -293,7 +344,7 @@ script TileDurabilityManager extends Logic
 							toDrop = remainingStone
 						end
 						data.dropPool["stone"] = remainingStone - toDrop
-						self:SpawnResourceDrop(mapEntity, dropPos, "stone", toDrop, toDrop)
+						self:SpawnResourceDrop(mapEntity, dropPos, "stone", toDrop, toDrop, 0)
 						log("Intermediate drop: " .. toDrop .. " Stone from " .. sourceName .. " (strikes=" .. data.strikeCount .. ", remaining=" .. (remainingStone - toDrop) .. ")")
 					end
 				end
@@ -337,8 +388,9 @@ script TileDurabilityManager extends Logic
 	end
 
 	@ExecSpace("ServerOnly")
-	method void SpawnResourceDrop(Entity mapEntity, Vector3 spawnPos, string itemId, number dropMinCount, number dropMaxCount)
+	method void SpawnResourceDrop(Entity mapEntity, Vector3 spawnPos, string itemId, number dropMinCount, number dropMaxCount, number pickupGrace)
 		-- Spawns dropped item entities for the given itemId, resolved through item_dataset.
+		-- pickupGrace > 0 suppresses magnet pickup for that many seconds (used by discard-drop).
 		if itemId == nil or itemId == "" then
 			log_warning("TileDurabilityManager: SpawnResourceDrop called with an empty itemId.")
 			return
@@ -405,6 +457,9 @@ script TileDurabilityManager extends Logic
 					---@type itemreact
 					local idc = itemDropComp
 					idc:Init(itemName)
+					if pickupGrace and pickupGrace > 0 then
+						idc:SetPickupGrace(pickupGrace)
+					end
 				else
 					log_error("Failed to attach itemreact component on spawned item model: " .. itemModelId)
 				end

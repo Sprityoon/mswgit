@@ -15,10 +15,42 @@ script UIMinimapController extends Component
 
 	property boolean mapReady = false
 
+	property string cachedMapName = ""
+
+	property any coordsText = nil
+
 	@ExecSpace("ClientOnly")
 	method void OnBeginPlay()
 		-- Caches the tilemap layers, then repaints the player-centered window on a light timer.
 		self:CacheTileMaps()
+		
+		-- Spawn or find the Coords UI Text entity
+		local coords = self.Entity:GetChildByName("Coords")
+		if not isvalid(coords) then
+			coords = _SpawnService:SpawnByModelId("uitext", "Coords", Vector3.zero, self.Entity)
+		end
+		if isvalid(coords) then
+			local sprite = coords.SpriteGUIRendererComponent
+			if isvalid(sprite) then
+				sprite.Color = Color(0, 0, 0, 0)
+			end
+			local transform = coords.UITransformComponent
+			if isvalid(transform) then
+				transform.AlignmentOption = AlignmentType.BottomCenter
+				transform.anchoredPosition = Vector2(0, -15) -- 15 pixels below bottom edge
+				transform.RectSize = Vector2(120, 25)
+			end
+			self.coordsText = coords.TextComponent
+			if isvalid(self.coordsText) then
+				self.coordsText.FontSize = 20
+				self.coordsText.FontColor = Color(1.0, 1.0, 1.0, 1.0)
+				self.coordsText.UseOutLine = true
+				self.coordsText.OutlineColor = Color(0.0, 0.0, 0.0, 1.0)
+				self.coordsText.OutlineWidth = 1.0
+				self.coordsText.Alignment = 4 -- MiddleCenter
+			end
+		end
+
 		self.updateTimer = _TimerService:SetTimerRepeat(function()
 			self:RepaintWindow()
 		end, 0.25)
@@ -35,23 +67,29 @@ script UIMinimapController extends Component
 
 	@ExecSpace("ClientOnly")
 	method void CacheTileMaps()
-		-- Resolves the base-earth (layer1) and grass/overlay (layer2) RectTileMapComponents.
-		local map = _EntityService:GetEntityByPath("/maps/map01")
+		-- Resolves the base-earth (layer1) and grass/overlay (layer2) RectTileMapComponents
+		-- from the map the local player is currently on (home / town / etc.), not a fixed map.
+		local player = _UserService.LocalPlayer
+		if not isvalid(player) then
+			_TimerService:SetTimerOnce(function() self:CacheTileMaps() end, 0.5)
+			return
+		end
+		local map = player.CurrentMap
 		if not isvalid(map) then
-			log_warning("UIMinimapController: map01 not found yet; retrying.")
 			_TimerService:SetTimerOnce(function() self:CacheTileMaps() end, 0.5)
 			return
 		end
 		local l1 = map:GetChildByName("RectTileMap")
 		local l2 = map:GetChildByName("RectTileMap2")
-		if isvalid(l1) then self.layer1 = l1.RectTileMapComponent end
-		if isvalid(l2) then self.layer2 = l2.RectTileMapComponent end
+		self.layer1 = isvalid(l1) and l1.RectTileMapComponent or nil
+		self.layer2 = isvalid(l2) and l2.RectTileMapComponent or nil
 		if not isvalid(self.layer1) then
 			_TimerService:SetTimerOnce(function() self:CacheTileMaps() end, 0.5)
 			return
 		end
+		self.cachedMapName = map.Name
 		self.mapReady = true
-		log("UIMinimapController: Tilemap layers cached for minimap.")
+		log("UIMinimapController: Tilemap layers cached for minimap on map " .. map.Name .. ".")
 	end
 
 	@ExecSpace("ClientOnly")
@@ -97,10 +135,22 @@ script UIMinimapController extends Component
 		if not self.mapReady then return end
 		local player = _UserService.LocalPlayer
 		if not isvalid(player) then return end
-		
+
+		-- Re-cache tilemap layers when the player has moved to a different map (home <-> town warp).
+		local curMap = player.CurrentMap
+		if isvalid(curMap) and curMap.Name ~= self.cachedMapName then
+			self.mapReady = false
+			self:CacheTileMaps()
+			return
+		end
+
 		local worldPos = player.TransformComponent.WorldPosition
 		local px = math.floor(worldPos.x)
 		local py = math.floor(worldPos.y)
+		
+		if isvalid(self.coordsText) then
+			self.coordsText.Text = string.format("(%d, %d)", px, py)
+		end
 		
 		local gridCells = self.GridCells
 		local half = math.floor(gridCells / 2)

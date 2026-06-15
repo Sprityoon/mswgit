@@ -1,249 +1,148 @@
-const fs = require("fs");
 const path = require("path");
 const { UIBuilder } = require("../plugins/msw-maker-base-skill/skills/msw-ui-system/scripts/msw_ui_builder.cjs");
 
-// Set up UI path
+// ─────────────────────────────────────────────────────────────────────────────
+// build_ui.js — INCREMENTAL PATCHER (not a from-scratch generator)
+//
+// The live `ui/*.ui` files are the SOURCE OF TRUTH. They have diverged far from
+// any from-scratch script (Minimap 15x15 grid, 10 QuickSlots, 5 mobile buttons,
+// FurnacePopup, etc. were authored in Maker / other passes). Regenerating them
+// from scratch would wipe all of that.
+//
+// So this script: UIBuilder.read(live .ui) -> apply only idempotent, additive
+// mutations -> write back. Entity UUIDs are preserved across read/write, so the
+// `.mlua` property bindings that are already baked in stay valid — we do NOT
+// re-inject existing bindings. When you ADD a new bound entity, create it here
+// and inject ONLY that one property (see the example in patchHUD).
+//
+// RULE: every mutation below must be safe to run repeatedly (idempotent). Guard
+// creation with `b.getId(path)` so a second run does not duplicate or reset.
+// ─────────────────────────────────────────────────────────────────────────────
+
 const uiDir = path.join(__dirname, "..", "ui");
-if (!fs.existsSync(uiDir)) {
-  fs.mkdirSync(uiDir, { recursive: true });
-}
+const rootUIDir = path.join(__dirname, "..", "RootDesk", "MyDesk", "UI", "Scripts");
 
-function buildHUD() {
-  console.log("Building HUDGroup.ui...");
-  const b = new UIBuilder("HUDGroup", 0, true);
-  
-  // Attach script component to HUDGroup root
-  b.addComponent("/", "script.UIHUDController");
+function patchHUD() {
+  const file = path.join(uiDir, "HUDGroup.ui");
+  const b = UIBuilder.read(file);
+  const before = b.listEntities().length;
 
-  // LevelBadge
-  b.sprite("LevelBadge", { anchor: "top-left", pos: [120, -50], rect_size: [110, 44] });
-  b.patchComponent("LevelBadge", "MOD.Core.SpriteGUIRendererComponent", { ImageRUID: { DataId: "5d241898526c4415a055b977e3c77fa2" } });
-  b.text("LevelBadge/Text", "LV 12", { size: 22, color: "#F0E8C0", anchor: "middle-center", pos: [0, 0] });
-  
-  // HP Bar
-  b.sprite("HP", { anchor: "top-left", pos: [330, -35], rect_size: [240, 32] });
-  b.patchComponent("HP", "MOD.Core.SpriteGUIRendererComponent", { ImageRUID: { DataId: "dee8cd0715454ec08c3ed1793e75bb7a" } });
-  b.sprite("HP/Fill", { anchor: "stretch", color: "#5EAD50", sprite_type: 3, fill_method: 0 });
-  b.text("HP/ValText", "85/100", { size: 18, color: "#F0E8C0", anchor: "middle-center", pos: [0, 0] });
+  const mobileUI = b.listEntities().filter(e => e.path.startsWith("/ui/HUDGroup/MobileUI"));
+  console.log("MobileUI Children:", JSON.stringify(mobileUI, null, 2));
 
-  // Stamina Bar
-  b.sprite("Stamina", { anchor: "top-left", pos: [330, -70], rect_size: [240, 32] });
-  b.patchComponent("Stamina", "MOD.Core.SpriteGUIRendererComponent", { ImageRUID: { DataId: "dee8cd0715454ec08c3ed1793e75bb7a" } });
-  b.sprite("Stamina/Fill", { anchor: "stretch", color: "#C8901A", sprite_type: 3, fill_method: 0 });
-  b.text("Stamina/ValText", "60/100", { size: 18, color: "#F0E8C0", anchor: "middle-center", pos: [0, 0] });
+  // ── Incremental HUD additions go here (idempotent) ──────────────────────────
+  if (!b.getId("/ui/HUDGroup/MobileUI/BtnInteract")) {
+    b.button("MobileUI/BtnInteract", "", {
+      anchor: "bottom-right",
+      pos: [-225, 95],
+      rect_size: [75, 75],
+      image_ruid: "d6268ee7f5164177a6f272a81816e100"
+    });
+    b.patchComponent("MobileUI/BtnInteract", "MOD.Core.SpriteGUIRendererComponent", {
+      Color: { r: 0.101960786, g: 0.121568628, b: 0.101960786, a: 0.75 }
+    });
+    // Add Sprite icon inside the button
+    b.sprite("MobileUI/BtnInteract/Icon", {
+      anchor: "middle-center",
+      pos: [0, 0],
+      rect_size: [34, 34],
+      image_ruid: "8dd14df2030b4c6cabc8f7816c3b709e"
+    });
+    // Add Text label inside the button
+    b.text("MobileUI/BtnInteract/Label", "상호작용", {
+      anchor: "middle-center",
+      pos: [0, -30],
+      rect_size: [90, 24],
+      size: 14,
+      color: "#FFFFFF"
+    });
+  }
 
-  // ResourcePanel
-  b.panel("ResourcePanel", { anchor: "top-right", pos: [-160, -50], rect_size: [280, 50] });
-  b.sprite("ResourcePanel/Bg", { anchor: "stretch", color: "#252B25", alpha: 0.8 });
-  b.text("ResourcePanel/WoodText", "🪵 12", { size: 20, color: "#F0E8C0", anchor: "middle-left", pos: [20, 0], rect_size: [80, 30] });
-  b.text("ResourcePanel/StoneText", "🪨 47", { size: 20, color: "#F0E8C0", anchor: "middle-center", pos: [0, 0], rect_size: [80, 30] });
-  b.text("ResourcePanel/GrassText", "🌿 3", { size: 20, color: "#F0E8C0", anchor: "middle-right", pos: [-20, 0], rect_size: [80, 30] });
+  // Spawn cover: full-screen opaque black sprite shown until the server signals the
+  // player's home is ready (UIHUDController.FadeOutSpawn fades it out). High displayOrder
+  // so it sits above every other HUD element; raycast blocks input during the load.
+  b.sprite("SpawnFade", {
+    anchor: "middle-center", pos: [0, 0], rect_size: [1920, 1080],
+    color: "#000000", alpha: 1.0, raycast: true,
+  });
+  b.patch("SpawnFade", { display_order: 9999 });
 
-  // Mobile Controls - PURE RESTORATION (No Interact Button)
-  b.panel("MobileUI", { anchor: "stretch" });
-  b.sprite("MobileUI/UIJoystick", { anchor: "bottom-left", pos: [250, 250], rect_size: [300, 300], alpha: 0 });
-  b.addComponent("MobileUI/UIJoystick", "MOD.Core.JoystickComponent", { DynamicStick: true });
-  
-  // Action Buttons - PURE RESTORATION
-  b.button("MobileUI/BtnMine", "", { anchor: "bottom-right", pos: [-150, 150], rect_size: [130, 130], image_ruid: "d6268ee7f5164177a6f272a81816e100" });
-  b.sprite("MobileUI/BtnMine/Icon", { anchor: "middle-center", pos: [0, 0], rect_size: [70, 70], image_ruid: "cc55ed79f099cc94fae152e754984ddd" });
-  
-  b.button("MobileUI/BtnJump", "", { anchor: "bottom-right", pos: [-320, 100], rect_size: [100, 100], image_ruid: "d6268ee7f5164177a6f272a81816e100" });
-  b.sprite("MobileUI/BtnJump/Icon", { anchor: "middle-center", pos: [0, 0], rect_size: [50, 50], image_ruid: "71c244ccf4784aa6a3d9c2d10ff57e50" });
-  
-  b.button("MobileUI/BtnBag", "", { anchor: "bottom-right", pos: [-50, 320], rect_size: [90, 90], image_ruid: "d6268ee7f5164177a6f272a81816e100" });
-  b.sprite("MobileUI/BtnBag/Icon", { anchor: "middle-center", pos: [0, 0], rect_size: [45, 45], image_ruid: "99c82dbdc5ea401ba3a192f84903ad44" });
-
-  // Write and inject UIHUDController properties
-  const mluapath = path.join(__dirname, "..", "RootDesk", "MyDesk", "UI", "Scripts", "UIHUDController.mlua");
-  b.write(path.join(uiDir, "HUDGroup.ui"), {
+  b.write(file, {
     bind: {
-      mlua: mluapath,
-      props: {
-        levelText: "LevelBadge/Text",
-        hpFill: "HP/Fill",
-        hpValText: "HP/ValText",
-        staFill: "Stamina/Fill",
-        staValText: "Stamina/ValText"
-      }
-    }
+      mlua: path.join(rootUIDir, "UIHUDController.mlua"),
+      props: { spawnFade: "SpawnFade" },
+    },
   });
-  console.log("HUDGroup.ui built successfully.");
+  const after = b.listEntities().length;
+  console.log(`HUDGroup.ui patched: ${before} -> ${after} entities.`);
 }
 
-function buildPopupGroup() {
-  console.log("Building PopupGroup.ui...");
-  const b = new UIBuilder("PopupGroup", 4, true);
+function patchPopups() {
+  const file = path.join(uiDir, "PopupGroup.ui");
+  const b = UIBuilder.read(file);
+  const before = b.listEntities().length;
 
-  // Dimmer background overlay
-  b.sprite("Dimmer", { anchor: "stretch", color: "#000000", alpha: 0.6 });
-  b.patchComponent("Dimmer", "MOD.Core.SpriteGUIRendererComponent", { RaycastTarget: true });
+  // ── Incremental popup additions go here (idempotent) ────────────────────────
 
-  // INVENTORY POPUP
-  b.panel("InventoryPopup", { anchor: "middle-center", rect_size: [800, 700], enable: false });
-  b.addComponent("InventoryPopup", "script.UIInventoryController");
-  b.sprite("InventoryPopup/Bg", { anchor: "stretch", image_ruid: "25e9e89579644202805f535d038a9edb" });
-  b.sprite("InventoryPopup/Paper", { anchor: "stretch", image_ruid: "c24adedc9faa457daf4e4aae7cd663bb", sprite_type: 1 });
-  b.patchComponent("InventoryPopup/Paper", "MOD.Core.UITransformComponent", { OffsetMin: { x: 40, y: 40 }, OffsetMax: { x: -40, y: -140 } });
-  b.text("InventoryPopup/Title", "Inventory", { size: 32, color: "#F0E8C0", anchor: "top-center", pos: [0, -35], rect_size: [400, 45] });
-  b.button("InventoryPopup/BtnClose", "", { anchor: "top-right", pos: [-35, -35], rect_size: [50, 50], image_ruid: "221e0368e59b4a5981903eb78ac7513d" });
-  b.button("InventoryPopup/TabAll", "All", { anchor: "top-left", pos: [100, -90], rect_size: [120, 40], font_size: 18, color: "#FFFFFF", image_ruid: "9bb8e4d004fb46bb9c1b528b3c1ebf9f" });
-  b.button("InventoryPopup/TabRes", "Resources", { anchor: "top-left", pos: [240, -90], rect_size: [140, 40], font_size: 18, color: "#FFFFFF", image_ruid: "9bb8e4d004fb46bb9c1b528b3c1ebf9f" });
-  b.button("InventoryPopup/TabEquip", "Equipment", { anchor: "top-left", pos: [400, -90], rect_size: [140, 40], font_size: 18, color: "#FFFFFF", image_ruid: "9bb8e4d004fb46bb9c1b528b3c1ebf9f" });
-  b.panel("InventoryPopup/Grid", { anchor: "stretch" });
-  b.patchComponent("InventoryPopup/Grid", "MOD.Core.UITransformComponent", { OffsetMin: { x: 60, y: 60 }, OffsetMax: { x: -60, y: -150 } });
-  b.addComponent("InventoryPopup/Grid", "MOD.Core.GridViewComponent", { CellSize: { x: 72, y: 72 }, FixedCount: 6, FixedType: 0, Spacing: { x: 6, y: 6 }, UseScroll: true });
-  b.button("InventoryPopup/Grid/ItemSlot", "", { anchor: "top-left", pos: [0, 0], rect_size: [72, 72], enable: false, image_ruid: "a7928ea51274446898d8453eb96ee06f" });
-  b.sprite("InventoryPopup/Grid/ItemSlot/Icon", { anchor: "middle-center", pos: [0, 0], rect_size: [48, 48], raycast: false });
-  b.text("InventoryPopup/Grid/ItemSlot/Count", "", { size: 16, color: "#FFFFFF", anchor: "bottom-right", pos: [-5, 5], rect_size: [60, 20], alignment: 8 });
-  b.text("InventoryPopup/CapacityText", "0 / 24 items", { size: 18, color: "#F0E8C0", anchor: "bottom-left", pos: [60, 30] });
-  b.panel("InventoryPopup/Tooltip", { anchor: "middle-right", pos: [240, 0], rect_size: [200, 300], enable: false });
-  b.sprite("InventoryPopup/Tooltip/Bg", { anchor: "stretch", image_ruid: "b5f829660fbc4a58aaac8b8f4e22775f" });
-  b.text("InventoryPopup/Tooltip/Name", "", { size: 22, color: "#C8901A", bold: true, anchor: "top-center", pos: [0, -30] });
-  b.text("InventoryPopup/Tooltip/Desc", "", { size: 16, color: "#F0E8C0", anchor: "middle-center", pos: [0, -20], rect_size: [180, 150] });
-  b.text("InventoryPopup/Tooltip/Count", "", { size: 16, color: "#F0E8C0", anchor: "bottom-center", pos: [0, 30] });
+  // Discard (버리기) feature: a "버리기" button on the inventory tooltip + a
+  // centered quantity-stepper modal with Drop / Delete / Cancel actions.
+  const IP = "InventoryPopup";
 
-  // CRAFTING POPUP
-  b.panel("CraftingPopup", { anchor: "middle-center", rect_size: [900, 700], enable: false });
-  b.addComponent("CraftingPopup", "script.UICraftingController");
-  b.sprite("CraftingPopup/Bg", { anchor: "stretch", image_ruid: "25e9e89579644202805f535d038a9edb" });
-  b.sprite("CraftingPopup/Paper", { anchor: "stretch", image_ruid: "c24adedc9faa457daf4e4aae7cd663bb", sprite_type: 1 });
-  b.patchComponent("CraftingPopup/Paper", "MOD.Core.UITransformComponent", { OffsetMin: { x: 40, y: 40 }, OffsetMax: { x: -40, y: -100 } });
-  b.text("CraftingPopup/Title", "Crafting Table", { size: 32, color: "#F0E8C0", anchor: "top-center", pos: [0, -35], rect_size: [400, 45] });
-  b.button("CraftingPopup/BtnClose", "", { anchor: "top-right", pos: [-35, -35], rect_size: [50, 50], image_ruid: "221e0368e59b4a5981903eb78ac7513d" });
-  b.scrollLayout("CraftingPopup/List", { layout_type: 1, spacing: 10, cell_size: [240, 60], use_scroll: true, anchor: "middle-center", pos: [-210, 0], rect_size: [280, 520] });
-  b.button("CraftingPopup/List/RecipeTemplate", "", { anchor: "top-center", pos: [0, 0], rect_size: [240, 60], enable: false, image_ruid: "9bb8e4d004fb46bb9c1b528b3c1ebf9f" });
-  b.sprite("CraftingPopup/List/RecipeTemplate/Icon", { anchor: "middle-left", pos: [30, 0], rect_size: [40, 40], raycast: false });
-  b.text("CraftingPopup/List/RecipeTemplate/Name", "", { size: 20, color: "#F0E8C0", anchor: "middle-left", pos: [65, 0], rect_size: [160, 30] });
-  b.panel("CraftingPopup/Details", { anchor: "middle-center", pos: [150, 0], rect_size: [340, 520] });
-  b.text("CraftingPopup/Details/Name", "Stone Pickaxe", { size: 28, color: "#4E1D0C", bold: true, anchor: "top-center", pos: [0, -40] });
-  b.sprite("CraftingPopup/Details/Icon", { anchor: "top-center", pos: [0, -130], rect_size: [100, 100], image_ruid: "a7928ea51274446898d8453eb96ee06f" });
-  b.text("CraftingPopup/Details/Icon/Text", "⛏️", { size: 48, anchor: "middle-center", pos: [0, 0] });
-  b.text("CraftingPopup/Details/Desc", "A sturdy tool for mining ores.", { size: 18, color: "#3E2723", anchor: "top-center", pos: [0, -210], rect_size: [300, 100] });
-  b.panel("CraftingPopup/Details/Slot1", { anchor: "bottom-center", pos: [-70, 140], rect_size: [100, 100] });
-  b.sprite("CraftingPopup/Details/Slot1/Bg", { anchor: "stretch", image_ruid: "a7928ea51274446898d8453eb96ee06f" });
-  b.sprite("CraftingPopup/Details/Slot1/Icon", { anchor: "middle-center", pos: [0, 0], rect_size: [48, 48], raycast: false });
-  b.text("CraftingPopup/Details/Slot1/Count", "2 / 2", { size: 16, color: "#3E2723", anchor: "bottom-center", pos: [0, -20] });
-  b.panel("CraftingPopup/Details/Slot2", { anchor: "bottom-center", pos: [70, 140], rect_size: [100, 100] });
-  b.sprite("CraftingPopup/Details/Slot2/Bg", { anchor: "stretch", image_ruid: "a7928ea51274446898d8453eb96ee06f" });
-  b.sprite("CraftingPopup/Details/Slot2/Icon", { anchor: "middle-center", pos: [0, 0], rect_size: [48, 48], raycast: false });
-  b.text("CraftingPopup/Details/Slot2/Count", "47 / 5", { size: 16, color: "#3E2723", anchor: "bottom-center", pos: [0, -20] });
-  b.button("CraftingPopup/Details/BtnCraft", "CRAFT (Space)", { anchor: "bottom-center", pos: [0, 40], rect_size: [280, 60], font_size: 22, color: "#F0E8C0", image_ruid: "e22dca176e7c48b39d5b40554b546e22" });
-
-  // CHARACTER INFO POPUP
-  b.panel("CharacterPopup", { anchor: "middle-center", rect_size: [850, 700], enable: false });
-  b.addComponent("CharacterPopup", "script.UICharacterController");
-  b.sprite("CharacterPopup/Bg", { anchor: "stretch", image_ruid: "25e9e89579644202805f535d038a9edb" });
-  b.sprite("CharacterPopup/Paper", { anchor: "stretch", image_ruid: "c24adedc9faa457daf4e4aae7cd663bb", sprite_type: 1 });
-  b.patchComponent("CharacterPopup/Paper", "MOD.Core.UITransformComponent", { OffsetMin: { x: 40, y: 40 }, OffsetMax: { x: -40, y: -100 } });
-  b.text("CharacterPopup/Title", "Character Info", { size: 32, color: "#F0E8C0", anchor: "top-center", pos: [0, -35], rect_size: [400, 45] });
-  b.button("CharacterPopup/BtnClose", "", { anchor: "top-right", pos: [-35, -35], rect_size: [50, 50], image_ruid: "221e0368e59b4a5981903eb78ac7513d" });
-  b.panel("CharacterPopup/EquipPanel", { anchor: "middle-center", pos: [-200, 0], rect_size: [340, 520] });
-  b.panel("CharacterPopup/EquipPanel/Silhouette", { anchor: "middle-center", pos: [0, 0], rect_size: [150, 250] });
-  b.sprite("CharacterPopup/EquipPanel/Silhouette/Bg", { anchor: "stretch", color: "#1A1D1A", alpha: 0.6 });
-  b.text("CharacterPopup/EquipPanel/Silhouette/Text", "Avatar Placeholder", { size: 18, color: "#A89870", anchor: "middle-center" });
-  b.panel("CharacterPopup/EquipPanel/SlotHelmet", { anchor: "top-center", pos: [0, -40], rect_size: [64, 64] });
-  b.sprite("CharacterPopup/EquipPanel/SlotHelmet/Bg", { anchor: "stretch", image_ruid: "004e5fc9c660a1342a055ae7157e5aeb" });
-  b.text("CharacterPopup/EquipPanel/SlotHelmet/Label", "Helmet", { size: 12, color: "#3E2723", anchor: "bottom-center", pos: [0, -20] });
-  b.panel("CharacterPopup/EquipPanel/SlotWeapon", { anchor: "middle-center", pos: [-100, 40], rect_size: [64, 64] });
-  b.sprite("CharacterPopup/EquipPanel/SlotWeapon/Bg", { anchor: "stretch", image_ruid: "004e5fc9c660a1342a055ae7157e5aeb" });
-  b.text("CharacterPopup/EquipPanel/SlotWeapon/Icon", "⛏️", { size: 32, anchor: "middle-center", pos: [0, 0] });
-  b.panel("CharacterPopup/EquipPanel/SlotArmor", { anchor: "middle-center", pos: [0, 40], rect_size: [64, 64] });
-  b.sprite("CharacterPopup/EquipPanel/SlotArmor/Bg", { anchor: "stretch", image_ruid: "004e5fc9c660a1342a055ae7157e5aeb" });
-  b.text("CharacterPopup/EquipPanel/SlotArmor/Icon", "👕", { size: 32, anchor: "middle-center", pos: [0, 0] });
-  b.panel("CharacterPopup/EquipPanel/SlotShield", { anchor: "middle-center", pos: [100, 40], rect_size: [64, 64] });
-  b.sprite("CharacterPopup/EquipPanel/SlotShield/Bg", { anchor: "stretch", image_ruid: "004e5fc9c660a1342a055ae7157e5aeb" });
-  b.panel("CharacterPopup/EquipPanel/SlotGloves", { anchor: "bottom-center", pos: [-60, 60], rect_size: [64, 64] });
-  b.sprite("CharacterPopup/EquipPanel/SlotGloves/Bg", { anchor: "stretch", image_ruid: "004e5fc9c660a1342a055ae7157e5aeb" });
-  b.panel("CharacterPopup/EquipPanel/SlotShoes", { anchor: "bottom-center", pos: [60, 60], rect_size: [64, 64] });
-  b.sprite("CharacterPopup/EquipPanel/SlotShoes/Bg", { anchor: "stretch", image_ruid: "004e5fc9c660a1342a055ae7157e5aeb" });
-  b.panel("CharacterPopup/StatsPanel", { anchor: "middle-center", pos: [190, 0], rect_size: [360, 520] });
-  b.text("CharacterPopup/StatsPanel/Name", "Lv. 12 Explorer Minho", { size: 24, color: "#3E2723", bold: true, anchor: "top-left", pos: [20, -30], rect_size: [320, 40] });
-  b.panel("CharacterPopup/StatsPanel/HP", { anchor: "top-left", pos: [180, -90], rect_size: [320, 24] });
-  b.sprite("CharacterPopup/StatsPanel/HP/Bg", { anchor: "stretch", image_ruid: "dee8cd0715454ec08c3ed1793e75bb7a" });
-  b.sprite("CharacterPopup/StatsPanel/HP/Fill", { anchor: "stretch", color: "#5EAD50", image_ruid: "5a7ca912a2ce4eb9a26ebe86560f6cc5", sprite_type: 3, fill_method: 0 });
-  b.text("CharacterPopup/StatsPanel/HP/Text", "85 / 100", { size: 16, color: "#FFFFFF", anchor: "middle-center" });
-  b.panel("CharacterPopup/StatsPanel/Stamina", { anchor: "top-left", pos: [180, -130], rect_size: [320, 24] });
-  b.sprite("CharacterPopup/StatsPanel/Stamina/Bg", { anchor: "stretch", image_ruid: "dee8cd0715454ec08c3ed1793e75bb7a" });
-  b.sprite("CharacterPopup/StatsPanel/Stamina/Fill", { anchor: "stretch", color: "#C8901A", image_ruid: "5a7ca912a2ce4eb9a26ebe86560f6cc5", sprite_type: 3, fill_method: 0 });
-  b.text("CharacterPopup/StatsPanel/Stamina/Text", "60 / 100", { size: 16, color: "#FFFFFF", anchor: "middle-center" });
-  b.panel("CharacterPopup/StatsPanel/XP", { anchor: "top-left", pos: [180, -170], rect_size: [320, 24] });
-  b.sprite("CharacterPopup/StatsPanel/XP/Bg", { anchor: "stretch", image_ruid: "dee8cd0715454ec08c3ed1793e75bb7a" });
-  b.sprite("CharacterPopup/StatsPanel/XP/Fill", { anchor: "stretch", color: "#3A7BC8", image_ruid: "5a7ca912a2ce4eb9a26ebe86560f6cc5", sprite_type: 3, fill_method: 0 });
-  b.text("CharacterPopup/StatsPanel/XP/Text", "450 / 1200", { size: 16, color: "#FFFFFF", anchor: "middle-center" });
-  b.text("CharacterPopup/StatsPanel/AtkLabel", "Attack", { size: 20, color: "#3E2723", anchor: "top-left", pos: [20, -220], rect_size: [100, 30] });
-  b.text("CharacterPopup/StatsPanel/AtkVal", "15 (+5 from Weapon)", { size: 20, color: "#4E1D0C", anchor: "top-right", pos: [-20, -220], rect_size: [200, 30] });
-  b.text("CharacterPopup/StatsPanel/DefLabel", "Defense", { size: 20, color: "#3E2723", anchor: "top-left", pos: [20, -260], rect_size: [100, 30] });
-  b.text("CharacterPopup/StatsPanel/DefVal", "10 (+8 from Armor)", { size: 20, color: "#4E1D0C", anchor: "top-right", pos: [-20, -260], rect_size: [200, 30] });
-  b.text("CharacterPopup/StatsPanel/GatherLabel", "Gather Speed", { size: 20, color: "#3E2723", anchor: "top-left", pos: [20, -300], rect_size: [130, 30] });
-  b.text("CharacterPopup/StatsPanel/GatherVal", "+10%", { size: 20, color: "#4E1D0C", anchor: "top-right", pos: [-20, -300], rect_size: [200, 30] });
-  b.text("CharacterPopup/StatsPanel/MoveLabel", "Move Speed", { size: 20, color: "#3E2723", anchor: "top-left", pos: [20, -340], rect_size: [130, 30] });
-  b.text("CharacterPopup/StatsPanel/MoveVal", "100%", { size: 20, color: "#4E1D0C", anchor: "top-right", pos: [-20, -340], rect_size: [200, 30] });
-
-  // Save and inject bindings into all 3 popup controllers
-  const rootUIDir = path.join(__dirname, "..", "RootDesk", "MyDesk", "UI", "Scripts");
-  const uiFile = path.join(uiDir, "PopupGroup.ui");
-  b.write(uiFile);
-
-  console.log("Injecting UIInventoryController bindings...");
-  b.injectBindings(path.join(rootUIDir, "UIInventoryController.mlua"), {
-    inventoryPopup: "InventoryPopup",
-    btnClose: "InventoryPopup/BtnClose",
-    tabAll: "InventoryPopup/TabAll",
-    tabRes: "InventoryPopup/TabRes",
-    tabEquip: "InventoryPopup/TabEquip",
-    gridView: "InventoryPopup/Grid",
-    itemSlotTemplate: "InventoryPopup/Grid/ItemSlot",
-    capacityText: "InventoryPopup/CapacityText",
-    tooltipPanel: "InventoryPopup/Tooltip",
-    tooltipName: "InventoryPopup/Tooltip/Name",
-    tooltipDesc: "InventoryPopup/Tooltip/Desc",
-    tooltipCount: "InventoryPopup/Tooltip/Count"
+  // 1) Tooltip: enlarge to fit the discard button + add the button.
+  b.patch(`${IP}/Tooltip`, { rect_size: [240, 270] });
+  b.patchComponent(`${IP}/Tooltip/Bg`, "MOD.Core.UITransformComponent", { SizeDelta: { x: 240, y: 270 } });
+  b.patch(`${IP}/Tooltip/Desc`, { pos: [0, 8], rect_size: [210, 110] });
+  b.button(`${IP}/Tooltip/BtnDiscard`, "버리기", {
+    anchor: "middle-center", pos: [0, -112], rect_size: [200, 42], font_size: 22, color: "#FFFFFF",
+  });
+  b.patchComponent(`${IP}/Tooltip/BtnDiscard`, "MOD.Core.SpriteGUIRendererComponent", {
+    Color: { r: 0.55, g: 0.18, b: 0.16, a: 1.0 },
   });
 
-  console.log("Injecting UICraftingController bindings...");
-  b.injectBindings(path.join(rootUIDir, "UICraftingController.mlua"), {
-    craftingPopup: "CraftingPopup",
-    btnClose: "CraftingPopup/BtnClose",
-    recipeList: "CraftingPopup/List",
-    recipeTemplate: "CraftingPopup/List/RecipeTemplate",
-    detailName: "CraftingPopup/Details/Name",
-    detailDesc: "CraftingPopup/Details/Desc",
-    detailIcon: "CraftingPopup/Details/Icon",
-    ingSlot1: "CraftingPopup/Details/Slot1",
-    ingIcon1: "CraftingPopup/Details/Slot1/Icon",
-    ingCount1: "CraftingPopup/Details/Slot1/Count",
-    ingSlot2: "CraftingPopup/Details/Slot2",
-    ingIcon2: "CraftingPopup/Details/Slot2/Icon",
-    ingCount2: "CraftingPopup/Details/Slot2/Count",
-    btnCraft: "CraftingPopup/Details/BtnCraft"
-  });
+  // 2) Quantity-stepper discard modal (hidden by default; controller toggles Enable).
+  b.panel(`${IP}/DiscardPopup`, { anchor: "middle-center", pos: [0, 0], rect_size: [800, 700], enable: false });
+  b.patch(`${IP}/DiscardPopup`, { display_order: 50 });
+  b.sprite(`${IP}/DiscardPopup/Dim`, { anchor: "middle-center", pos: [0, 0], rect_size: [800, 700], color: "#000000", alpha: 0.55, raycast: true });
+  b.sprite(`${IP}/DiscardPopup/Card`, { anchor: "middle-center", pos: [0, 0], rect_size: [380, 330], color: "#2B2B33", alpha: 1.0, raycast: true });
+  b.text(`${IP}/DiscardPopup/Card/TitleText`, "아이템 버리기", { anchor: "middle-center", pos: [0, 130], rect_size: [340, 40], size: 26, color: "#FFFFFF", alignment: 4 });
+  b.text(`${IP}/DiscardPopup/Card/ItemText`, "", { anchor: "middle-center", pos: [0, 88], rect_size: [340, 32], size: 20, color: "#FFE9A8", alignment: 4 });
+  b.button(`${IP}/DiscardPopup/Card/BtnMinus`, "−", { anchor: "middle-center", pos: [-120, 25], rect_size: [64, 64], font_size: 36, color: "#FFFFFF" });
+  b.patchComponent(`${IP}/DiscardPopup/Card/BtnMinus`, "MOD.Core.SpriteGUIRendererComponent", { Color: { r: 0.30, g: 0.30, b: 0.36, a: 1.0 } });
+  b.text(`${IP}/DiscardPopup/Card/CountText`, "1", { anchor: "middle-center", pos: [0, 25], rect_size: [120, 64], size: 34, color: "#FFFFFF", alignment: 4 });
+  b.button(`${IP}/DiscardPopup/Card/BtnPlus`, "+", { anchor: "middle-center", pos: [120, 25], rect_size: [64, 64], font_size: 36, color: "#FFFFFF" });
+  b.patchComponent(`${IP}/DiscardPopup/Card/BtnPlus`, "MOD.Core.SpriteGUIRendererComponent", { Color: { r: 0.30, g: 0.30, b: 0.36, a: 1.0 } });
+  b.button(`${IP}/DiscardPopup/Card/BtnDrop`, "바닥에 드롭", { anchor: "middle-center", pos: [-95, -55], rect_size: [164, 56], font_size: 21, color: "#FFFFFF" });
+  b.patchComponent(`${IP}/DiscardPopup/Card/BtnDrop`, "MOD.Core.SpriteGUIRendererComponent", { Color: { r: 0.18, g: 0.40, b: 0.20, a: 1.0 } });
+  b.button(`${IP}/DiscardPopup/Card/BtnDelete`, "삭제", { anchor: "middle-center", pos: [95, -55], rect_size: [164, 56], font_size: 21, color: "#FFFFFF" });
+  b.patchComponent(`${IP}/DiscardPopup/Card/BtnDelete`, "MOD.Core.SpriteGUIRendererComponent", { Color: { r: 0.55, g: 0.18, b: 0.16, a: 1.0 } });
+  b.button(`${IP}/DiscardPopup/Card/BtnCancel`, "취소", { anchor: "middle-center", pos: [0, -122], rect_size: [200, 46], font_size: 21, color: "#FFFFFF" });
+  b.patchComponent(`${IP}/DiscardPopup/Card/BtnCancel`, "MOD.Core.SpriteGUIRendererComponent", { Color: { r: 0.34, g: 0.34, b: 0.40, a: 1.0 } });
 
-  console.log("Injecting UICharacterController bindings...");
-  b.injectBindings(path.join(rootUIDir, "UICharacterController.mlua"), {
-    characterPopup: "CharacterPopup",
-    btnClose: "CharacterPopup/BtnClose",
-    charName: "CharacterPopup/StatsPanel/Name",
-    hpFill: "CharacterPopup/StatsPanel/HP/Fill",
-    hpValText: "CharacterPopup/StatsPanel/HP/Text",
-    staFill: "CharacterPopup/StatsPanel/Stamina/Fill",
-    staValText: "CharacterPopup/StatsPanel/Stamina/Text",
-    xpFill: "CharacterPopup/StatsPanel/XP/Fill",
-    xpValText: "CharacterPopup/StatsPanel/XP/Text",
-    atkVal: "CharacterPopup/StatsPanel/AtkVal",
-    defVal: "CharacterPopup/StatsPanel/DefVal",
-    gatherVal: "CharacterPopup/StatsPanel/GatherVal",
-    moveVal: "CharacterPopup/StatsPanel/MoveVal"
+  b.write(file, {
+    bind: {
+      mlua: path.join(rootUIDir, "UIInventoryController.mlua"),
+      props: {
+        btnDiscardOpen: `${IP}/Tooltip/BtnDiscard`,
+        discardPopup: `${IP}/DiscardPopup`,
+        discardItemText: `${IP}/DiscardPopup/Card/ItemText`,
+        discardCountText: `${IP}/DiscardPopup/Card/CountText`,
+        btnDiscardMinus: `${IP}/DiscardPopup/Card/BtnMinus`,
+        btnDiscardPlus: `${IP}/DiscardPopup/Card/BtnPlus`,
+        btnDiscardDrop: `${IP}/DiscardPopup/Card/BtnDrop`,
+        btnDiscardDelete: `${IP}/DiscardPopup/Card/BtnDelete`,
+        btnDiscardCancel: `${IP}/DiscardPopup/Card/BtnCancel`,
+      },
+    },
   });
-
-  console.log("PopupGroup.ui built and all script bindings injected successfully.");
+  const after = b.listEntities().length;
+  console.log(`PopupGroup.ui patched: ${before} -> ${after} entities.`);
 }
 
 try {
-  buildHUD();
-  buildPopupGroup();
-  console.log("All UI generation steps completed!");
+  patchHUD();
+  patchPopups();
+  console.log("UI patch completed (live .ui preserved as source of truth).");
 } catch (err) {
-  console.error("Failed to build UI: ", err);
+  console.error("Failed to patch UI: ", err);
   process.exit(1);
 }

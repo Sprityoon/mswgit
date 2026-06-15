@@ -2,6 +2,6 @@
 green_island,BaseEarth,0,0.40
 green_island,BaseGrass,0.40,1.01
 earth_field,BaseEarth,0,1.01
-rocky,BaseEarth,0,1.01
-desert,BaseEarth,0,1.01
-snowfield,BaseEarth,0,1.01
+rocky,Rocks,0,1.01
+desert,Dessert,0,1.01
+snowfield,Snow,0,1.01

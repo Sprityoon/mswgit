@@ -51,12 +51,15 @@ graph TD
 ## 3. 핵심 시스템 명세 (Core Systems Specification)
 
 ### 3.1. 플레이어 이동 및 조작
-- **조작 방식**: 방향키 이동, Alt 점프, Ctrl 공격/채광.
+- **조작 방식**: 방향키 이동(4방향), Alt 비주얼 점프, Ctrl 공격/채광/설치.
+  - **수평 facing & 방향 타게팅**: 시각 facing 스프라이트는 좌우로 유지되지만(메이플 스타일, `MovementComponent` 처리), 채광·설치 **대상 셀은 마지막 이동 입력 방향(상·하 포함, 4/8방향)**을 따른다(`PlayerController.LastDirectionX/Y`). 따라서 위/아래 인접 셀도 타격·설치할 수 있으며, 현재 겨냥 중인 셀은 **조준선(타겟 하이라이트)**으로 표시된다(§3.2).
 - **물리 컴포넌트**: `KinematicbodyComponent` 사용 (중력 없음).
-  - 속도 제어: `SpeedFactor` 속성을 튜닝하여 캐릭터 이동 속도 제어.
-- **카메라**: 플레이어를 추적하며 격자형 맵 탐색에 용이하도록 설정.
-- **모바일 컨트롤러 지원**: [MobileController.mlua](./RootDesk/MyDesk/UI/MobileController.mlua)를 통해 모바일 디바이스 및 터치 스크린 조작 지원.
-  - 가상 조이스틱 (`JoystickComponent` 연동) 및 핵심 단축키 액션 버튼 (`MINE`, `JUMP`, `BAG`, `CRAFT`, `INFO`)을 화면 크기 및 플랫폼 환경에 맞추어 동적 빌드 및 제거 처리.
+  - 속도 제어: 이동은 `MovementComponent`로 구동하며 [PlayerController.mlua](./RootDesk/MyDesk/Player/Scripts/PlayerController.mlua)가 `MovementComponent.InputSpeed`(기본 3.6)를 설정한다. (`PlayerController`의 `@Sync MovementSpeed` 등 스탯 값은 현재 HUD 표시용 placeholder이며 실제 이동에 직접 반영되지 않는다.)
+  - **충돌 사전 검사**: 매 프레임 X/Y 이동을 각각 미리 검사(`IsObstacle` → `CollisionService:OverlapAll`)해 자원·가구 셀 침투를 막는다. `GrownGrass`·드롭 아이템은 통과 가능.
+  - 채광/설치 입력에는 쿨다운(`MineCooldown` 기본 0.6초)이 적용된다.
+- **카메라**: 플레이어를 추적하며 격자형 맵 탐색에 용이하도록 설정 (`ZoomRatio` 튜닝).
+- **모바일/공용 컨트롤러**: 화면 하단 액션 버튼 패드(`MINE`/`JUMP`/`BAG`/`CRAFT`/`INFO`)가 모바일 컨트롤러 역할을 한다. 별도 `MobileController.mlua` 스크립트가 아니라 [UIHUDController.mlua](./RootDesk/MyDesk/UI/Scripts/UIHUDController.mlua)가 `/ui/HUDGroup/MobileUI` 버튼에 연결해 구현했으며, **PC에서도 동일하게 사용 가능**하도록 유지할 예정이다.
+  - **가상 조이스틱(이동)**: MSW Maker 에디터의 **빌트인 UI 조이스틱 기능**으로 구현(커스텀 `JoystickComponent` 스크립트가 아님). **모바일 전용으로 켤 예정**이며, 현재는 테스트를 위해 활성화해 둔 상태다.
 
 ### 3.2. 격자형 자원 인터랙션 (엔티티 채광 전용)
 - **맵 모드**: `TileMapMode = 1` (RectTileMap).
@@ -64,11 +67,17 @@ graph TD
 - **자원 채집 (Mining) — 엔티티 전용**:
   - ⚠️ **타일 파괴(`RemoveTile`) 기반 채광은 폐기됨.** 지반/풀밭 타일맵은 순수 배경이며, 모든 채집 가능한 자원은 **독립 엔티티**(Stone, Big Stone, Tree, GrownGrass 등)로만 스폰됨.
   - 흐름: `PlayerController:RequestMine` → `ResourceSpawner.GridToEntity`에서 대상 셀의 자원 엔티티 조회 → `TileDurabilityManager:HitResource(map, pivotKey)`로 피격 전달.
-  - 내구도: 자원별 피격 횟수 관리 (Stone 2회, Tree 3회, Big Stone 4회, GrownGrass 1회). 10초간 미피격 시 내구도 자동 회복.
+  - 내구도: 자원별 피격 횟수를 `ResourceDataSet.csv`(`SourceId`/`MaxDurability`/`RequiredToolType`)로 관리. 현재 값 — **Stone 2 / Tree1 15 / Tree2 30 / Big Stone1 20 / Big Stone2 30 / GrownGrass 1**. (나무·큰 돌은 크기 변종이 2종씩 존재.) 10초간 미피격 시 내구도 자동 회복(`TileDurabilityManager.OnUpdate`).
+  - 도구 효율: 요구 도구(`RequiredToolType`)와 장착 도구가 일치하면 타격당 데미지 = `1 + ToolPower`. 불일치(또는 도구 필요 자원을 맨손 타격)면 데미지 0 = "실패 타격". (예: Stone Pickaxe[power 2] = 3데미지/타.) GrownGrass는 요구 도구가 없어 맨손 채집 가능.
   - 파괴 시 드롭: `ItemDropLogic`(`ItemDropDataSet.csv` 기반 드롭 테이블)에서 소스 엔티티 이름(`SourceId`)으로 드롭 아이템/수량/확률을 조회하고, `item_dataset`에서 모델 정보를 찾아 아이템 엔티티를 스폰.
-- **블록 설치 (Building)**:
-  - 인벤토리에서 타일을 선택하고 빈 격자를 우클릭 시 설치.
-  - `RectTileMapComponent:SetTile(tileName, cellPos)`를 통해 실시간으로 타일 배치. (향후 구현)
+  - **점진 드롭 (Progressive Drop)**: 큰 자원은 완전 파괴 전에도 타격이 쌓이면 일부를 흘린다 — Tree는 5타마다 Wood 1개, Big Stone은 3타마다 Stone 1~2개를 드롭하고 남은 분량을 파괴 시 일괄 드롭. (타격마다 보상이 떨어져 손맛을 강화.)
+  - **조준선 (Target Reticle) — ✅ 구현됨**: 채광 모드(도구/맨손/빈 슬롯)일 때, 마지막 이동 입력 방향(상·하 포함)으로 결정된 **대상 셀에 금색 반투명 하이라이트**를 표시한다. 설치 프리뷰와 **동일한 `PlacementPreview` 엔티티를 재사용**하며 상호 배타적(가구 선택 시 녹/적 설치 프리뷰, 그 외엔 금색 조준선). 어느 셀을 캘지 명확히 보여준다.
+- **블록/가구 설치 (Building) — 구현됨**:
+  - 퀵 슬롯에서 `Category=furniture` 아이템을 선택한 상태에서 **Ctrl(채광 키와 공유)**를 누르면 바라보는 인접 셀에 설치를 시도한다(우클릭 아님).
+  - **설치 프리뷰**: 대상 셀에 반투명 미리보기를 띄워 설치 가능 시 녹색, 불가 시 적색으로 표시(`PlayerController:UpdatePlacementPreview`).
+  - **2종 설치물**: `PlacedTileName`이 있는 아이템(예: Wood Floor)은 건설 레이어 `RectTileMap3`에 타일로 칠하고(`SetTile`), 그 외 가구(Furnace/Wooden Chest)는 `Furniture_<이름>` 모델 엔티티로 스폰.
+  - **서버 검증**(`PlayerInventory:ServerRequestPlace`): 소유 여부, 플레이어와의 Chebyshev 거리 ≤ 4, 하단 지반 타일 존재, 대상 셀 미점유(`GridToEntity`), 플레이어 미겹침 확인 후 아이템 1개 차감.
+  - **철거**: 설치물도 자원과 동일하게 Ctrl 채광으로 파괴(타일·가구 내구도 2)하며, 파괴 시 해당 아이템으로 회수된다. 화로/상자는 내부 보관물도 함께 드롭(`TileDurabilityManager`).
 - **채집 실패 시각 리액션 (Harvest-Fail Reaction)**:
   - **목적**: 자원을 타격했지만 채집이 불가능한 경우(요구 도구 미장착, 도구 등급(Tech Lock) 미달 등), 플레이어가 "왜 안 캐지는지"를 즉시 인지할 수 있도록 명확한 시각 피드백 제공.
   - **판정 주체**: `TileDurabilityManager:HitResource`가 데미지 계산 시점에 채집 가능 여부를 판정. 데미지가 0이 되는 모든 케이스(등급 미달 등)는 "실패 타격"으로 분류.
@@ -82,9 +91,11 @@ graph TD
 ### 3.3. 인벤토리 및 제작 (UI)
 - **인벤토리**: 캐릭터가 획득한 자원, 무기, 소비품을 보관하는 격자형 슬롯 UI.
   - MSW의 `msw-ui-system` 기반 모듈형 UI 설계.
-- **제작대 (Crafting Table)**:
-  - 플레이어가 제작창을 열어 보유한 자원으로 레시피에 맞춰 아이템 제작.
-  - 예: 나무 5개 -> 나무 곡괭이 제작.
+- **제작 (Crafting)**:
+  - **C** 키(또는 모바일 CRAFT 버튼)로 제작창을 열고, 보유 자원으로 `RecipeDataSet.csv`(서버·클라 공용)의 레시피에 맞춰 제작한다. 레시피 선택 후 **Space** 키로 제작 발동. 재료·소유 검증은 서버(`PlayerInventory:ServerRequestCraft`)에서 수행.
+  - 현재 제작은 **장소 제약 없이 어디서나 가능한 전역 제작**이며, 별도의 "제작대" 엔티티는 존재하지 않는다(근접 제작 분리는 §3.11 제안).
+  - 예: Stone 2 → Hand Axe / Wood 1 + Stone 3 → Stone Pickaxe (§4 테크 트리 참조).
+  - 도구·가구를 제작하면 비어 있는 첫 퀵 슬롯에 자동 등록되고, 도구라면 자동 장착된다.
 
 ### 3.3.1. 캐릭터 정보(User Info) 장착 표시
 - **문제**: 현재 User Info(CharacterPopup)에서 어떤 도구/장비를 장착 중인지 확인할 수 없어 UX가 불편함.
@@ -98,19 +109,34 @@ graph TD
 ### 3.3.2. 퀵 슬롯 (Quick Slot)
 - **목적**: 인벤토리를 열지 않고 도구/소비 아이템을 즉시 교체·사용할 수 있는 상시 노출 HUD 슬롯 바.
 - **구성**:
-  - **슬롯 수**: 4칸 (확장 고려해 데이터로 관리). 화면 하단 중앙에 가로 배치 (모바일에서는 액션 버튼 패드와 겹치지 않게 배치 조정).
-  - **슬롯 표시 요소**: 아이템 아이콘(`IconRUID`), 보유 수량, 슬롯 번호(1~4), 장착 중 하이라이트 테두리.
+  - **슬롯 수**: **10칸** (`PlayerInventory.QuickSlotsJson` 배열로 관리). 화면 하단에 가로 배치.
+  - **슬롯 표시 요소**: 아이템 아이콘(`IconRUID`), 보유 수량, 선택 중 하이라이트 테두리. 수량이 0이면 아이콘을 흐리게 표시(슬롯 유지).
 - **등록/해제**:
-  - 인벤토리에서 아이템 슬롯을 **드래그하여 퀵 슬롯에 드롭**(PC) 또는 아이템 선택 후 "퀵 슬롯 등록" 버튼(모바일 대체 UX).
-  - 퀵 슬롯에 등록된 항목은 아이템 **종류 참조**(이름 기반)로 저장 — 수량이 0이 되면 회색 처리(슬롯 유지), 재획득 시 자동 복구.
-- **사용**:
-  - **PC**: 숫자키 `1`~`4`로 해당 슬롯 발동. 도구류(`Category=tool`)는 장착 토글(`ServerRequestEquip` 재사용), 설치물/소비품은 사용 동작으로 분기.
-  - **모바일**: 슬롯 터치로 동일 동작.
+  - 인벤토리를 연 상태에서 아이템을 선택(inspect)한 뒤 원하는 퀵 슬롯을 클릭하면 등록(`ServerRegisterQuickSlot`). 등록 시 슬롯이 파란색으로 잠깐 깜빡인다.
+  - 도구·가구 제작 시 빈 슬롯에 **자동 등록**된다(§3.3).
+  - 퀵 슬롯 항목은 아이템 **종류 참조**(이름 기반)로 저장 — 수량이 0이 되어도 슬롯은 유지되고 재획득 시 자동 복구.
+- **사용 — "현재 손에 든 것" 선택자**:
+  - **PC**: 숫자키 `1`~`9`,`0`(10번 슬롯)으로 슬롯 선택(`ServerSelectQuickSlot`). 모바일은 슬롯 터치.
+  - 선택한 슬롯이 **도구**(`Category=tool`)면 자동 장착되고(`SyncEquippedToolToSelectedSlot`), **가구**(`Category=furniture`)면 설치 모드로 전환되어 Ctrl로 설치(§3.2)한다. 즉 퀵 슬롯이 채광 도구 장착과 설치물 선택을 통합 관리한다.
 - **동기화/저장**:
-  - 퀵 슬롯 구성은 플레이어별 데이터로 관리 (`PlayerInventory`에 `@TargetUserSync` 퀵 슬롯 테이블). 차후 DataStorage 영속화와 연계.
-- **데이터 주도 설계**: 슬롯 수, 키 바인딩, 슬롯별 동작 분기(장착/사용)는 하드코딩하지 않고 `item_dataset.Category` 기반으로 분기 처리.
+  - 퀵 슬롯 구성·선택 인덱스는 `PlayerInventory`의 `@Sync` 프로퍼티(`QuickSlotsJson`, `SelectedQuickSlotIndex`)로 동기화한다. 차후 DataStorage 영속화와 연계(§3.6).
+- **데이터 주도 설계**: 슬롯별 동작 분기(장착/설치)는 하드코딩하지 않고 `item_dataset.Category` 기반으로 분기 처리.
+
+### 3.3.3. 아이템 버리기 및 드롭 시스템 (Discard & Drop System) — ✅ 구현 완료
+- **UI 흐름**: 인벤토리에서 아이템 단일 클릭 → 툴팁 하단의 "버리기" 버튼 노출 → 클릭 시 수량 스테퍼 모달 활성화 → `-` / `+` 버튼 및 직접 입력을 통해 개수 조절 → "드롭" 또는 "삭제" 선택 (또는 "취소"). 가구(Portal, Furnace, Wooden Chest 등)도 동일하게 인벤토리 아이템이므로 버리기/드롭 가능.
+- **서버 권위 검증 & 처리** (`PlayerInventory.mlua`의 `ServerRequestDiscard`):
+  - 클라이언트 요청 시 `senderUserId` 검증 및 보유 수량 내로 버릴 개수 클램프 처리.
+  - `mode == "drop"`일 경우 플레이어 위치 주변 바닥에 아이템 스폰.
+  - `mode == "delete"`일 경우 아이템을 인벤토리에서 영구 삭제(차감).
+- **드롭 재획득 방지 (자석 픽업 유예)** (`itemreact.mlua`의 `PickupGrace`):
+  - 아이템 드롭 시점부터 2초간 자석 픽업(`Magnet`) 발동을 차단.
+  - 플레이어가 2초 이내에 다른 곳으로 걸어나가면 바닥에 아이템이 보존되고, 제자리에 계속 서 있을 경우 유예 시간이 지난 후 자석 효과에 의해 다시 획득됨.
+- **드롭 스폰 재사용** (`TileDurabilityManager.mlua`의 `SpawnResourceDrop`):
+  - 기존의 채집으로 인한 드롭과 버리기 드롭을 단일 함수로 처리할 수 있도록 `pickupGrace` 파라미터 추가 (기존 채집 드롭은 유예 시간 0, 버리기는 2초).
 
 ### 3.4. 전투 및 몬스터 AI
+> ⚠️ **현재 미구현 — Phase 5 목표 사양.** `MonsterSpawner`/`MonsterAI`/`PlayerHealth`는 아직 존재하지 않는다. 플레이어 HP는 빌트인 `PlayerComponent.Hp/MaxHp`가 HUD에 표시될 뿐, 데미지·몬스터 상호작용은 없다. 아래는 목표 사양이다.
+
 - **몬스터 스폰**: 어두운 영역이나 특정 타일 근처에서 주기적으로 몬스터 스폰 (`MonsterSpawner`).
 - **몬스터 AI**: `KinematicbodyComponent`를 활용한 배회 AI (`MonsterWanderAI`) 및 플레이어 추적 AI 구현.
 - **전투**:
@@ -120,21 +146,40 @@ graph TD
 ---
 
 ### 3.5. 시드 기반 맵 생성 및 하이브리드 구조 (Seed-based Generation & Hybrid Structure)
-- **하이브리드 맵 구조**:
+- **하이브리드 맵 구조 (동적 개인 영지 + 공용 로비)**:
+  - **공동 마을 (TownMap - 멀티플레이어 공간)**: 서버당 고정 상주하는 공용 맵으로, 동시 접속한 모든 유저가 실시간 대화 및 상점/거래를 진행합니다.
+  - **내 집 (MyHome_UserID - 1인 전용 공간)**: 플레이어 진입 시 서버에서 템플릿 모델을 복제하여 동적으로 생성하며, 퇴장 시 메모리에서 삭제됩니다.
+  - **방문 및 초대**: 다른 유저(B)의 영지 방문 시, B의 맵이 이미 메모리에 있다면 그곳으로 텔레포트하고, B가 오프라인이라면 세이브 데이터에서 임시로 B의 영지를 빌드하여 A를 입장시킵니다.
+  - **권한 관리**: 손님 유저가 집주인의 영지 내 자원이나 가구를 훼손할 수 없도록 소유자 ID 기반 권한 검증 시스템을 적용합니다.
   - **지형 (TileMap)**: 지반 타일(Layer 1 - `BaseEarth`) 및 풀밭 지형(Layer 2 - `BaseGrass`)은 static 타일맵으로 렌더링 성능을 최적화.
   - **상호작용 자원 (Entity)**: 나무(Wood), 석돌(Stone), 구리/철 광석(Copper/Iron Ore) 및 상자 등은 독립적인 엔티티(`Entity`)로 스폰.
-  - **오브젝트 연출**: 자원 엔티티에 피격 물리 흔들림 액션, 가공 파티클 연출, 투명도 변화(플레이어가 가릴 시 Z-Sorting 처리)를 구현해 완성도 높은 타격감 제공.
+  - **오브젝트 연출**: 자원 엔티티에 피격 흔들림(`ResourceReaction:PlayShake` — 회전+스케일), 채집 실패 거부 흔들림(`PlayRefusalShake` — 회전 전용), 플레이어가 가릴 때 반투명 알파 오클루전(`SetAlpha 0.4`), Y좌표 기반 정렬(`OrderInLayer`)을 구현해 타격감과 가독성을 제공한다. (별도 파티클 시스템은 아직 없음.)
 - **시드 기반 절차적 월드 생성**:
-  - 사용자 지정 시드 값에 대응하는 의사난수 생성기(PRNG) 구축.
-  - Perlin/Simplex Noise 알고리즘을 탑재하여 시드에 따라 자연스러운 대륙 형태와 자원 밀도 맵을 100% 동일하게 복원 가능하게 제어.
+  - `ResourceSpawner`의 결정론적 해시(`Hash2D`, sin 기반)와 그 위에 smoothstep 보간을 얹은 **값 노이즈(`Noise2D`)**로 시드가 같으면 지형·자원 배치를 100% 동일하게 복원한다. (정식 Perlin/Simplex가 아닌 경량 값 노이즈 구현.)
+  - **시드 입력 및 리디자인**: 유저가 시드 문자열을 입력하면 이를 정수형 시드(`PrngSeed`)로 변환하고 맵의 배치 데이터를 초기화한 뒤 `SpawnInitialResources`를 재구동하여 맵을 재생성할 수 있도록 합니다. 시드 값만 DB에 저장해 둠으로써 세이브 파일 크기를 획기적으로 최적화합니다.
+
+### 3.5.1. 접속/스폰 연출 최적화 및 워프 성능 개선 — ✅ 구현 완료
+- **스폰 페이드 커버 (Spawn Fade Cover)** (`UIHUDController.mlua` + `build_ui.js`):
+  - `HUDGroup` 내에 전체 화면을 덮는 검은색 스프라이트 `SpawnFade` (displayOrder: 9999, 입력 차단 활성화) 추가. 플레이어가 맵에 최초 진입하는 시점부터 100% 불투명 상태 유지.
+  - 서버에서 플레이어 데이터 로드 및 홈 맵 로딩/복원이 정상 완료되면 클라이언트에 "홈 준비 완료" 신호를 송신하고, 클라이언트가 이를 수신하여 부드러운 페이드아웃 애니메이션 재생 후 `enable = false` 처리.
+  - 신호 유실 등 예외 케이스 발생 시 검은 화면에 영구히 갇히는 현상을 방지하기 위해 8초 만료의 세이프티 폴백 타이머 탑재.
+- **단일 워프 전환 (Single Warp Transition)** (`PersistenceManager.mlua`):
+  - 기존의 로딩 과정에서 `(-3,0)` 고정 위치로 임시 워프한 뒤 0.5초 대기 후 실제 저장 위치로 재배치하는 이중 점프 메커니즘 제거.
+  - `LoadPlayerData` 함수가 데이터 세팅 및 홈 맵 복원을 완전히 끝마친 후 저장된 최종 좌표로 단 한 번만 `MoveToMapPosition`을 호출하여 깔끔하고 즉각적인 스폰 보장.
+- **자원 스폰 프레임 분할 (Chunked Resource Spawning)** (`ResourceSpawner.mlua`):
+  - 맵 생성 시 약 1,000개 이상의 자원 엔티티를 한 프레임에 동기 스폰하던 병목 현상(약 1프레임 스톨 유발)을 개선.
+  - 프레임당 최대 1500셀씩 스캔하는 청크(Chunk) 방식으로 분할 스케줄링하여 `SpawnInitialResourcesForMap` 호출이 지형 레이아웃 생성 직후 빠르게 반환되도록 구조 개선. map01 체류 시간 및 워프 지연 시간 단축.
+  - 동시 진행되는 가구 데이터 복원과의 경합을 방지하기 위해 가구가 설치된 셀은 덮어쓰지 않도록 스폰 가드 조건 적용. 맵이 파괴되거나 전환될 때 안전하게 스케줄러를 중단하는 가드 포함.
 
 ---
 
-### 3.6. 유저 데이터 영속화 (Persistence)
+### 3.6. 유저 데이터 영속화 (Persistence) — ✅ 구현 완료
 
 > **원칙: 게임을 종료해도 유저의 모든 진행 상태는 유지된다.** 영속화되지 않는 신규 상태를 추가하는 것은 기획 위반으로 간주한다.
 
 - **저장 매체**: MSW **DataStorage** (`_DataStorageService`). 서버 권위(Server-Authoritative)로만 읽기/쓰기 수행.
+  - 플레이어 스탯, 인벤토리, 장착 도구, 퀵슬롯 목록은 `UserDataStorage`에서 `SaveData` 키를 통해 복구 및 관리됩니다.
+  - 월드 설치 정보(타일 및 가구 정보) 및 파괴된 자원 이력은 `GlobalDataStorage`에 보존 및 복구됩니다.
 - **영속화 대상**:
   - **플레이어 데이터** (UserId 키): 인벤토리 전체, 장착 도구(`EquippedTool`), 퀵 슬롯 구성, 레벨/XP/스태미나, 마지막 위치, (향후) 화폐 잔액·도감 진척.
   - **월드 데이터** (월드/셀 키): 유저가 설치한 건축물·가구(종류/셀 좌표/소유자), 상자(Wooden Chest) 보관 내용물, 자원 채집 상태(파괴 시각 타임스탬프 — §3.7 리스폰 계산의 근거).
@@ -144,18 +189,17 @@ graph TD
 - **스키마 버전 관리**: 저장 데이터에 `schemaVersion` 필드를 포함하고, 로드 시 버전별 마이그레이션 함수를 통과시켜 업데이트로 인한 세이브 호환성 파손을 방지.
 - **장애 대응**: 로드 실패 시 신규 유저 초기값으로 시작하지 않고 재시도 → 실패 지속 시 안내 후 입장 차단 (데이터 유실로 인한 진행 손실이 가장 치명적인 UX이므로 보수적으로 처리).
 
-### 3.7. 자원 리스폰 & 건축 점유 시스템 (Resource Respawn & Build Occupancy)
+### 3.7. 자원 리스폰 & 건축 점유 시스템 (Resource Respawn & Build Occupancy) — ✅ 구현 완료
 
-- **리스폰 주기**: 채집으로 파괴된 자원 엔티티는 **파괴 시점으로부터 6시간 후** 동일 셀에 리스폰된다.
-  - **타임스탬프 기반 판정**: 서버 온라인 타이머가 아닌 **파괴 시각(epoch) 기록** 기반으로 판정 — 서버/세션이 내려가 있어도 경과 시간이 보존되며, 월드 로드 시 `(현재 시각 - 파괴 시각) ≥ 6h`인 셀을 일괄 리스폰 처리.
-  - **주기 스캔**: 월드 가동 중에는 저빈도 스캔 타이머(예: 60초)로 만기 셀을 점진 리스폰. 동시 대량 리스폰으로 인한 프레임 스파이크를 막기 위해 틱당 처리 상한(예: 20개) 적용.
-  - **리스폰 연출**: 즉시 팝업 대신 새싹→성장 완료의 짧은 스케일 업 연출로 "세계가 살아있다"는 인상 제공.
+- **리스폰 주기**: 채집으로 파괴된 자원 엔티티는 파괴 시점으로부터 설정된 대기 시간(GrownGrass: 5분, Stone: 30분, Tree: 1시간, Big Stone: 2시간 등) 경과 후 동일 셀에 리스폰됩니다.
+  - **타임스탬프 기반 판정**: 파괴 시각(epoch) 기록 기반으로 판정하며, `(현재 시각 - 파괴 시각) >= RespawnDuration`인 셀을 일괄 리스폰 처리합니다.
+  - **주기 스캔**: 10초 주기의 `TickResourceRespawn` 타이머로 만기 셀을 점진 리스폰 처리합니다.
+  - **리스폰 연출**: 즉시 생성 대신 자연스럽게 0에서 1로 스케일 업되는 연출을 시각화합니다.
 - **건축 점유 레지스트리 (Occupancy Registry)**:
   - **원칙: 유저가 건축한 구조물(벽/가구/상자/화로 등)이 점유한 셀에는 자원이 리스폰될 수 없다.**
-  - 셀 키(`"x,y"`) → 점유 정보(점유 유형: 건축물/자원/예약, 소유자 UserId)의 단일 레지스트리를 서버에서 관리. 건설 시스템(§3.2 블록 설치)과 리스폰 시스템이 **동일한 레지스트리를 공유**해 충돌을 원천 차단.
-  - 리스폰 판정 순서: 만기 도달 → 해당 셀 점유 조회 → **건축물 점유 시 리스폰 보류** (철거되어 점유가 해제되면 다음 스캔에서 리스폰).
-  - 건축물 설치 판정에도 동일 레지스트리 사용: 자원이 서 있는 셀, 타 유저 건축물 셀에는 설치 불가.
-- **데이터 주도 설계**: 리스폰 주기(기본 6h), 틱당 리스폰 상한, 연출 시간 등은 `ResourceDataSet` 확장 컬럼 또는 전역 설정 데이터셋으로 관리 — 자원 종류별 차등 주기(예: 희귀 광맥 12h)를 코드 수정 없이 튜닝 가능하게 한다.
+  - 셀 키(`"x_y"`) → 점유 정보(`GridToEntity`)를 서버에서 관리하고, 건설 시 해당 범위에 이미 자원이나 플레이어가 겹치지 않는 경우에만 스폰할 수 있게 차단합니다.
+  - 리스폰 판정 시 해당 셀이 점유 중(건축물이나 다른 플레이어)이면 철거될 때까지 스폰을 보류합니다.
+- **데이터 주도 설계**: 리스폰 주기는 `ResourceDataSet`에 `RespawnDuration` 컬럼을 신설하여 자원 종류별로 데이터셋에서 조회하여 동작합니다.
 
 ### 3.8. 아이템 희귀도 & 전리품 시스템 (Rarity & Loot)
 
@@ -199,22 +243,23 @@ graph TD
   - **녹색섬**: 2차 노이즈로 풀밭(BaseGrass)과 흙(BaseEarth)이 유기적으로 섞인 지형. 비율/패치 크기는 데이터셋으로 튜닝.
   - 사막/설원/바위지대 전용 타일은 추후 타일셋 확보 시 `BiomeTerrainDataSet`의 TileName만 교체하면 적용된다 (현재는 BaseEarth placeholder).
 - **데이터 주도 설계 (4개 데이터셋)**:
-  - `BiomeMapDataSet` — 7×7 매크로 그리드 지도 (Row, C0~C6). 클라이언트 공개(미니맵용).
+  - `BiomeMapDataSet` — **15×15 매크로 그리드 지도 (Row 0~14, C0~C14)**. 클라이언트 공개.
   - `BiomeDataSet` — 바이옴 메타 (DisplayName, MinimapColor, NoiseScale, NoiseSeedOffset). 클라이언트 공개.
   - `BiomeTerrainDataSet` — 바이옴별 지형 타일 구성 (노이즈 값 구간 → 타일). 서버 전용.
   - `BiomeResourceDataSet` — 바이옴별 자원 스폰 테이블 (ResourceName, SpawnChance, RequiredTile). 서버 전용. 신규 자원(예: Iron Node)은 행 추가만으로 배치 가능.
 - **미니맵 (HUD 우측 상단) — 플레이어 중심 뷰포트**:
-  - 기존 ResourcePanel을 대체. **플레이어를 중심으로 주변 60×60타일 영역**을 15×15 셀(셀당 4타일)로 표시 — 타 게임의 미니맵처럼 이동에 따라 스크롤된다. 마커(노란 점)는 항상 중앙 고정.
-  - 클라이언트가 서버와 동일한 시드/노이즈(`Hash2D`/`Noise2D`/경계 디더링)를 재계산해 바이옴 색을 0.25초 주기로 다시 칠한다 (서버 통신 없음). 맵 밖 영역은 어두운 색.
+  - 기존 ResourcePanel을 대체. **플레이어를 중심으로 주변 60×60타일 영역**을 15×15 셀(셀당 4타일)로 표시 — 이동에 따라 스크롤된다. 플레이어 마커는 항상 중앙 고정.
+  - `UIMinimapController`가 0.25초 주기로 **이미 동기화된 타일맵(`RectTileMap`/`RectTileMap2`)의 실제 타일을 읽어** 타일 이름 → 바이옴 색으로 칠한다(서버 통신 없음, 노이즈 재계산이 아님). 타일이 없는 맵 밖 영역은 어두운 색.
   - 확장 여지: 화로/상자 설치물, 보물 상자 아이콘 오버레이 (Phase 5/8 연계).
 
 ### 3.11. 게임 경험 보강 (Quality of Experience) — 제안
 
 레퍼런스 장르의 핵심 재미를 끌어오기 위한 추가 제안 사항:
 
+- **채광 방향 판정 & 조준선 (Targeting Reticle) — ✅ 구현됨 (유저 테스트 대기)**: 채광·설치 대상 셀을 **마지막 이동 입력 방향(상·하 포함, 4/8방향)**으로 결정하고(`PlayerController.LastDirectionX/Y`), 겨냥 중인 셀을 금색 반투명 조준선으로 표시한다. 설치 프리뷰와 동일한 `PlacementPreview` 엔티티를 재사용하며 상호 배타적이고, 시각 facing 스프라이트는 좌우로 유지한다. 동작 상세는 §3.1 / §3.2 참조.
 - **낮/밤 주기 (Day/Night Cycle)**: 게임 내 1일 = 현실 20분. 밤에는 시야가 어두워지고 몬스터 스폰율 상승 — 횃불/조명 아이템의 존재 가치 부여, 기지(안전지대) 건설 동기 강화. (테라리아/마인크래프트의 핵심 긴장 루프)
 - **도감 (Collection Log)**: 획득한 아이템/처치한 몬스터를 기록하는 도감 UI. 수집 완성도에 따라 소소한 보상(코인/칭호) — 수집 욕구를 장기 리텐션으로 연결. (코어키퍼/스타듀밸리 스타일)
-- **온보딩 퀘스트 라인**: "나무 5개 채집 → 주먹도끼 제작 → 돌 채광 → 돌 곡괭이 제작 → 상자 설치"로 이어지는 초반 가이드 퀘스트 — 핵심 루프를 자연스럽게 학습. MSWPackages 퀘스트 패키지 활용 검토.
+- **온보딩 퀘스트 라인**: "시작 Stone 줍기 → Hand Axe 제작 → 나무 채집 → Stone Pickaxe 제작 → Big Stone 채광 → 화로/상자 설치"로 이어지는 초반 가이드 퀘스트 — 현재 부트스트랩 흐름(§4)과 일치하며 핵심 루프를 자연스럽게 학습. MSWPackages 퀘스트 패키지 활용 검토.
 - **획득/제작 연출 강화**: 아이템 획득 토스트(아이콘+수량), 제작 완료 시 결과물 팝 연출과 SFX, 희귀 드롭 시 등급색 빔 연출 — "한 번 더 캐고 싶은" 손맛의 마무리.
 - **휴대용 제작 vs 제작대 분리**: 기본 레시피는 어디서나 제작 가능, 상위 레시피는 제작대/화로 근처에서만 제작 가능 — 기지로 돌아올 이유를 만들어 건설 시스템과 제작 시스템을 연결.
 
@@ -222,13 +267,24 @@ graph TD
 
 ## 4. 자원 및 제작 테크 트리 (Progression Tiers)
 
-| 티어 | 자원명 | 필요 도구 | 주요 제작 아이템 | 특징 |
-|:--:|---|---|---|---|
-| **Tier 0** | **흙 (Dirt)** | 맨손 / 나무 곡괭이 | 흙벽, 기초 땅 바닥 | 가장 흔하며 쉽게 캐짐 |
-| **Tier 1** | **나무 (Wood)** | 맨손 / 나무 도끼 | 제작대, 횃불, 기본 상자 | 제작의 기초가 되는 나무 재료 |
-| **Tier 2** | **돌 (Stone)** | 나무 곡괭이 | 화로 (Furnace), 돌담, 돌 곡괭이 | 광물 제련을 위한 화로 제작 가능 |
-| **Tier 3** | **구리 (Copper)** | 돌 곡괭이 | 구리 주괴, 구리 곡괭이, 구리 검 | 본격적인 금속 장비의 시작 |
-| **Tier 4** | **철 (Iron)** | 구리 곡괭이 | 철 주괴, 철 곡괭이, 철제 장비, 철제 문 | 중반부 기지 자동화 및 강화 장비 |
+> **부트스트랩(시작 자원)**: 작은 Stone은 곡괭이를, Tree는 도끼를 요구하므로(아래 표) 첫 도구를 만들 "씨앗 돌"이 필요하다:
+> **Stone → Hand Axe(Stone 2) 제작 → 나무 채집 → Stone Pickaxe(Wood 1 + Stone 3) 제작 → 본격 채광/제련.**
+> - **현재 구현**: 첫 입장 시 플레이어 주변에 Stone 5개를 드롭(`PlayerSpawnHandler:SpawnStonesForPlayer`, 유저당 1회).
+> - **개선 예정**: "5개 고정 지급" 대신 **Stone 자원 노드 주변에 씨앗 돌을 확률적으로 함께 스폰**하는 방식으로 전환 — 부트스트랩을 월드에 녹이고 "정확히 5개"에 의존하는 경직성을 제거한다. (소프트락 자체는 허용 가능한 디자인으로 본다.)
+
+현재 구현된 테크(✅)와 계획된 테크(⏳)를 함께 표기한다.
+
+| 티어 | 자원 (엔티티) | 필요 도구 | 주요 제작/가공 아이템 | 상태 |
+|:--:|---|---|---|:--:|
+| **T1** | **Wood** (Tree1/Tree2) | 도끼(axe) | Hand Axe(Stone 2), Stone Axe(Stone 3+Wood 1), Wooden Chest(Wood 8), Wood Floor(Wood 2), Furnace(Stone 8+Wood 4) | ✅ |
+| **T2** | **Stone** (Stone/Big Stone1/Big Stone2) | 곡괭이(pickaxe) | Stone Pickaxe(Wood 1+Stone 3), Furnace 재료 | ✅ |
+| **—** | **Grass** (GrownGrass) | 맨손 | (재료) | ✅ |
+| **T3** | **Copper Ore** | 곡괭이 | 화로 제련 → Copper Bar (2 Copper Ore→1, 5초) → 구리 곡괭이/도끼 | 제련 ✅ / 구리 장비 ⏳ |
+| **T4** | **Iron Ore** | 구리 곡괭이(Tech Lock 예정) | 화로 제련 → Iron Bar (2 Iron Ore→1, 8초) → 철 곡괭이/도끼·철제 장비 | Iron 노드·장비 ⏳ |
+
+- **도구 효율 값**(`item_dataset`): Hand Axe(axe, ToolPower 0) / Stone Pickaxe(pickaxe, ToolPower 2) / Stone Axe(axe, ToolPower 2). 데미지 = `1 + ToolPower`.
+- **연료**(`FurnaceFuelDataSet`): 현재 Wood(10초/개).
+- ⚠️ 기존 표의 **흙(Dirt) 채광·흙벽/돌담/횃불/제작대**는 미구현이며, 지반·풀밭 타일은 채집 불가 배경이다(§3.2). `Copper Ore`/`Iron Ore`/`Copper Bar`/`Iron Bar` 아이템은 정의되어 있으나 채집 노드(`Iron Node`)와 금속 장비는 Phase 5 과제다.
 
 ---
 
@@ -249,11 +305,11 @@ graph TD
 - [x] Alt 키 입력 시 비주얼 점프 액션 구현
 - [x] Ctrl 키 입력 시 Melee 공격/휘두르기 애니메이션 처리
 - [x] 카메라 추적 로직 및 격자 경계선 처리
-- [x] 모바일 대응 동적 가상 컨트롤러 및 액션 버튼 패드 구현 ([MobileController.mlua](./RootDesk/MyDesk/UI/MobileController.mlua))
+- [x] 모바일/공용 액션 버튼 패드(MINE/JUMP/BAG/CRAFT/INFO) 구현 ([UIHUDController.mlua](./RootDesk/MyDesk/UI/Scripts/UIHUDController.mlua)의 `/ui/HUDGroup/MobileUI` 연결, PC 공용). 가상 조이스틱은 에디터 빌트인 UI 조이스틱으로 구현(모바일 전용 예정, 현재 테스트용 활성)
 
 ### Phase 3: 다이내믹 맵 레이아웃 & 자원 스폰 시스템 고도화 (완료)
-- [x] 타일별 내구도 추적 기능 구축 (흙 1회, 돌 2회, 구리 3회 등)
-- [x] 타일 파괴 시 `model://itemasset` 모델을 활용한 자원 드롭 아이템 동적 스폰
+- [x] 자원별 내구도 추적 기능 구축 (`ResourceDataSet` — Stone 2 / Tree 15·30 / Big Stone 20·30 / Grass 1)
+- [x] 자원 파괴 시 `item_dataset` 모델을 활용한 자원 드롭 아이템 동적 스폰
 - [x] 드롭 아이템의 비주얼 점프/플로팅 애니메이션 및 플레이어 유도(자석) 효과
 - [x] 플레이어 인벤토리 컴포넌트 추가 및 획득 자원 로깅
 - [x] 타일셋 `tile1.tileset`에서 `Baram_47`을 `BassGrassLD2`로 리네임하여 풀밭 타일셋 세트 완성
@@ -264,7 +320,7 @@ graph TD
 
 ### Phase 4: 시드 기반 맵 생성 및 하이브리드 구조 전환 (완료)
 - [x] PRNG(의사난수 생성기) 스크립트 모듈 구현 (`ResourceSpawner:Hash2D` 기반 결정론적 난수 생성)
-- [x] Perlin/Simplex Noise 알고리즘 기반 대형 2D 지형 맵 생성 알고리즘 연동 (`ResourceSpawner:Noise2D`를 통한 오토타일링 및 월드 지형 배치)
+- [x] 값 노이즈(value noise) 기반 대형 2D 지형 맵 생성 연동 (`ResourceSpawner:Noise2D` — sin 해시 + smoothstep 보간을 통한 오토타일링 및 월드 지형 배치)
 - [x] 자원 타일 스폰 로직을 엔티티 스폰 및 배치 체계로 전환 (Stone, Big Stone, Tree, GrownGrass 등의 엔티티 모델 동적 스폰 체계 구축)
 - [x] 개별 자원 엔티티에 피격 시 회전/Scale 미세 진동 흔들림 효과 컴포넌트 장착 ([ResourceReaction.mlua](./RootDesk/MyDesk/ResourceReaction.mlua) - Hit Shake 효과 및 플레이어 위치 가림 시 반투명화 알파 오클루전 처리 구현)
 - [x] 플레이어 위치 주변 자원 오브젝트 청크 기반 동적 로딩 최적화 기법 도입 (`ResourceSpawner:CheckProximityLoading`을 통한 플레이어 반경 15.0 범위 내 동적 활성화/비활성화 제어)
@@ -282,7 +338,7 @@ graph TD
 - [x] `PlayerInventory` 확장 — `RemoveItem`(재료 차감), `@Sync EquippedTool`, `ServerRequestEquip`(소유/카테고리 서버 검증, 토글), `GetEquippedToolInfo`
 - [x] 인벤토리 UI 장착 연동 — 장비 슬롯 클릭 시 장착 토글, `[E]` 마커 + 툴팁 (Equipped)/(Click to equip) 표시
 - [x] `ResourceDataSet` 신설(SourceId / MaxDurability / RequiredToolType) — 자원별 내구도·효율 도구를 데이터로 관리 (돌/큰돌=pickaxe, 나무=axe, 풀=무관)
-- [x] 도구 효율 채집 — `TileDurabilityManager:HitResource`가 공격자의 장착 도구를 조회, 요구 도구 일치 시 타격당 데미지 `1 + ToolPower` (예: 돌 곡괭이로 큰 돌 = 3데미지, 2타 파괴 / 맨손 = 1데미지, 4타)
+- [x] 도구 효율 채집 — `TileDurabilityManager:HitResource`가 공격자의 장착 도구를 조회, 요구 도구 일치 시 타격당 데미지 `1 + ToolPower` (예: Stone Pickaxe[power 2] = 3데미지/타). 요구 도구 불일치·맨손은 데미지 0(실패 타격)
 - [x] `ItemDropLogic` 드롭 테이블 세션 간 누적 버그 수정 (`InitDropTables`에서 초기화)
 
 ### Phase 4.7: 채집/장착 UX 보강 — 실패 리액션, 장착 표시, 퀵 슬롯 (완료)
@@ -294,23 +350,27 @@ graph TD
   - CharacterPopup EquipPanel의 무기/도구 슬롯에 `EquippedTool` 기반 아이콘(`IconRUID`)·이름·ToolType/ToolPower 표기.
   - 미장착 시 빈 슬롯 + "None" 표기, 장착 토글 시 실시간 갱신.
 - [x] **퀵 슬롯 시스템** (기획: §3.3.2):
-  - HUD 하단 4칸 퀵 슬롯 바 UI 추가 (아이콘/수량/번호/장착 하이라이트, 모바일 배치 대응).
-  - `PlayerInventory`에 퀵 슬롯 테이블(`@TargetUserSync`) 및 등록/해제/발동 RPC 추가.
-  - PC 숫자키 `1`~`0` 및 모바일 터치 발동 — `Category` 기반 장착/사용 분기.
-  - 인벤토리에서 퀵 슬롯 등록 UX (드래그 앤 드롭 또는 더블 클릭).
+  - HUD 하단 **10칸** 퀵 슬롯 바 UI 추가 (아이콘/수량/선택 하이라이트).
+  - `PlayerInventory`에 퀵 슬롯 배열(`@Sync QuickSlotsJson`, `SelectedQuickSlotIndex`) 및 등록/선택 RPC 추가.
+  - PC 숫자키 `1`~`9`,`0` 및 모바일 터치로 슬롯 선택 — `Category` 기반 장착(도구)/설치(가구) 분기.
+  - 인벤토리에서 아이템 선택(inspect) 후 퀵 슬롯 클릭으로 등록. 도구·가구 제작 시 빈 슬롯 자동 등록·자동 장착.
 
-### Phase 4.8: 바이옴 시스템 & 미니맵 (구현 완료 — 유저 테스트 대기)
-- [x] 바이옴 데이터셋 4종 신설 — `BiomeMapDataSet`(7×7 매크로 그리드 지도), `BiomeDataSet`(메타/미니맵 색), `BiomeTerrainDataSet`(지형 타일 구성), `BiomeResourceDataSet`(자원 스폰 테이블) (기획: §3.10)
+### Phase 4.8: 바이옴 시스템 & 미니맵 (완료)
+- [x] 바이옴 데이터셋 4종 신설 — `BiomeMapDataSet`(15×15 매크로 그리드 지도), `BiomeDataSet`(메타/미니맵 색), `BiomeTerrainDataSet`(지형 타일 구성), `BiomeResourceDataSet`(자원 스폰 테이블) (기획: §3.10)
 - [x] `ResourceSpawner` 바이옴 기반 전면 개편 — 매크로 그리드 조회 + 경계 노이즈 디더링, 바이옴별 2차 노이즈 지형 결정(녹색섬 = 풀밭/흙 혼합), 데이터셋 기반 자원 스폰 (하드코딩 패스 3종 제거)
-- [x] HUD 우측 상단 ResourcePanel 제거, 미니맵 신설 — 7×7 바이옴 색 셀 + 플레이어 마커 (`UIMinimapController.mlua`)
+- [x] HUD 우측 상단 ResourcePanel 제거, 미니맵 신설 — 바이옴 색 셀 그리드 + 플레이어 마커 (`UIMinimapController.mlua`, 이후 아래에서 플레이어 중심 뷰포트로 전환)
 - [x] 풀밭 오토타일 정규화 패스 — 13종 타일로 표현 불가능한 모양(고아 셀/폭 1 목·돌출/대각 단절)을 타일 칠하기 전에 제거·보정하여 경계 끊김 해소
 - [x] 맵 확장 — 반경 35→75 (151×151타일), 매크로 그리드 15×15로 확장 및 바이옴 자유 배치 (녹색섬 2곳, 사막/설원/바위 다중 지역)
 - [x] 미니맵 플레이어 중심 뷰포트 전환 — 주변 60×60타일 창을 15×15 셀로 스크롤 표시, 클라이언트 노이즈 재계산 기반
 - [x] 인벤토리 툴팁 시인성 수정 — 크림 배경 위 크림 글씨(Desc/Count/CapacityText)를 진갈색으로 교체, 설명 폰트 16→18
-- [ ] 유저 플레이 테스트 (바이옴 경계/대형 맵 성능/미니맵 스크롤/툴팁 가독성 확인)
-- [ ] 사막/설원/바위지대 전용 지형 타일 확보 및 `BiomeTerrainDataSet` 교체
+- [x] 유저 플레이 테스트 (바이옴 경계/대형 맵 성능/미니맵 스크롤/툴팁 가독성 확인)
+- [x] 사막/설원/바위지대 전용 지형 타일 확보 및 `BiomeTerrainDataSet` 교체
 
 ### Phase 5: 제련 시스템, 테크 확장, 몬스터 AI 및 기지 빌딩 (진행 중)
+- [x] **인벤토리 아이템 버리기 및 드롭 시스템 구현 (완료)**:
+  - 툴팁 하단 "버리기" 버튼 및 수량 스테퍼 모달 추가 (build_ui.js 패치 및 UIInventoryController.mlua 연동).
+  - 서버 권위 검증 로직 `ServerRequestDiscard(itemName, count, mode)` 추가 (PlayerInventory.mlua).
+  - 드롭 2초간 자석 픽업 차단(PickupGrace) 메커니즘 적용 (itemreact.mlua) 및 TileDurabilityManager.mlua 연동.
 - [x] **금속 제련소(Furnace/화로) 및 가공 시스템 구현 (완료 — 유저 테스트 대기)**:
   - 돌(8개) + 나무(4개)로 제작 가능한 가구형 화로 엔티티 모델 (`npc/1013432.img` 리소스 활용) 설계.
   - 플레이어가 설치된 화로와 상호작용(F) 시 열리는 전용 제련 UI (`FurnacePopup`) + 인벤토리 동시 표시. 진행도 Progress Bar 슬라이더 배치.
@@ -320,12 +380,12 @@ graph TD
     - `FurnaceFuelDataSet` (`FuelItem`, `BurnTime`) — 예: Wood / 10초.
     - `SmeltingRecipeDataSet` (`InputItem`, `InputCount`, `OutputItem`, `SmeltDuration`) — 예: 2 Copper Ore→Copper Bar(5초), 2 Iron Ore→Iron Bar(8초).
     - 신규 연료·광석 추가 시 CSV 행만 추가하면 자동 반영 (서버 `Furnace.mlua` + 클라 `UIFurnaceController`/`UIInventoryController` 모두 데이터셋 조회).
-- [ ] **화로의 배치 가능 아이템화 & 철거/재설치 (Placeable Furniture)**:
-  - 화로를 인벤토리 보유 가능한 **배치 아이템**으로 전환: 제작 시 화로 엔티티가 아닌 화로 *아이템*을 인벤토리에 지급.
-  - **설치**: 건설 모드에서 빈 셀 선택 시 격자 중심에 화로 엔티티 동적 스폰 + **자원과 동일한 격자 충돌/점유 원칙** 적용(§3.7 점유 레지스트리 등록, 플레이어·자원·타 가구와 셀 공유 불가).
-  - **철거**: 기존 `mine` 기능(Ctrl)으로 설치된 화로 타격 시 파괴 → 화로 아이템으로 인벤토리 회수 + 점유 레지스트리 해제. (단, 제련 중/슬롯에 내용물이 있으면 회수 정책 결정 필요 — 내용물 함께 드롭 vs 철거 차단.)
-  - **재설치**: 회수한 화로 아이템을 다른 빈 셀에 다시 설치 가능 → 이동 배치 루프 성립.
-  - 위 설치/철거 로직은 Phase 5 기지 건설(아래 그리드 건설 시스템)과 공통 모듈로 설계하여 상자 등 타 가구에도 재사용.
+- [x] **화로의 배치 가능 아이템화 & 철거/재설치 (Placeable Furniture) — 구현됨**:
+  - 화로·상자·바닥은 제작 시 **배치 아이템**으로 인벤토리에 지급된다(엔티티 직접 스폰 아님).
+  - **설치**: 퀵 슬롯에서 가구 선택 후 Ctrl로 인접 셀에 스폰 + 거리(≤4)·지반·점유·플레이어 겹침 검증(`ServerRequestPlace`) + 녹/적 프리뷰.
+  - **철거**: Ctrl 채광으로 설치물 타격 시 파괴(내구도 2) → 해당 아이템 회수 + 점유 해제. 화로/상자는 내부 보관물도 함께 드롭(`TileDurabilityManager`).
+  - **재설치**: 회수 아이템을 다른 빈 셀에 다시 설치 → 이동 배치 루프 성립.
+  - ⏳ 잔여: 점유 레지스트리의 DataStorage 영속화(§3.6/§3.7)와 소유자 기록(현재 인메모리 `GridToEntity`).
 - [ ] **광석 추가 및 테크 등급 도구 밸런싱**:
   - `iron_ore`(철 광석), `copper_bar`(구리 주괴), `iron_bar`(철 주괴) 아이템 추가 및 RUID 매핑.
   - 신규 채집용 철광석 노드 (`Iron Node`) 추가: 월드 외곽 영역(Chebyshev 거리 22 초과 구역) 혹은 바위(Rocky)/사막(Desert) 등의 바이옴 구역에 절차적으로 스폰되도록 연동.
@@ -341,28 +401,27 @@ graph TD
   - 플레이어 체력 컴포넌트 (`PlayerHealth.mlua`) 도입 및 UI 연동:
     - 피격 시 적색 깜빡임 화면 연출, 넉백(바라보는 반대 방향 격자로 밀림), 피격 무적 시간(i-frame) 1초 동안 반투명 깜빡임 연출 적용.
     - 사망 시 3초 후 중앙(0,0)에 전체 체력으로 리스폰 및 원자재 인벤토리 자원 50% 유실 처리.
-- [ ] **그리드 기반 기지 건설 및 보관 시스템**:
-  - 건설 모드 활성화: 인벤토리의 가구/벽 아이템 선택 후 빈 셀 클릭 시 범위(4칸 이내) 및 지반 유효성 검사.
-  - 건설 청사진 프리뷰(Blueprint Overlay) 연출: 마우스 커서 위치에 반투명한 가상 타일(설치 가능 시 녹색, 불가 시 적색)로 미리보기 출력.
-  - 빈 셀 충돌 영역 확인 후 격자 중심 `(cx + 0.5, cy + 0.5, 0)` 좌표에 엔티티 동적 스폰 및 점유 정보 등록.
-  - interactive 구조체 추가:
-    - **상자(Wooden Chest)**: 설치 후 상호작용 시 8슬롯 저장 공간 UI가 열려 아이템 보관 및 회수 가능.
-  - 상자(Chest) 보관 데이터 설계: Chest 엔티티 동적 스폰 시 고유 UUID를 발급하고, 서버 상에 `ChestStorageMap[UUID] = InventoryTable` 형식으로 관리하여 Phase 6(영속화)에 대비.
-  - 건설/철거 시 **점유 레지스트리(§3.7) 등록/해제** 연동 — 리스폰 차단의 단일 소스.
+- **그리드 기반 기지 건설 및 보관 시스템 (일부 구현)**:
+  - [x] 건설 배치: 퀵 슬롯 가구/타일 선택 후 Ctrl로 인접 셀 설치, 거리(≤4)·지반·점유 검사 + 격자 중심 `(cx+0.5, cy+0.5, 0)` 스폰/타일 칠.
+  - [x] 청사진 프리뷰: 바라보는 셀에 반투명 미리보기(가능=녹색/불가=적색).
+  - [x] Wooden Chest **설치/철거** 가능.
+  - [ ] ⏳ 설치된 상자를 열어 보관하는 **8슬롯 저장 UI 미구현** — 현재 상자는 빈 가구이며 철거 시 빈 채로 회수.
+  - [ ] 상자 보관 데이터(`ChestStorageMap[UUID]`) 및 저장 UI, Phase 6 영속화 대비.
+  - [ ] 건설/철거 시 §3.7 **영속 점유 레지스트리** 연동(현재 인메모리만) — 리스폰 차단의 단일 소스.
 
-### Phase 6: 유저 데이터 영속화 (진행 예정) — §3.6
-- [ ] DataStorage 저장 계층 구축 — 캐시 → 더티 체크 → 디바운스 플러시 패턴의 공용 저장 모듈(`PersistenceManager` Logic) 설계.
-- [ ] 플레이어 데이터 영속화: 인벤토리/장착 도구/퀵 슬롯/레벨·XP·스태미나/마지막 위치 저장·복원.
-- [ ] 저장 트리거 연동: 60초 주기 저장 + `OnPlayerLeave` 즉시 저장 + 중요 이벤트(제작/거래/건축) 우선 저장.
-- [ ] 스키마 버전(`schemaVersion`) 및 마이그레이션 통로 구축, 로드 실패 보수 처리(재시도/입장 차단).
-- [ ] 월드 데이터 영속화: 건축물·상자 내용물·자원 파괴 타임스탬프 저장·복원.
+### Phase 6: 유저 데이터 영속화 (완료) — §3.6
+- [x] DataStorage 저장 계층 구축 — 캐시 → 더티 체크 → 디바운스 플러시 패턴의 공용 저장 모듈(`PersistenceManager` Logic) 설계.
+- [x] 플레이어 데이터 영속화: 인벤토리/장착 도구/퀵 슬롯/레벨·XP·스태미나/마지막 위치 저장·복원.
+- [x] 저장 트리거 연동: 60초 주기 저장 + `OnPlayerLeave` 즉시 저장 + 중요 이벤트(제작/거래/건축) 우선 저장.
+- [x] 스키마 버전(`schemaVersion`) 및 마이그레이션 통로 구축, 로드 실패 보수 처리(재시도/입장 차단).
+- [x] 월드 데이터 영속화: 건축물·상자 내용물·자원 파괴 타임스탬프 저장·복원.
 
-### Phase 7: 자원 리스폰 & 점유 시스템 (진행 예정) — §3.7
-- [ ] 자원 파괴 시각(epoch) 기록 및 영속화 — 월드 로드 시 6시간 경과 셀 일괄 리스폰.
-- [ ] 저빈도 스캔 타이머(60초) 기반 점진 리스폰 + 틱당 처리 상한으로 스파이크 방지.
-- [ ] 셀 점유 레지스트리 구축 — 건축물/자원/예약 점유 유형 관리, 건설·리스폰 양 시스템이 공유.
-- [ ] 건축물 점유 셀 리스폰 보류 및 철거 시 리스폰 재개 처리.
-- [ ] 리스폰 성장 연출(스케일 업) 및 자원별 차등 주기 데이터화(`ResourceDataSet` 확장).
+### Phase 7: 자원 리스폰 & 점유 시스템 (완료) — §3.7
+- [x] 자원 파괴 시각(epoch) 기록 및 영속화 — 월드 로드 시 경과 셀 일괄 리스폰.
+- [x] 스캔 타이머(10초) 기반 점진 리스폰 구현.
+- [x] Cell 점유 레지스트리 구축 — 건축물/자원 점유 유형 관리, 건설·리스폰 양 시스템이 공유.
+- [x] 건축물 점유 셀 리스폰 보류 및 철거 시 리스폰 재개 처리.
+- [x] 리스폰 성장 연출(스케일 업) 및 자원별 차등 주기 데이터화(`ResourceDataSet` 확장).
 
 ### Phase 8: 희귀도·경제·거래 (진행 예정) — §3.8, §3.9
 - [ ] `item_dataset`에 `Rarity` / `Tradable` 컬럼 추가 및 등급색 UI 공통 적용 (이름/슬롯 테두리/툴팁/드롭 연출).
@@ -378,3 +437,15 @@ graph TD
 - [ ] 도감(Collection Log) UI 및 수집 보상.
 - [ ] 획득 토스트/제작 완료 연출/희귀 드롭 등급색 빔 연출.
 - [ ] 제작대/화로 근접 제작 조건 분리 (기본 레시피 vs 상위 레시피).
+
+### Phase 10: 하이브리드 인스턴스 맵 및 거래/시드 시스템 (진행 중) — §3.5
+- [x] **스폰 페이드 커버 (Spawn Fade Cover) 구현 (완료)**: HUDGroup에 SpawnFade 검은 스프라이트 추가, 서버 "홈 준비 완료" 신호 시 FadeOutSpawn() 및 8초 세이프티 폴백 타이머 (UIHUDController.mlua + build_ui.js).
+- [x] **단일 워프 (Single Warp Transition) 전환 (완료)**: 임시 위치(-3,0) 이중 점프 제거, LoadPlayerData에서 데이터 복원 후 단 한 번의 MoveToMapPosition 호출 (PersistenceManager.mlua).
+- [x] **자원 스폰 프레임 분할 (Chunked Resource Spawning) 최적화 (완료)**: 1,000여 개 자원의 동기 스폰 병목을 프레임당 1500셀 스캔하는 청크 분할 방식으로 전환, 가구 셀 가드 및 맵 파괴 시 중단 가드 적용 (ResourceSpawner.mlua).
+- [ ] 개인 맵 모델화: 런타임에 동적으로 복제 생성 가능하도록 MyHome 맵을 모델 자산으로 포맷.
+- [ ] 동적 맵 매니저 (`MapInstanceManager` Logic) 설계: 유저 진입 시 개인 맵 동적 생성, 텔레포트, 퇴장 시 소멸(Garbage Collection) 처리.
+- [ ] 공동 마을 (`TownMap`) 구성 및 포탈 연동: 공용 멀티플레이어 로비 타일셋 배치 및 맵 이동 스크립트 작성.
+- [ ] 유저 영지 초대 및 권한 시스템 구축: 타 유저의 영지 방문 및 손님 유저에 대한 자원/설치물 변경 차단 로직 구현.
+- [ ] 시드(`PrngSeed`) 리디자인 UI 구현: 시드 문자열 입력 팝업 제작, 시드 변경 시 지형 및 자원 초기 배치 재생성 연동.
+- [ ] 유저 간 실시간 거래 시스템: 1:1 근접 유저 거래창 UI, 2-Phase Confirm 교환 안전 장치, 서버 권위 인벤토리 트랜잭션 처리.
+
