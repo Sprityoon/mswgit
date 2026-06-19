@@ -27,45 +27,106 @@ script PlayerInventory extends Component
 	end
 
 	@ExecSpace("Server")
-	method void AddItem(string itemName, integer count)
+	method string AddItem(string itemName, integer count)
 		-- Adds count items and pushes the synced JSON snapshot to clients.
-		if count <= 0 then return end
+		if count <= 0 then return "" end
 		
-		local current = self.Items[itemName] or 0
-		self.Items[itemName] = current + count
+		local isTool = false
+		local ds = _DataService:GetTable("item_dataset")
+		if ds ~= nil then
+			local row = ds:FindRow("Name", itemName)
+			if row ~= nil and row:GetItem("Category") == "tool" then
+				isTool = true
+			end
+		end
 		
-		self.InventoryDataJson = _HttpService:JSONEncode(self.Items)
-		
-		log("Inventory updated: added " .. count .. " " .. itemName .. ". Total: " .. self.Items[itemName])
-		
-		self:ClientShowPickupMessage(itemName, count, self.Items[itemName])
+		local addedKey = itemName
+		if isTool then
+			local keys = {}
+			for i = 1, count do
+				local uniqueId = tostring(math.floor(_UtilLogic.ServerElapsedSeconds * 1000)) .. "_" .. tostring(math.random(100000, 999999))
+				local uniqueKey = itemName .. "_" .. uniqueId
+				self.Items[uniqueKey] = { name = itemName, count = 1, durability = 100 }
+				table.insert(keys, uniqueKey)
+			end
+			self.InventoryDataJson = _HttpService:JSONEncode(self.Items)
+			
+			log("Inventory updated: added " .. count .. " unique " .. itemName .. "(s).")
+			self:ClientShowPickupMessage(itemName, count, self:GetItemCount(itemName))
+			addedKey = keys[1] or itemName
+		else
+			local current = self.Items[itemName] or 0
+			self.Items[itemName] = current + count
+			self.InventoryDataJson = _HttpService:JSONEncode(self.Items)
+			
+			log("Inventory updated: added " .. count .. " " .. itemName .. ". Total: " .. self.Items[itemName])
+			self:ClientShowPickupMessage(itemName, count, self.Items[itemName])
+			addedKey = itemName
+		end
 		
 		if _PersistenceManager and self.Entity.PlayerComponent then
 			_PersistenceManager:MarkPlayerDirty(self.Entity.PlayerComponent.UserId)
 		end
+		return addedKey
 	end
 
 	@ExecSpace("ServerOnly")
 	method boolean RemoveItem(string itemName, integer count)
 		-- Removes count items if owned; returns false when insufficient.
 		if count <= 0 then return true end
-		local current = self.Items[itemName] or 0
-		if current < count then return false end
 		
-		self.Items[itemName] = current - count
-		if self.Items[itemName] <= 0 then
-			self.Items[itemName] = nil
-			-- Unequip if the equipped tool ran out
-			if self.EquippedTool == itemName then
+		local entry = self.Items[itemName]
+		if entry ~= nil then
+			if type(entry) == "table" then
+				self.Items[itemName] = nil
+				if self.EquippedTool == itemName then
+					self.EquippedTool = ""
+				end
+				self.InventoryDataJson = _HttpService:JSONEncode(self.Items)
+				if _PersistenceManager and self.Entity.PlayerComponent then
+					_PersistenceManager:MarkPlayerDirty(self.Entity.PlayerComponent.UserId)
+				end
+				return true
+			else
+				if entry < count then return false end
+				self.Items[itemName] = entry - count
+				if self.Items[itemName] <= 0 then
+					self.Items[itemName] = nil
+				end
+				self.InventoryDataJson = _HttpService:JSONEncode(self.Items)
+				if _PersistenceManager and self.Entity.PlayerComponent then
+					_PersistenceManager:MarkPlayerDirty(self.Entity.PlayerComponent.UserId)
+				end
+				return true
+			end
+		end
+		
+		local totalCount = self:GetItemCount(itemName)
+		if totalCount < count then return false end
+		
+		local removedCount = 0
+		local keysToRemove = {}
+		for k, v in pairs(self.Items) do
+			if type(v) == "table" and v.name == itemName then
+				table.insert(keysToRemove, k)
+				removedCount = removedCount + 1
+				if removedCount >= count then
+					break
+				end
+			end
+		end
+		
+		for _, k in ipairs(keysToRemove) do
+			self.Items[k] = nil
+			if self.EquippedTool == k then
 				self.EquippedTool = ""
 			end
 		end
-		self.InventoryDataJson = _HttpService:JSONEncode(self.Items)
 		
+		self.InventoryDataJson = _HttpService:JSONEncode(self.Items)
 		if _PersistenceManager and self.Entity.PlayerComponent then
 			_PersistenceManager:MarkPlayerDirty(self.Entity.PlayerComponent.UserId)
 		end
-
 		return true
 	end
 
@@ -80,7 +141,18 @@ script PlayerInventory extends Component
 		end
 		if itemName == nil or itemName == "" then return end
 
-		local owned = self.Items[itemName] or 0
+		local baseName = self:GetBaseItemName(itemName)
+		local owned = 0
+		local entry = self.Items[itemName]
+		if entry ~= nil then
+			if type(entry) == "table" then
+				owned = entry.count or 1
+			else
+				owned = entry
+			end
+		else
+			owned = self:GetItemCount(itemName)
+		end
 		if owned <= 0 then return end
 
 		local dropCount = count
@@ -94,7 +166,7 @@ script PlayerInventory extends Component
 				local itemId = ""
 				local ds = _DataService:GetTable("item_dataset")
 				if ds ~= nil then
-					local row = ds:FindRow("Name", itemName)
+					local row = ds:FindRow("Name", baseName)
 					if row ~= nil then
 						itemId = row:GetItem("id")
 					end
@@ -105,7 +177,7 @@ script PlayerInventory extends Component
 					-- 2s pickup grace so the player can step away before the magnet re-collects.
 					_TileDurabilityManager:SpawnResourceDrop(map, dropPos, itemId, dropCount, dropCount, 2.0)
 				else
-					log_warning("ServerRequestDiscard: no item_dataset id for '" .. itemName .. "'; deleting instead of dropping.")
+					log_warning("ServerRequestDiscard: no item_dataset id for '" .. baseName .. "'; deleting instead of dropping.")
 				end
 			end
 		end
@@ -171,13 +243,40 @@ script PlayerInventory extends Component
 		return self:GetItemCount(itemName) >= requiredCount
 	end
 
+	method string GetBaseItemName(string itemKey)
+		if itemKey == nil or itemKey == "" then return "" end
+		local items = self.Items
+		if self:IsClient() then
+			items = _HttpService:JSONDecode(self.InventoryDataJson) or {}
+		end
+		local entry = items[itemKey]
+		if type(entry) == "table" and entry.name ~= nil then
+			return entry.name
+		end
+		local p1, p2 = string.find(itemKey, "_%d+_%d+$")
+		if p1 then
+			return string.sub(itemKey, 1, p1 - 1)
+		end
+		return itemKey
+	end
+
 	method integer GetItemCount(string itemName)
 		-- Returns the owned count; on the client it reads the synced JSON snapshot.
-		local count = self.Items[itemName] or 0
+		local count = 0
+		local items = self.Items
 		if self:IsClient() then
-			local clientItems = _HttpService:JSONDecode(self.InventoryDataJson)
-			if clientItems ~= nil then
-				count = clientItems[itemName] or 0
+			items = _HttpService:JSONDecode(self.InventoryDataJson) or {}
+		end
+		
+		for k, v in pairs(items) do
+			if type(v) == "table" then
+				if k == itemName or v.name == itemName then
+					count = count + (v.count or 1)
+				end
+			else
+				if k == itemName then
+					count = count + v
+				end
 			end
 		end
 		return count
@@ -196,17 +295,19 @@ script PlayerInventory extends Component
 			return
 		end
 		
-		if (self.Items[itemName] or 0) <= 0 then
+		local entry = self.Items[itemName]
+		if entry == nil then
 			log_warning("[EQUIP] " .. self.Entity.Name .. " does not own " .. itemName)
 			return
 		end
 		
 		-- Validate that the item is a tool via item_dataset (server-only dataset)
+		local baseName = self:GetBaseItemName(itemName)
 		local ds = _DataService:GetTable("item_dataset")
 		if ds == nil then return end
-		local row = ds:FindRow("Name", itemName)
+		local row = ds:FindRow("Name", baseName)
 		if row == nil or row:GetItem("Category") ~= "tool" then
-			log_warning("[EQUIP] " .. itemName .. " is not an equippable tool.")
+			log_warning("[EQUIP] " .. baseName .. " is not an equippable tool.")
 			return
 		end
 		
@@ -235,9 +336,10 @@ script PlayerInventory extends Component
 		local info = { toolType = "", power = 0 }
 		if self.EquippedTool == "" then return info end
 		
+		local baseName = self:GetBaseItemName(self.EquippedTool)
 		local ds = _DataService:GetTable("item_dataset")
 		if ds == nil then return info end
-		local row = ds:FindRow("Name", self.EquippedTool)
+		local row = ds:FindRow("Name", baseName)
 		if row == nil then return info end
 		
 		info.toolType = row:GetItem("ToolType") or ""
@@ -296,7 +398,7 @@ script PlayerInventory extends Component
 		-- Validate materials
 		local canCraft = true
 		for _, ing in ipairs(ingredients) do
-			if (self.Items[ing.itemName] or 0) < ing.required then
+			if self:GetItemCount(ing.itemName) < ing.required then
 				canCraft = false
 				break
 			end
@@ -306,11 +408,11 @@ script PlayerInventory extends Component
 			for _, ing in ipairs(ingredients) do
 				self:RemoveItem(ing.itemName, ing.required)
 			end
-			self:AddItem(recipeName, 1)
+			local craftedKey = self:AddItem(recipeName, 1)
 		
 			log("[CRAFT] Player " .. self.Entity.Name .. " crafted " .. recipeName)
 			self:ClientOnCraftCompleted(recipeName, true, playerComp.UserId)
-
+		
 			-- Auto-Equip Logic
 			local itemDs = _DataService:GetTable("item_dataset")
 			if itemDs ~= nil then
@@ -328,9 +430,9 @@ script PlayerInventory extends Component
 						end
 						if emptySlotIndex ~= -1 then
 							self.SelectedQuickSlotIndex = emptySlotIndex
-							slots[emptySlotIndex] = recipeName
+							slots[emptySlotIndex] = craftedKey
 							self.QuickSlotsJson = _HttpService:JSONEncode(slots)
-							log("[QUICKSLOT] Auto-registered crafted item " .. recipeName .. " to slot " .. emptySlotIndex)
+							log("[QUICKSLOT] Auto-registered crafted item " .. craftedKey .. " to slot " .. emptySlotIndex)
 							self:SyncEquippedToolToSelectedSlot()
 						end
 					end
@@ -381,18 +483,59 @@ script PlayerInventory extends Component
 		
 		-- If itemName is not empty, check if player owns it
 		if itemName ~= "" then
-			local current = self.Items[itemName] or 0
-			if current <= 0 then
+			local entry = self.Items[itemName]
+			local owned = false
+			if entry ~= nil then
+				if type(entry) == "table" then
+					owned = (entry.count or 1) > 0
+				else
+					owned = entry > 0
+				end
+			end
+			if not owned then
 				log_warning("Player " .. self.Entity.Name .. " does not own " .. itemName .. " to register in quick slot.")
 				return
 			end
 		end
 		
 		local slots = _HttpService:JSONDecode(self.QuickSlotsJson) or {}
+		if itemName ~= "" then
+			for i = 1, 10 do
+				if slots[i] == itemName then
+					slots[i] = ""
+				end
+			end
+		end
 		slots[slotIndex] = itemName
 		self.QuickSlotsJson = _HttpService:JSONEncode(slots)
 		
 		log("[QUICKSLOT] Player " .. self.Entity.Name .. " registered slot " .. slotIndex .. " = " .. itemName)
+		self:SyncEquippedToolToSelectedSlot()
+		
+		if _PersistenceManager and self.Entity.PlayerComponent then
+			_PersistenceManager:MarkPlayerDirty(self.Entity.PlayerComponent.UserId)
+		end
+	end
+
+	@ExecSpace("Server")
+	method void ServerSwapQuickSlots(integer fromIndex, integer toIndex)
+		local playerComp = self.Entity.PlayerComponent
+		if playerComp == nil or senderUserId ~= playerComp.UserId then
+			return
+		end
+		
+		if fromIndex < 1 or fromIndex > 10 or toIndex < 1 or toIndex > 10 then
+			log_warning("Invalid swap indices: from " .. tostring(fromIndex) .. " to " .. tostring(toIndex))
+			return
+		end
+		
+		local slots = _HttpService:JSONDecode(self.QuickSlotsJson) or {}
+		local temp = slots[fromIndex] or ""
+		slots[fromIndex] = slots[toIndex] or ""
+		slots[toIndex] = temp
+		
+		self.QuickSlotsJson = _HttpService:JSONEncode(slots)
+		log("[QUICKSLOT] Player " .. self.Entity.Name .. " swapped slot " .. fromIndex .. " <-> " .. toIndex)
 		self:SyncEquippedToolToSelectedSlot()
 		
 		if _PersistenceManager and self.Entity.PlayerComponent then
@@ -407,11 +550,21 @@ script PlayerInventory extends Component
 		local itemName = slots[self.SelectedQuickSlotIndex] or ""
 		
 		if itemName ~= "" then
-			local current = self.Items[itemName] or 0
-			if current > 0 then
+			local entry = self.Items[itemName]
+			local hasItem = false
+			if entry ~= nil then
+				if type(entry) == "table" then
+					hasItem = (entry.count or 1) > 0
+				else
+					hasItem = entry > 0
+				end
+			end
+			
+			if hasItem then
+				local baseName = self:GetBaseItemName(itemName)
 				local ds = _DataService:GetTable("item_dataset")
 				if ds ~= nil then
-					local row = ds:FindRow("Name", itemName)
+					local row = ds:FindRow("Name", baseName)
 					if row ~= nil and row:GetItem("Category") == "tool" then
 						if self.EquippedTool ~= itemName then
 							self:Equip(itemName)

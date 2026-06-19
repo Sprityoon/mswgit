@@ -104,6 +104,34 @@ script UICraftingController extends Component
 	end
 
 	@ExecSpace("ClientOnly")
+	method string GetItemRarity(string itemName)
+		-- Returns the rarity of the item from item_dataset.
+		local ds = _DataService:GetTable("item_dataset")
+		if ds ~= nil then
+			local row = ds:FindRow("Name", itemName)
+			if row ~= nil then
+				return row:GetItem("Rarity") or "Common"
+			end
+		end
+		return "Common"
+	end
+
+	@ExecSpace("ClientOnly")
+	method Color GetRarityColor(string rarity)
+		-- Returns the UI display color corresponding to the rarity grade.
+		if rarity == "Uncommon" then
+			return Color(0.2, 0.8, 0.2, 1.0)
+		elseif rarity == "Rare" then
+			return Color(0.2, 0.6, 1.0, 1.0)
+		elseif rarity == "Epic" then
+			return Color(0.6, 0.2, 0.8, 1.0)
+		elseif rarity == "Legendary" then
+			return Color(1.0, 0.5, 0.0, 1.0)
+		end
+		return Color(1.0, 1.0, 1.0, 1.0)
+	end
+
+	@ExecSpace("ClientOnly")
 	method void BuildRecipeList()
 		-- Clones recipeTemplate once per recipe and wires its click handler.
 		if not isvalid(self.recipeTemplate) then return end
@@ -115,7 +143,11 @@ script UICraftingController extends Component
 			item.Enable = true
 		
 			local nameText = item:GetChildByName("Name").TextComponent
-			if isvalid(nameText) then nameText.Text = recipe.name end
+			if isvalid(nameText) then
+				nameText.Text = recipe.name
+				local rarity = self:GetItemRarity(recipe.name)
+				nameText.FontColor = self:GetRarityColor(rarity)
+			end
 		
 			local icon = item:GetChildByName("Icon").SpriteGUIRendererComponent
 			if isvalid(icon) then icon.ImageRUID = recipe.icon end
@@ -232,10 +264,15 @@ script UICraftingController extends Component
 
 	@ExecSpace("ClientOnly")
 	method void UpdateDetails()
+		-- description: Updates the crafting detail panel (name, description, ingredients) with rarity colors.
 		local recipe = self.recipes[self.selectedRecipe]
 		if not recipe then return end
 		
-		if isvalid(self.detailName) then self.detailName.Text = recipe.name end
+		if isvalid(self.detailName) then
+			self.detailName.Text = recipe.name
+			local rarity = self:GetItemRarity(recipe.name)
+			self.detailName.FontColor = self:GetRarityColor(rarity)
+		end
 		if isvalid(self.detailDesc) then self.detailDesc.Text = recipe.desc end
 		
 		if isvalid(self.detailIcon) then

@@ -238,9 +238,10 @@ script PlayerController extends Component
 			local slots = _HttpService:JSONDecode(inv.QuickSlotsJson) or {}
 			activeItem = slots[inv.SelectedQuickSlotIndex] or ""
 			if activeItem ~= "" then
+				local baseName = inv:GetBaseItemName(activeItem)
 				local ds = _DataService:GetTable("item_dataset")
 				if ds ~= nil then
-					local row = ds:FindRow("Name", activeItem)
+					local row = ds:FindRow("Name", baseName)
 					if row ~= nil and row:GetItem("Category") == "furniture" then
 						isPlaceable = true
 					end
@@ -504,9 +505,10 @@ script PlayerController extends Component
 		local placedTileName = ""
 		
 		if activeItem ~= "" then
+			local baseName = inv:GetBaseItemName(activeItem)
 			local ds = _DataService:GetTable("item_dataset")
 			if ds ~= nil then
-				local row = ds:FindRow("Name", activeItem)
+				local row = ds:FindRow("Name", baseName)
 				if row ~= nil and row:GetItem("Category") == "furniture" then
 					isPlaceable = true
 					iconRuid = row:GetItem("IconRUID") or ""
@@ -536,15 +538,17 @@ script PlayerController extends Component
 					preview.TransformComponent.Scale = Vector3(1.0, 1.0, 1.0)
 					
 					local sprite = preview.SpriteRendererComponent
-					if isvalid(sprite) and self._T.LastActiveItem ~= activeItem then
+					if isvalid(sprite) then
 						local spriteRuid = iconRuid
 						if placedTileName == "" then
 							if activeItem == "Furnace" then
 								spriteRuid = "a3b810b8178847a0b9ec54bc4b63ba96"
 							end
 						end
-						sprite.SpriteRUID = spriteRuid
-						self._T.LastActiveItem = activeItem
+						if sprite.SpriteRUID ~= spriteRuid then
+							sprite.SpriteRUID = spriteRuid
+							self._T.LastActiveItem = activeItem
+						end
 					end
 				end
 				
@@ -638,7 +642,7 @@ script PlayerController extends Component
 		local sprite = preview.SpriteRendererComponent
 		if isvalid(sprite) then
 			-- Swap to the reticle sprite once when entering mining mode.
-			if self._T.LastActiveItem ~= "__mine__" then
+			if sprite.SpriteRUID ~= self.ReticleSpriteRUID then
 				sprite.SpriteRUID = self.ReticleSpriteRUID
 				self._T.LastActiveItem = "__mine__"
 			end

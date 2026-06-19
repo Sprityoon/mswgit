@@ -345,13 +345,16 @@ script UIInventoryController extends Component
 		self.filteredItems = {}
 		local totalCount = 0
 		
-		for itemName, count in pairs(items) do
+		for itemKey, val in pairs(items) do
+			local isTable = (type(val) == "table")
+			local count = isTable and (val.count or 1) or val
 			if count > 0 then
 				totalCount = totalCount + 1
+				local itemName = isTable and val.name or itemKey
 				local category = self:GetItemCategory(itemName)
 		
 				if self.activeTab == "All" or self.activeTab == category then
-					table.insert(self.filteredItems, { name = itemName, count = count })
+					table.insert(self.filteredItems, { key = itemKey, name = itemName, count = count })
 				end
 			end
 		end
@@ -375,10 +378,16 @@ script UIInventoryController extends Component
 
 	@ExecSpace("ClientOnly")
 	method string GetItemCategory(string itemName)
-		if itemName == "Wood" or itemName == "Stone" or itemName == "Grass" or itemName == "Big Stone" then
-			return "Resources"
-		elseif string.find(itemName, "Pickaxe") or string.find(itemName, "Axe") or string.find(itemName, "Chest") then
-			return "Equipment"
+		-- Returns the inventory category tab name for the item.
+		local ds = _DataService:GetTable("item_dataset")
+		if ds ~= nil then
+			local row = ds:FindRow("Name", itemName)
+			if row ~= nil then
+				local category = row:GetItem("Category") or ""
+				if category == "tool" or category == "furniture" then
+					return "Equipment"
+				end
+			end
 		end
 		return "Resources"
 	end
@@ -388,27 +397,52 @@ script UIInventoryController extends Component
 		-- Looks up the item's IconRUID (item model sprite) from item_dataset.
 		local ds = _DataService:GetTable("item_dataset")
 		if ds == nil then return "" end
-		local rowCount = ds:GetRowCount()
-		for i = 1, rowCount do
-			if ds:GetCell(i, "Name") == itemName then
-				return ds:GetCell(i, "IconRUID") or ""
-			end
+		local row = ds:FindRow("Name", itemName)
+		if row ~= nil then
+			return row:GetItem("IconRUID") or ""
 		end
 		return ""
 	end
 
 	@ExecSpace("ClientOnly")
 	method string GetItemDescription(string itemName)
-		if itemName == "Wood" then return "A flexible wooden branch. Useful for crafting basic tools."
-		elseif itemName == "Stone" then return "A common stone found in the wild. Used in crafting tools and buildings."
-		elseif itemName == "Grass" then return "Soft wild grass. Can be used for binding or insulation."
-		elseif itemName == "Big Stone" then return "A heavy, dense block of solid stone. Used for durable crafting."
-		elseif itemName == "Hand Axe" then return "A simple axe made of stone. Used to cut trees."
-		elseif itemName == "Stone Pickaxe" then return "A sturdy stone pickaxe. Ideal for mining large stones."
-		elseif itemName == "Stone Axe" then return "An upgraded axe. Efficiently cuts down trees."
-		elseif itemName == "Wooden Chest" then return "A simple chest to store your extra materials."
+		-- Looks up the item's description from item_dataset.
+		local ds = _DataService:GetTable("item_dataset")
+		if ds ~= nil then
+			local row = ds:FindRow("Name", itemName)
+			if row ~= nil then
+				return row:GetItem("Description") or "A mysterious item of unknown utility."
+			end
 		end
 		return "A mysterious item of unknown utility."
+	end
+
+	@ExecSpace("ClientOnly")
+	method string GetItemRarity(string itemName)
+		-- Returns the rarity of the item from item_dataset.
+		local ds = _DataService:GetTable("item_dataset")
+		if ds ~= nil then
+			local row = ds:FindRow("Name", itemName)
+			if row ~= nil then
+				return row:GetItem("Rarity") or "Common"
+			end
+		end
+		return "Common"
+	end
+
+	@ExecSpace("ClientOnly")
+	method Color GetRarityColor(string rarity)
+		-- Returns the UI display color corresponding to the rarity grade.
+		if rarity == "Uncommon" then
+			return Color(0.2, 0.8, 0.2, 1.0)
+		elseif rarity == "Rare" then
+			return Color(0.2, 0.6, 1.0, 1.0)
+		elseif rarity == "Epic" then
+			return Color(0.6, 0.2, 0.8, 1.0)
+		elseif rarity == "Legendary" then
+			return Color(1.0, 0.5, 0.0, 1.0)
+		end
+		return Color(1.0, 1.0, 1.0, 1.0)
 	end
 
 	@ExecSpace("ClientOnly")
@@ -416,6 +450,12 @@ script UIInventoryController extends Component
 		-- index is 0-based
 		local data = self.filteredItems[index + 1]
 		if not data then return end
+		
+		-- Set rarity background color
+		if isvalid(slotEntity) and isvalid(slotEntity.SpriteGUIRendererComponent) then
+			local rarity = self:GetItemRarity(data.name)
+			slotEntity.SpriteGUIRendererComponent.Color = self:GetRarityColor(rarity)
+		end
 		
 		-- Icon
 		local iconEntity = slotEntity:GetChildByName("Icon")
@@ -427,7 +467,7 @@ script UIInventoryController extends Component
 		local equippedTool = self:GetEquippedToolName()
 		local countTextEntity = slotEntity:GetChildByName("Count")
 		if isvalid(countTextEntity) and isvalid(countTextEntity.TextComponent) then
-			if data.name == equippedTool then
+			if data.key == equippedTool then
 				countTextEntity.TextComponent.Text = "[E] x" .. data.count
 				countTextEntity.TextComponent.FontColor = Color(0.4, 1.0, 0.4, 1)
 			else
@@ -443,8 +483,8 @@ script UIInventoryController extends Component
 			end
 			self.slotHandlers[slotEntity] = slotEntity:ConnectEvent(ButtonClickEvent, function()
 				local clickTime = _UtilLogic.ElapsedSeconds
-				local lastTime = self.lastClickTimes[data.name] or 0
-				self.lastClickTimes[data.name] = clickTime
+				local lastTime = self.lastClickTimes[data.key] or 0
+				self.lastClickTimes[data.key] = clickTime
 		
 				local furnacePopup = _EntityService:GetEntityByPath("/ui/PopupGroup/FurnacePopup")
 				local furnaceOpen = isvalid(furnacePopup) and furnacePopup.Enable
@@ -452,25 +492,25 @@ script UIInventoryController extends Component
 				if clickTime - lastTime < 0.3 then
 					-- Double click
 					if furnaceOpen then
-						self:TransferToFurnace(data.name, data.count, slotEntity)
+						self:TransferToFurnace(data.key, data.count, slotEntity)
 					else
 						local player = _UserService.LocalPlayer
 						if isvalid(player) then
 							local inv = player:GetComponent("script.PlayerInventory")
 							if isvalid(inv) then
 								local activeSlot = inv.SelectedQuickSlotIndex or 1
-								inv:ServerRegisterQuickSlot(activeSlot, data.name)
+								inv:ServerRegisterQuickSlot(activeSlot, data.key)
 							end
 						end
 					end
 				else
 					-- Single click
 					if furnaceOpen then
-						self.SelectedForFurnace = data.name
-						self:ShowTooltip(data.name, data.count)
+						self.SelectedForFurnace = data.key
+						self:ShowTooltip(data.key, data.count)
 						self:FlashSlotEntity(slotEntity, Color(0.3, 0.7, 1.0, 1.0))
 					else
-						self:ShowTooltip(data.name, data.count)
+						self:ShowTooltip(data.key, data.count)
 					end
 				end
 			end)
@@ -488,23 +528,30 @@ script UIInventoryController extends Component
 	end
 
 	@ExecSpace("ClientOnly")
-	method void ShowTooltip(string itemName, integer count)
+	method void ShowTooltip(string itemKey, integer count)
+		-- Shows the item details tooltip with rarity colors.
 		if not isvalid(self.tooltipPanel) then return end
 		self.tooltipPanel.Enable = true
-		self.inspectedItem = itemName
+		self.inspectedItem = itemKey
 		self.inspectedCount = count
 		
+		local player = _UserService.LocalPlayer
+		local inv = isvalid(player) and player:GetComponent("script.PlayerInventory")
+		local baseName = isvalid(inv) and inv:GetBaseItemName(itemKey) or itemKey
+		
 		if isvalid(self.tooltipName) then
-			self.tooltipName.Text = itemName
+			self.tooltipName.Text = baseName
+			local rarity = self:GetItemRarity(baseName)
+			self.tooltipName.FontColor = self:GetRarityColor(rarity)
 		end
 		if isvalid(self.tooltipDesc) then
-			self.tooltipDesc.Text = self:GetItemDescription(itemName)
+			self.tooltipDesc.Text = self:GetItemDescription(baseName)
 		end
 		if isvalid(self.tooltipCount) then
 			local suffix = ""
-			if itemName == self:GetEquippedToolName() then
+			if itemKey == self:GetEquippedToolName() then
 				suffix = "  (Equipped)"
-			elseif self:GetItemCategory(itemName) == "Equipment" then
+			elseif self:GetItemCategory(baseName) == "Equipment" then
 				suffix = "  (Double-click to register)"
 			end
 			self.tooltipCount.Text = "Owned: " .. count .. suffix
@@ -512,7 +559,7 @@ script UIInventoryController extends Component
 	end
 
 	@ExecSpace("ClientOnly")
-	method void TransferToFurnace(string itemName, integer count, Entity slotEntity)
+	method void TransferToFurnace(string itemKey, integer count, Entity slotEntity)
 		local furnacePopup = _EntityService:GetEntityByPath("/ui/PopupGroup/FurnacePopup")
 		if not isvalid(furnacePopup) then return end
 		local furnaceController = furnacePopup:GetComponent("script.UIFurnaceController")
@@ -520,24 +567,28 @@ script UIInventoryController extends Component
 		local furnaceComp = furnaceController.CurrentFurnace:GetComponent("script.Furnace")
 		if not isvalid(furnaceComp) then return end
 		
+		local player = _UserService.LocalPlayer
+		local inv = isvalid(player) and player:GetComponent("script.PlayerInventory")
+		local baseName = isvalid(inv) and inv:GetBaseItemName(itemKey) or itemKey
+		
 		local transferred = false
 		local smeltDs = _DataService:GetTable("SmeltingRecipeDataSet")
 		local fuelDs = _DataService:GetTable("FurnaceFuelDataSet")
-		local isFuel = fuelDs ~= nil and fuelDs:FindRow("FuelItem", itemName) ~= nil
-		local isOre = smeltDs ~= nil and smeltDs:FindRow("InputItem", itemName) ~= nil
+		local isFuel = fuelDs ~= nil and fuelDs:FindRow("FuelItem", baseName) ~= nil
+		local isOre = smeltDs ~= nil and smeltDs:FindRow("InputItem", baseName) ~= nil
 		
 		if isFuel then
 			local curCount = furnaceComp.FuelItemCount
 			local toPut = math.min(99 - curCount, count)
 			if toPut > 0 then
-				furnaceComp:RequestPutItem("fuel", itemName, toPut)
+				furnaceComp:RequestPutItem("fuel", baseName, toPut)
 				transferred = true
 			end
 		elseif isOre then
 			local curCount = furnaceComp.InputItemCount
 			local toPut = math.min(99 - curCount, count)
 			if toPut > 0 then
-				furnaceComp:RequestPutItem("input", itemName, toPut)
+				furnaceComp:RequestPutItem("input", baseName, toPut)
 				transferred = true
 			end
 		end

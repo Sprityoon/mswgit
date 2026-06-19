@@ -20,6 +20,26 @@ script UIHUDController extends Component
 
 	property table quickSlotHandlers = {}
 
+	property table quickSlotLastClickTimes = {}
+
+	property integer dragStartSlot = 0
+
+	property any draggedIcon = nil
+
+	property Vector2 draggedIconOriginalPos = Vector2(0, 0)
+
+	property boolean isDragging = false
+
+	property number dragAccumulatedDelta = 0
+
+	property table quickSlotTouchDownHandlers = {}
+
+	property table quickSlotTouchDragHandlers = {}
+
+	property table quickSlotTouchUpHandlers = {}
+
+	property Vector2 dragOffset = Vector2(0, 0)
+
 	property any btnMineHandler = nil
 
 	property any btnJumpHandler = nil
@@ -139,8 +159,17 @@ script UIHUDController extends Component
 			end)
 		end
 		
-		-- Connect Quick Slot click events
+		-- Connect Quick Slot Touch Events for Drag & Drop and Click
 		self.quickSlotHandlers = {}
+		self.quickSlotLastClickTimes = {}
+		self.quickSlotTouchDownHandlers = {}
+		self.quickSlotTouchDragHandlers = {}
+		self.quickSlotTouchUpHandlers = {}
+		self.dragStartSlot = 0
+		self.draggedIcon = nil
+		self.isDragging = false
+		self.dragAccumulatedDelta = 0
+
 		for i = 1, 10 do
 			local slotPath = "/ui/HUDGroup/QuickSlots/Slot" .. i
 			local slotEntity = _EntityService:GetEntityByPath(slotPath)
@@ -148,34 +177,133 @@ script UIHUDController extends Component
 				if isvalid(slotEntity.SpriteGUIRendererComponent) then
 					slotEntity.SpriteGUIRendererComponent.RaycastTarget = true
 				end
-				self.quickSlotHandlers[slotEntity] = slotEntity:ConnectEvent(ButtonClickEvent, function()
+				
+				-- Dynamically add UITouchReceiveComponent if missing
+				if not isvalid(slotEntity:GetComponent("UITouchReceiveComponent")) then
+					slotEntity:AddComponent("UITouchReceiveComponent")
+				end
+
+				-- UITouchDownEvent: Prepare drag or click
+				self.quickSlotTouchDownHandlers[slotEntity] = slotEntity:ConnectEvent(UITouchDownEvent, function(event)
 					local player = _UserService.LocalPlayer
 					if not isvalid(player) then return end
 					local pinv = player:GetComponent("script.PlayerInventory")
 					if not isvalid(pinv) then return end
 
-					-- If Inventory is open and an item is inspected, register it to this slot
-					local invPopup = _EntityService:GetEntityByPath("/ui/PopupGroup/InventoryPopup")
-					if isvalid(invPopup) and invPopup.Enable then
-						local invCtrl = invPopup:GetComponent("script.UIInventoryController")
-						if isvalid(invCtrl) and invCtrl.inspectedItem ~= "" then
-							pinv:ServerRegisterQuickSlot(i, invCtrl.inspectedItem)
+					local qslots = _HttpService:JSONDecode(pinv.QuickSlotsJson) or {}
+					local itemName = qslots[i] or ""
+
+					self.dragStartSlot = i
+					self.isDragging = false
+					self.dragAccumulatedDelta = 0
+
+					-- Layer ordering
+					_UILogic:SetSiblingIndex(slotEntity.UITransformComponent, 1000000)
+
+					if itemName ~= "" then
+						local iconEntity = slotEntity:GetChildByName("Icon")
+						if isvalid(iconEntity) then
+							self.draggedIcon = iconEntity
+							self.draggedIconOriginalPos = iconEntity.UITransformComponent.anchoredPosition
 							
-							-- Visual flash effect
-							if isvalid(slotEntity.SpriteGUIRendererComponent) then
-								local original = slotEntity.SpriteGUIRendererComponent.Color
-								slotEntity.SpriteGUIRendererComponent.Color = Color(0.3, 0.7, 1.0, 1.0)
-								_TimerService:SetTimerOnce(function()
-									if isvalid(slotEntity) and isvalid(slotEntity.SpriteGUIRendererComponent) then
-										slotEntity.SpriteGUIRendererComponent.Color = original
-									end
-								end, 0.3)
+							-- Calculate touch offset in local UI coordinate space of slotEntity
+							local startLocalPos = _UILogic:ScreenToLocalUIPosition(event.TouchPoint, slotEntity.UITransformComponent)
+							self.dragOffset = startLocalPos - self.draggedIconOriginalPos
+						end
+					else
+						self.draggedIcon = nil
+					end
+				end)
+
+				-- UITouchDragEvent: Handle drag movement
+				self.quickSlotTouchDragHandlers[slotEntity] = slotEntity:ConnectEvent(UITouchDragEvent, function(event)
+					if self.dragStartSlot ~= i or not isvalid(self.draggedIcon) then return end
+
+					self.dragAccumulatedDelta = self.dragAccumulatedDelta + math.abs(event.TouchDelta.x) + math.abs(event.TouchDelta.y)
+					if self.dragAccumulatedDelta > 5 then
+						self.isDragging = true
+					end
+
+					if self.isDragging then
+						-- Calculate current touch local position relative to slotEntity and apply offset
+						local currentLocalPos = _UILogic:ScreenToLocalUIPosition(event.TouchPoint, slotEntity.UITransformComponent)
+						local transform = self.draggedIcon.UITransformComponent
+						transform.anchoredPosition = currentLocalPos - self.dragOffset
+					end
+				end)
+
+				-- UITouchUpEvent: Drop slot, swap or click
+				self.quickSlotTouchUpHandlers[slotEntity] = slotEntity:ConnectEvent(UITouchUpEvent, function(event)
+					if self.dragStartSlot ~= i then return end
+
+					-- Restore Slot's original sibling order (i-th slot ordering)
+					_UILogic:SetSiblingIndex(slotEntity.UITransformComponent, i)
+
+					-- Restore Icon's original position
+					if isvalid(self.draggedIcon) then
+						self.draggedIcon.UITransformComponent.anchoredPosition = self.draggedIconOriginalPos
+					end
+
+					local player = _UserService.LocalPlayer
+					if not isvalid(player) then
+						self.dragStartSlot = 0
+						self.draggedIcon = nil
+						self.isDragging = false
+						return
+					end
+					local pinv = player:GetComponent("script.PlayerInventory")
+					if not isvalid(pinv) then
+						self.dragStartSlot = 0
+						self.draggedIcon = nil
+						self.isDragging = false
+						return
+					end
+
+					if self.isDragging then
+						-- Drag ended: check overlapping slot
+						local dropTargetIndex = -1
+						for targetIdx = 1, 10 do
+							local targetPath = "/ui/HUDGroup/QuickSlots/Slot" .. targetIdx
+							local targetSlot = _EntityService:GetEntityByPath(targetPath)
+							if isvalid(targetSlot) then
+								local localPos = _UILogic:ScreenToLocalUIPosition(event.TouchPoint, targetSlot.UITransformComponent)
+								local rectSize = targetSlot.UITransformComponent.RectSize
+								local pivot = targetSlot.UITransformComponent.Pivot
+								
+								local minX = -rectSize.x * pivot.x
+								local maxX = rectSize.x * (1 - pivot.x)
+								local minY = -rectSize.y * pivot.y
+								local maxY = rectSize.y * (1 - pivot.y)
+
+								if localPos.x >= minX and localPos.x <= maxX and localPos.y >= minY and localPos.y <= maxY then
+									dropTargetIndex = targetIdx
+									break
+								end
 							end
-							return
+						end
+
+						if dropTargetIndex ~= -1 and dropTargetIndex ~= i then
+							pinv:ServerSwapQuickSlots(i, dropTargetIndex)
+						end
+					else
+						-- Ordinary click
+						local now = _UtilLogic.ElapsedSeconds
+						local lastTime = self.quickSlotLastClickTimes[i] or 0
+						self.quickSlotLastClickTimes[i] = now
+
+						if now - lastTime < 0.3 then
+							-- Double click: clear quickslot
+							pinv:ServerRegisterQuickSlot(i, "")
+						else
+							-- Single click: select quickslot
+							pinv:ServerSelectQuickSlot(i)
 						end
 					end
-		
-					pinv:ServerSelectQuickSlot(i)
+
+					-- Reset drag state
+					self.dragStartSlot = 0
+					self.draggedIcon = nil
+					self.isDragging = false
 				end)
 			end
 		end
@@ -218,19 +346,85 @@ script UIHUDController extends Component
 			btnInteract:DisconnectEvent(ButtonClickEvent, self.btnInteractHandler)
 		end
 		
-		-- Disconnect Quick Slot click events
-		if self.quickSlotHandlers then
-			for slotEntity, eventHandler in pairs(self.quickSlotHandlers) do
+		-- Disconnect Quick Slot Touch Events
+		if self.quickSlotTouchDownHandlers then
+			for slotEntity, eventHandler in pairs(self.quickSlotTouchDownHandlers) do
 				if isvalid(slotEntity) then
-					slotEntity:DisconnectEvent(ButtonClickEvent, eventHandler)
+					slotEntity:DisconnectEvent(UITouchDownEvent, eventHandler)
 				end
 			end
-			self.quickSlotHandlers = {}
+			self.quickSlotTouchDownHandlers = {}
+		end
+		if self.quickSlotTouchDragHandlers then
+			for slotEntity, eventHandler in pairs(self.quickSlotTouchDragHandlers) do
+				if isvalid(slotEntity) then
+					slotEntity:DisconnectEvent(UITouchDragEvent, eventHandler)
+				end
+			end
+			self.quickSlotTouchDragHandlers = {}
+		end
+		if self.quickSlotTouchUpHandlers then
+			for slotEntity, eventHandler in pairs(self.quickSlotTouchUpHandlers) do
+				if isvalid(slotEntity) then
+					slotEntity:DisconnectEvent(UITouchUpEvent, eventHandler)
+				end
+			end
+			self.quickSlotTouchUpHandlers = {}
 		end
 	end
 
 	@ExecSpace("ClientOnly")
+	method string GetItemRarity(string itemName)
+		-- Returns the rarity of the item from item_dataset.
+		local ds = _DataService:GetTable("item_dataset")
+		if ds ~= nil then
+			local row = ds:FindRow("Name", itemName)
+			if row ~= nil then
+				return row:GetItem("Rarity") or "Common"
+			end
+		end
+		return "Common"
+	end
+
+	@ExecSpace("ClientOnly")
+	method Color GetRarityColor(string rarity)
+		-- Returns the UI display color corresponding to the rarity grade.
+		if rarity == "Uncommon" then
+			return Color(0.2, 0.8, 0.2, 1.0)
+		elseif rarity == "Rare" then
+			return Color(0.2, 0.6, 1.0, 1.0)
+		elseif rarity == "Epic" then
+			return Color(0.6, 0.2, 0.8, 1.0)
+		elseif rarity == "Legendary" then
+			return Color(1.0, 0.5, 0.0, 1.0)
+		end
+		return Color(1.0, 1.0, 1.0, 1.0)
+	end
+
+	@ExecSpace("ClientOnly")
+	method Color GetQuickSlotColor(string rarity)
+		-- The original empty/default slot color is Color(0.13, 0.16, 0.13, 1.0).
+		local baseColor = Color(0.13, 0.16, 0.13, 1.0)
+		if rarity == "Common" then
+			return baseColor
+		end
+		local tint = self:GetRarityColor(rarity)
+		if tint == Color.white then
+			return baseColor
+		end
+		
+		-- Blend the rarity color (40%) on top of the base color (60%).
+		-- This gives a clear tint while keeping the original dark transparent slot design.
+		local r = baseColor.r * 0.6 + tint.r * 0.4
+		local g = baseColor.g * 0.6 + tint.g * 0.4
+		local b = baseColor.b * 0.6 + tint.b * 0.4
+		local a = baseColor.a * 0.6 + tint.a * 0.4
+		return Color(r, g, b, a)
+	end
+
+	@ExecSpace("ClientOnly")
 	method void UpdateHUD()
+		-- description: Updates player health, level, stamina gauges, and quickslots with rarity colors.
 		local player = _UserService.LocalPlayer
 		if not isvalid(player) then return end
 		
@@ -284,11 +478,18 @@ script UIHUDController extends Component
 					end
 		
 					if itemName ~= "" then
+						local baseName = inv:GetBaseItemName(itemName)
+						-- Set rarity background color
+						if isvalid(slotEntity.SpriteGUIRendererComponent) then
+							local rarity = self:GetItemRarity(baseName)
+							slotEntity.SpriteGUIRendererComponent.Color = self:GetQuickSlotColor(rarity)
+						end
+						
 						-- Get Icon from dataset
 						local iconRuid = ""
 						local ds = _DataService:GetTable("item_dataset")
 						if ds ~= nil then
-							local row = ds:FindRow("Name", itemName)
+							local row = ds:FindRow("Name", baseName)
 							if row ~= nil then
 								iconRuid = row:GetItem("IconRUID") or ""
 							end
@@ -313,6 +514,9 @@ script UIHUDController extends Component
 						end
 					else
 						-- Clear Slot
+						if isvalid(slotEntity.SpriteGUIRendererComponent) then
+							slotEntity.SpriteGUIRendererComponent.Color = Color(0.13, 0.16, 0.13, 1.0)
+						end
 						if isvalid(iconEntity) then
 							iconEntity.Enable = false
 						end

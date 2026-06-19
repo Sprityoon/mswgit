@@ -24,14 +24,47 @@ script itemreact extends Component
 	end
 
 	method void OnBeginPlay()
+		-- description: Initializes the item drop entity.
 		if self:IsClient() then
-			-- 클라이언트 측에서는 별도 초기화 작업이 필요 없습니다.
-			-- 아이템 아이콘은 스폰 시 사용된 모델에 이미 설정되어 있습니다.
+			self:ApplyRarityVisuals()
 		else
 			-- 서버에서는 물리 속성을 초기화합니다.
 			self.BasePosition = self.Entity.TransformComponent.WorldPosition
 			self.ElapsedTime = math.random() * 10 -- Randomize start phase for sine wave float
 			self.IsCollected = false
+		end
+	end
+
+	@ExecSpace("ClientOnly")
+	method void OnSyncProperty(string name, any value)
+		-- description: Handles property synchronization. Applies rarity visual tint when ItemName is synced.
+		if name == "ItemName" then
+			self:ApplyRarityVisuals()
+		end
+	end
+
+	@ExecSpace("ClientOnly")
+	method void ApplyRarityVisuals()
+		-- description: Queries item_dataset to get the item rarity and applies a soft tint color to the SpriteRenderer.
+		local ds = _DataService:GetTable("item_dataset")
+		if ds == nil then return end
+		local row = ds:FindRow("Name", self.ItemName)
+		if row == nil then return end
+		local rarity = row:GetItem("Rarity") or "Common"
+		
+		local color = Color.white
+		if rarity == "Uncommon" then
+			color = Color(0.6, 1.0, 0.6, 1.0)
+		elseif rarity == "Rare" then
+			color = Color(0.6, 0.8, 1.0, 1.0)
+		elseif rarity == "Epic" then
+			color = Color(0.8, 0.6, 1.0, 1.0)
+		elseif rarity == "Legendary" then
+			color = Color(1.0, 0.8, 0.5, 1.0)
+		end
+		
+		if isvalid(self.Entity.SpriteRendererComponent) then
+			self.Entity.SpriteRendererComponent.Color = color
 		end
 	end
 

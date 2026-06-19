@@ -105,7 +105,36 @@ script UIFurnaceController extends Component
 	end
 
 	@ExecSpace("ClientOnly")
+	method string GetItemRarity(string itemName)
+		-- Returns the rarity of the item from item_dataset.
+		local ds = _DataService:GetTable("item_dataset")
+		if ds ~= nil then
+			local row = ds:FindRow("Name", itemName)
+			if row ~= nil then
+				return row:GetItem("Rarity") or "Common"
+			end
+		end
+		return "Common"
+	end
+
+	@ExecSpace("ClientOnly")
+	method Color GetRarityColor(string rarity)
+		-- Returns the UI display color corresponding to the rarity grade.
+		if rarity == "Uncommon" then
+			return Color(0.2, 0.8, 0.2, 1.0)
+		elseif rarity == "Rare" then
+			return Color(0.2, 0.6, 1.0, 1.0)
+		elseif rarity == "Epic" then
+			return Color(0.6, 0.2, 0.8, 1.0)
+		elseif rarity == "Legendary" then
+			return Color(1.0, 0.5, 0.0, 1.0)
+		end
+		return Color(1.0, 1.0, 1.0, 1.0)
+	end
+
+	@ExecSpace("ClientOnly")
 	method void OnUpdate(number delta)
+		-- description: Updates furnace slots with item counts, icons, and rarity background colors.
 		if not self.Entity.Enable or not isvalid(self.CurrentFurnace) then return end
 		
 		local furnace = self.CurrentFurnace:GetComponent("script.Furnace")
@@ -119,9 +148,18 @@ script UIFurnaceController extends Component
 				local iconRuid = self:GetItemIconRUID(furnace.InputItemName)
 				inputIcon.SpriteGUIRendererComponent.ImageRUID = iconRuid
 				inputCountText.TextComponent.Text = tostring(furnace.InputItemCount)
+				
+				-- Tint inputSlot background
+				if isvalid(self.inputSlot.SpriteGUIRendererComponent) then
+					local rarity = self:GetItemRarity(furnace.InputItemName)
+					self.inputSlot.SpriteGUIRendererComponent.Color = self:GetRarityColor(rarity)
+				end
 			else
 				inputIcon.Enable = false
 				inputCountText.TextComponent.Text = ""
+				if isvalid(self.inputSlot.SpriteGUIRendererComponent) then
+					self.inputSlot.SpriteGUIRendererComponent.Color = Color.white
+				end
 			end
 		end
 		
@@ -133,9 +171,18 @@ script UIFurnaceController extends Component
 				local iconRuid = self:GetItemIconRUID(furnace.FuelItemName)
 				fuelIcon.SpriteGUIRendererComponent.ImageRUID = iconRuid
 				fuelCountText.TextComponent.Text = tostring(furnace.FuelItemCount)
+				
+				-- Tint fuelSlot background
+				if isvalid(self.fuelSlot.SpriteGUIRendererComponent) then
+					local rarity = self:GetItemRarity(furnace.FuelItemName)
+					self.fuelSlot.SpriteGUIRendererComponent.Color = self:GetRarityColor(rarity)
+				end
 			else
 				fuelIcon.Enable = false
 				fuelCountText.TextComponent.Text = ""
+				if isvalid(self.fuelSlot.SpriteGUIRendererComponent) then
+					self.fuelSlot.SpriteGUIRendererComponent.Color = Color.white
+				end
 			end
 		end
 		
@@ -147,9 +194,18 @@ script UIFurnaceController extends Component
 				local iconRuid = self:GetItemIconRUID(furnace.OutputItemName)
 				outputIcon.SpriteGUIRendererComponent.ImageRUID = iconRuid
 				outputCountText.TextComponent.Text = tostring(furnace.OutputItemCount)
+				
+				-- Tint outputSlot background
+				if isvalid(self.outputSlot.SpriteGUIRendererComponent) then
+					local rarity = self:GetItemRarity(furnace.OutputItemName)
+					self.outputSlot.SpriteGUIRendererComponent.Color = self:GetRarityColor(rarity)
+				end
 			else
 				outputIcon.Enable = false
 				outputCountText.TextComponent.Text = ""
+				if isvalid(self.outputSlot.SpriteGUIRendererComponent) then
+					self.outputSlot.SpriteGUIRendererComponent.Color = Color.white
+				end
 			end
 		end
 		

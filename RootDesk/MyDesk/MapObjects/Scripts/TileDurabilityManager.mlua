@@ -139,7 +139,10 @@ script TileDurabilityManager extends Logic
 				-- If it's a chest, add its contents to the drop pool (generic check)
 				local chestComp = resourceEntity:GetComponent("script.Chest") or resourceEntity:GetComponent("script.WoodenChest") or resourceEntity:GetComponent("script.Storage")
 				if isvalid(chestComp) and chestComp.Items ~= nil then
-					for cItemName, count in pairs(chestComp.Items) do
+					for cItemKey, val in pairs(chestComp.Items) do
+						local isTable = (type(val) == "table")
+						local cItemName = isTable and val.name or cItemKey
+						local count = isTable and (val.count or 1) or val
 						if count > 0 then
 							local f_ds = _DataService:GetTable("item_dataset")
 							local c_row = f_ds and f_ds:FindRow("Name", cItemName)
