@@ -391,16 +391,10 @@ script PlayerController extends Component
 		-- description: Play attack or hit effect on clients (Disabled).
 	end
 
-	@ExecSpace("ServerOnly")
+	@ExecSpace("Client")
 	method void ShowMineFeedback(string message)
-		-- description: Show gathering feedback as a chat balloon above the player.
-		local balloon = self.Entity.ChatBalloonComponent
-		if isvalid(balloon) then
-			balloon.AutoShowEnabled = false
-			balloon.ShowDuration = 2.0
-			balloon.Message = ""
-			balloon.Message = message
-		end
+		-- description: Show gathering feedback as a screen popup message.
+		_ScreenMessageLogic:PrivateMsg(message)
 		log("[Gather] " .. message)
 	end
 
