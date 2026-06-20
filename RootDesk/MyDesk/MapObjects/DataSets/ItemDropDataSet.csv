@@ -1,10 +1,12 @@
 SourceId,BiomeId,ItemId,MinCount,MaxCount,Probability
 Big Stone1,,stone,8,12,1.0
 Big Stone1,,copper ore,1,2,0.2
+Big Stone1,rocky,stone,8,12,1.0
 Big Stone1,rocky,copper ore,2,4,0.5
 Big Stone1,rocky,iron_ore,1,2,0.3
 Big Stone2,,stone,16,20,1.0
 Big Stone2,,copper ore,1,3,0.3
+Big Stone2,rocky,stone,16,20,1.0
 Big Stone2,rocky,copper ore,3,6,0.6
 Big Stone2,rocky,iron_ore,1,3,0.4
 Stone,,stone,1,2,1.0

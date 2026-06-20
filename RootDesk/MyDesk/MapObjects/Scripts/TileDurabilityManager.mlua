@@ -207,24 +207,22 @@ script TileDurabilityManager extends Logic
 			local now = os.clock()
 			local feedback = self.RefusalFeedback[pivotKey]
 			if feedback == nil then
-				feedback = { count = 0, lastFeedbackTime = 0 }
+				feedback = { lastFeedbackTime = 0 }
 				self.RefusalFeedback[pivotKey] = feedback
 			end
-			feedback.count += 1
 		
-			if feedback.count >= 2 and (now - feedback.lastFeedbackTime) > 10.0 then
+			if (now - feedback.lastFeedbackTime) > 5.0 then
 				feedback.lastFeedbackTime = now
-				feedback.count = 0
 		
 				local pc = attacker:GetComponent("script.PlayerController")
 				if isvalid(pc) then
 					---@type PlayerController
 					local controller = pc
-					local toolLabel = "tool"
+					local toolLabel = "도구"
 					if requiredTool == "pickaxe" then
-						toolLabel = "Pickaxe"
+						toolLabel = "곡괭이"
 					elseif requiredTool == "axe" then
-						toolLabel = "Axe"
+						toolLabel = "도끼"
 					end
 					
 					-- Check if player has the correct tool type but insufficient power
@@ -242,9 +240,9 @@ script TileDurabilityManager extends Logic
 					end
 
 					if hasCorrectType then
-						controller:ClientShowMineFeedback("You need a stronger " .. toolLabel .. " to gather this!")
+						controller:ClientShowMineFeedback(toolLabel .. "의 위력이 부족합니다! 더 강한 " .. toolLabel .. "가 필요합니다.")
 					else
-						controller:ClientShowMineFeedback("You need a " .. toolLabel .. " to gather this!")
+						controller:ClientShowMineFeedback("이 자원을 채집하려면 " .. toolLabel .. "가 필요합니다.")
 					end
 				end
 			end
