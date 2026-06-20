@@ -240,9 +240,9 @@ script TileDurabilityManager extends Logic
 					end
 
 					if hasCorrectType then
-						controller:ClientShowMineFeedback(toolLabel .. "의 위력이 부족합니다! 더 강한 " .. toolLabel .. "가 필요합니다.")
+						controller:ShowMineFeedback(toolLabel .. "의 위력이 부족합니다! 더 강한 " .. toolLabel .. "가 필요합니다.")
 					else
-						controller:ClientShowMineFeedback("이 자원을 채집하려면 " .. toolLabel .. "가 필요합니다.")
+						controller:ShowMineFeedback("이 자원을 채집하려면 " .. toolLabel .. "가 필요합니다.")
 					end
 				end
 			end
@@ -258,7 +258,7 @@ script TileDurabilityManager extends Logic
 				else
 					-- Stamina is 0: 50% chance to fail
 					if math.random() < 0.5 then
-						pc:ClientShowMineFeedback("스태미나가 부족하여 채집에 실패했습니다!")
+						pc:ShowMineFeedback("스태미나가 부족하여 채집에 실패했습니다!")
 						if not isTile and isvalid(resourceEntity) then
 							local reaction = resourceEntity:GetComponent("script.ResourceReaction")
 							if isvalid(reaction) then

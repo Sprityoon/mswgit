@@ -391,8 +391,8 @@ script PlayerController extends Component
 		-- description: Play attack or hit effect on clients (Disabled).
 	end
 
-	@ExecSpace("Client")
-	method void ClientShowMineFeedback(string message)
+	@ExecSpace("ServerOnly")
+	method void ShowMineFeedback(string message)
 		-- description: Show gathering feedback as a chat balloon above the player.
 		local balloon = self.Entity.ChatBalloonComponent
 		if isvalid(balloon) then
@@ -484,7 +484,7 @@ script PlayerController extends Component
 			self.Stamina = self.MaxStamina
 			self.GatheringSpeed = self.GatheringSpeed + 0.2
 			
-			self:ClientShowMineFeedback("LEVEL UP! Level " .. self.Level)
+			self:ShowMineFeedback("LEVEL UP! Level " .. self.Level)
 		end
 	end
 
