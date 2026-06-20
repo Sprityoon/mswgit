@@ -1,0 +1,31 @@
+@Component
+script MonsterMeleeAttack extends AttackComponent
+	-- On-demand contact attack for top-down monsters. The AI script calls DoAttack()
+	-- when a player is in range; a box centered on the monster damages player hitboxes.
+
+	property integer ContactDamage = 5
+	property number AttackBoxSize = 1.6
+
+	@ExecSpace("ServerOnly")
+	method void DoAttack()
+		-- Emits a contact-damage box centered on the monster against HitBox-group colliders;
+		-- IsAttackTarget narrows the actual victims to player entities only.
+		local t = self.Entity.TransformComponent
+		if not isvalid(t) then return end
+		local p = t.WorldPosition
+		local shape = BoxShape(Vector2(p.x, p.y), Vector2(self.AttackBoxSize, self.AttackBoxSize), 0)
+		self:AttackFast(shape, nil, CollisionGroups.HitBox)
+	end
+
+	method integer CalcDamage(Entity attacker, Entity defender, string attackInfo)
+		-- Flat contact damage tuned per-model via ContactDamage.
+		return self.ContactDamage
+	end
+
+	method boolean IsAttackTarget(Entity defender, string attackInfo)
+		-- Only player entities take this monster's contact damage.
+		if isvalid(defender.PlayerComponent) == false then return false end
+		return __base:IsAttackTarget(defender, attackInfo)
+	end
+
+end

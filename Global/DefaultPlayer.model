@@ -20,7 +20,8 @@
       "Components": [
         "script.PlayerController",
         "script.PlayerInventory",
-        "MOD.Core.DamageSkinComponent"
+        "MOD.Core.DamageSkinComponent",
+        "script.PlayerCombat"
       ],
       "Properties": [],
       "Values": [
@@ -31,7 +32,7 @@
             "$type": "MODNativeType",
             "type": "System.Single, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089"
           },
-          "Value": 1.0
+          "Value": 1
         },
         {
           "TargetType": null,
@@ -40,7 +41,7 @@
             "$type": "MODNativeType",
             "type": "System.Single, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089"
           },
-          "Value": 1.0
+          "Value": 1
         },
         {
           "TargetType": null,
@@ -49,7 +50,7 @@
             "$type": "MODNativeType",
             "type": "System.Single, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089"
           },
-          "Value": 1.0
+          "Value": 1
         },
         {
           "TargetType": null,
@@ -58,7 +59,7 @@
             "$type": "MODNativeType",
             "type": "System.Single, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089"
           },
-          "Value": 1.0
+          "Value": 1
         },
         {
           "TargetType": null,
@@ -119,7 +120,7 @@
             "$type": "MODNativeType",
             "type": "System.Single, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089"
           },
-          "Value": 0.0
+          "Value": 0
         },
         {
           "TargetType": null,
@@ -130,8 +131,8 @@
           },
           "Value": {
             "$type": "MOD.Core.MODVector2, MOD.Core",
-            "x": 0.0,
-            "y": 0.0
+            "x": 0,
+            "y": 0
           }
         },
         {
@@ -186,7 +187,7 @@
           },
           "Value": {
             "$type": "MOD.Core.MODVector2, MOD.Core",
-            "x": 0.0,
+            "x": 0,
             "y": 0.35
           }
         },
@@ -199,7 +200,7 @@
           },
           "Value": {
             "$type": "MOD.Core.MODVector2, MOD.Core",
-            "x": 0.0,
+            "x": 0,
             "y": 0.35
           }
         },
@@ -239,9 +240,9 @@
           },
           "Value": {
             "$type": "MOD.Core.MODVector3, MOD.Core",
-            "x": 2.0,
-            "y": 2.0,
-            "z": 1.0
+            "x": 2,
+            "y": 2,
+            "z": 1
           }
         },
         {
@@ -251,7 +252,7 @@
             "$type": "MODNativeType",
             "type": "System.Single, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089"
           },
-          "Value": 60.0
+          "Value": 60
         },
         {
           "TargetType": "MOD.Core.AvatarStateAnimationComponent",
@@ -264,7 +265,7 @@
             "$type": "MOD.Core.MODSyncDictionary`2[[System.String, mscorlib],[MOD.Core.AvatarBodyActionElement, MOD.Core]], MOD.Core",
             "IDLE": {
               "AvatarBodyActionStateName": "stand",
-              "PlayRate": 1.0
+              "PlayRate": 1
             },
             "MOVE": {
               "AvatarBodyActionStateName": "walk",
@@ -272,35 +273,35 @@
             },
             "HIT": {
               "AvatarBodyActionStateName": "hit",
-              "PlayRate": 1.0
+              "PlayRate": 1
             },
             "CROUCH": {
               "AvatarBodyActionStateName": "crouch",
-              "PlayRate": 1.0
+              "PlayRate": 1
             },
             "FALL": {
               "AvatarBodyActionStateName": "fall",
-              "PlayRate": 1.0
+              "PlayRate": 1
             },
             "JUMP": {
               "AvatarBodyActionStateName": "fall",
-              "PlayRate": 1.0
+              "PlayRate": 1
             },
             "CLIMB": {
               "AvatarBodyActionStateName": "rope",
-              "PlayRate": 1.0
+              "PlayRate": 1
             },
             "LADDER": {
               "AvatarBodyActionStateName": "ladder",
-              "PlayRate": 1.0
+              "PlayRate": 1
             },
             "DEAD": {
               "AvatarBodyActionStateName": "dead",
-              "PlayRate": 1.0
+              "PlayRate": 1
             },
             "SIT": {
               "AvatarBodyActionStateName": "sit",
-              "PlayRate": 1.0
+              "PlayRate": 1
             }
           }
         },

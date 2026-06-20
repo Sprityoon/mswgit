@@ -1,0 +1,268 @@
+@Component
+script MonsterAI extends Component
+	-- Pattern A top-down (RectTile) monster controller. Owns its own state variable and
+	-- swaps SpriteRUID per state (no AIChase/AIWander, no StateComponent marker states).
+	-- WANDER <-> STAND idle loop, CHASE the nearest player, ATTACK in range, RETURN to spawn
+	-- when leashed too far. All RUIDs / ranges / timings are model properties (data-driven).
+
+	-- Per-state animation clips (assigned per-model; default empty).
+	property string StandRUID = ""
+	property string MoveRUID = ""
+	property string AttackRUID = ""
+	property string DieRUID = ""
+
+	-- Behaviour tuning (units).
+	property number DetectRange = 6.0
+	property number AttackRange = 1.2
+	property number LeashRange = 10.0
+	property number AttackWindup = 0.5
+	property number AttackCooldown = 1.5
+	property number KnockbackSpeed = 7.0
+	property number KnockbackDuration = 0.18
+	property number WanderMin = 1.0
+	property number WanderMax = 2.5
+	property number StandMin = 1.0
+	property number StandMax = 2.0
+
+	@HideFromInspector property string CurrentAIState = "STAND"
+	@HideFromInspector property number StateTimer = 0
+	@HideFromInspector property Vector2 MoveDir = Vector2(1, 0)
+	@HideFromInspector property Vector2 SpawnPos = Vector2(0, 0)
+	@HideFromInspector property number AttackCooldownTimer = 0
+	@HideFromInspector property boolean DeathPlayed = false
+	@HideFromInspector property number KnockTimer = 0
+	@HideFromInspector property Vector2 KnockVel = Vector2(0, 0)
+
+	@ExecSpace("ServerOnly")
+	method void OnBeginPlay()
+		-- Records the spawn anchor (for leashing) and starts in the idle STAND state.
+		local p = self:Pos2D()
+		self.SpawnPos = p
+		self:EnterState("STAND")
+	end
+
+	@ExecSpace("ServerOnly")
+	method void OnUpdate(number delta)
+		-- Drives the monster: death > attack-window > leash/return > chase/attack > wander.
+		local monster = self:GetMonster()
+		if isvalid(monster) and monster.IsDead then
+			if not self.DeathPlayed then
+				self.DeathPlayed = true
+				self:SetSprite(self.DieRUID)
+				self:StopMovement()
+			end
+			return
+		end
+		if self.DeathPlayed then self.DeathPlayed = false end
+
+		-- Knockback window: drift away from the attacker, overriding AI movement.
+		if self.KnockTimer > 0 then
+			self.KnockTimer = self.KnockTimer - delta
+			local kb = self.Entity.KinematicbodyComponent
+			if isvalid(kb) then kb.MoveVelocity = self.KnockVel end
+			self.KnockVel = Vector2(self.KnockVel.x * 0.85, self.KnockVel.y * 0.85)
+			return
+		end
+
+		if self.AttackCooldownTimer > 0 then
+			self.AttackCooldownTimer = self.AttackCooldownTimer - delta
+		end
+
+		-- ATTACK is a short non-interruptible window.
+		if self.CurrentAIState == "ATTACK" then
+			self.StateTimer = self.StateTimer - delta
+			if self.StateTimer <= 0 then self:EnterState("STAND") end
+			return
+		end
+
+		local myPos = self:Pos2D()
+
+		-- Leash: drifted too far from spawn -> walk home.
+		if self:DistSq(myPos, self.SpawnPos) > self.LeashRange * self.LeashRange then
+			if self.CurrentAIState ~= "RETURN" then self:EnterState("RETURN") end
+			self:MoveToward(self.SpawnPos, delta)
+			if self:DistSq(self:Pos2D(), self.SpawnPos) <= 0.25 then self:EnterState("STAND") end
+			return
+		end
+
+		-- Player-driven behaviour.
+		local target = self:FindNearestPlayer()
+		if isvalid(target) then
+			local tp = self:EntityPos2D(target)
+			local dSq = self:DistSq(myPos, tp)
+			if dSq <= self.AttackRange * self.AttackRange then
+				self:Face(tp.x - myPos.x)
+				if self.AttackCooldownTimer <= 0 then
+					self:EnterState("ATTACK")
+				else
+					self:StopMovement()
+				end
+				return
+			elseif dSq <= self.DetectRange * self.DetectRange then
+				if self.CurrentAIState ~= "CHASE" then self:EnterState("CHASE") end
+				self:MoveToward(tp, delta)
+				return
+			end
+		end
+
+		-- Idle: alternate WANDER and STAND on a timer.
+		self:TickWander(delta)
+	end
+
+	@ExecSpace("ServerOnly")
+	method void TickWander(number delta)
+		-- Random-walk while WANDER, pause while STAND, swap when the state timer expires.
+		self.StateTimer = self.StateTimer - delta
+		if self.CurrentAIState == "WANDER" then
+			self:MoveDirVec(self.MoveDir, delta)
+			if self.StateTimer <= 0 then self:EnterState("STAND") end
+		else
+			if self.CurrentAIState ~= "STAND" then self:EnterState("STAND") end
+			if self.StateTimer <= 0 then self:EnterState("WANDER") end
+		end
+	end
+
+	@ExecSpace("ServerOnly")
+	method void EnterState(string newState)
+		-- Centralizes per-state setup: sprite swap, timers, and one-shot side effects.
+		self.CurrentAIState = newState
+		if newState == "STAND" then
+			self.StateTimer = self.StandMin + _UtilLogic:RandomDouble() * (self.StandMax - self.StandMin)
+			self:SetSprite(self.StandRUID)
+			self:StopMovement()
+		elseif newState == "WANDER" then
+			local ang = _UtilLogic:RandomDouble() * 6.2831853
+			self.MoveDir = Vector2(math.cos(ang), math.sin(ang))
+			self.StateTimer = self.WanderMin + _UtilLogic:RandomDouble() * (self.WanderMax - self.WanderMin)
+			self:SetSprite(self.MoveRUID)
+		elseif newState == "CHASE" or newState == "RETURN" then
+			self:SetSprite(self.MoveRUID)
+		elseif newState == "ATTACK" then
+			self.StateTimer = self.AttackWindup
+			self.AttackCooldownTimer = self.AttackCooldown
+			self:SetSprite(self.AttackRUID)
+			self:StopMovement()
+			local atk = self:GetAttack()
+			if isvalid(atk) then atk:DoAttack() end
+		end
+	end
+
+	@ExecSpace("ServerOnly")
+	method void ApplyKnockback(Vector2 fromPos)
+		-- Pushes the monster directly away from fromPos for KnockbackDuration seconds.
+		local p = self:Pos2D()
+		local dx = p.x - fromPos.x
+		local dy = p.y - fromPos.y
+		local len = math.sqrt(dx * dx + dy * dy)
+		if len <= 0.0001 then dx = 1 dy = 0 len = 1 end
+		self.KnockVel = Vector2(dx / len * self.KnockbackSpeed, dy / len * self.KnockbackSpeed)
+		self.KnockTimer = self.KnockbackDuration
+	end
+
+	@ExecSpace("ServerOnly")
+	method void MoveToward(Vector2 targetPos, number delta)
+		-- Moves one frame toward targetPos using a normalized direction.
+		local myPos = self:Pos2D()
+		local dx = targetPos.x - myPos.x
+		local dy = targetPos.y - myPos.y
+		local len = math.sqrt(dx * dx + dy * dy)
+		if len <= 0.0001 then return end
+		self:MoveDirVec(Vector2(dx / len, dy / len), delta)
+	end
+
+	@ExecSpace("ServerOnly")
+	method void MoveDirVec(Vector2 dir, number delta)
+		-- Applies movement via MovementComponent and flips the sprite to match facing.
+		local mc = self.Entity.MovementComponent
+		if isvalid(mc) then mc:MoveToDirection(dir, delta) end
+		self:Face(dir.x)
+	end
+
+	@ExecSpace("ServerOnly")
+	method void StopMovement()
+		-- Halts the body.
+		local mc = self.Entity.MovementComponent
+		if isvalid(mc) then mc:Stop() end
+	end
+
+	@ExecSpace("ServerOnly")
+	method void Face(number dx)
+		-- Slime sprites face left by default; flip when moving/aiming right.
+		if dx == 0 then return end
+		local sprite = self.Entity.SpriteRendererComponent
+		if isvalid(sprite) then sprite.FlipX = dx > 0 end
+	end
+
+	@ExecSpace("ServerOnly")
+	method void SetSprite(string ruid)
+		-- Swaps the rendered clip; ignores empty RUIDs so the model default stays.
+		if ruid == nil or ruid == "" then return end
+		local sprite = self.Entity.SpriteRendererComponent
+		if isvalid(sprite) then sprite.SpriteRUID = ruid end
+	end
+
+	@ExecSpace("ServerOnly")
+	method Vector2 Pos2D()
+		-- This monster's world position as a Vector2.
+		local p = self.Entity.TransformComponent.WorldPosition
+		return Vector2(p.x, p.y)
+	end
+
+	@ExecSpace("ServerOnly")
+	method Vector2 EntityPos2D(Entity e)
+		-- Another entity's world position as a Vector2.
+		local p = e.TransformComponent.WorldPosition
+		return Vector2(p.x, p.y)
+	end
+
+	@ExecSpace("ServerOnly")
+	method number DistSq(Vector2 a, Vector2 b)
+		-- Squared 2D distance (avoids sqrt for range comparisons).
+		local dx = a.x - b.x
+		local dy = a.y - b.y
+		return dx * dx + dy * dy
+	end
+
+	@ExecSpace("ServerOnly")
+	method Entity FindNearestPlayer()
+		-- Returns the nearest player entity on this map, or nil if none.
+		local map = self.Entity.CurrentMap
+		if not isvalid(map) then return nil end
+		local mapComp = map.MapComponent
+		if not isvalid(mapComp) then return nil end
+		local users = _UserService:GetUsersByMapComponent(mapComp)
+		if users == nil then return nil end
+		local myPos = self:Pos2D()
+		local best = nil
+		local bestSq = 0
+		for i, u in ipairs(users) do
+			if isvalid(u) then
+				local dx = u.TransformComponent.WorldPosition.x - myPos.x
+				local dy = u.TransformComponent.WorldPosition.y - myPos.y
+				local dSq = dx * dx + dy * dy
+				if best == nil or dSq < bestSq then
+					best = u
+					bestSq = dSq
+				end
+			end
+		end
+		return best
+	end
+
+	@ExecSpace("ServerOnly")
+	method Monster GetMonster()
+		-- The sibling HP component.
+		---@type Monster
+		local m = self.Entity:GetComponent("script.Monster")
+		return m
+	end
+
+	@ExecSpace("ServerOnly")
+	method MonsterMeleeAttack GetAttack()
+		-- The sibling attack component.
+		---@type MonsterMeleeAttack
+		local a = self.Entity:GetComponent("script.MonsterMeleeAttack")
+		return a
+	end
+
+end

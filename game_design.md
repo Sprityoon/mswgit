@@ -396,7 +396,15 @@ graph TD
   - [x] 신규 장비 4종 추가: 구리 곡괭이/도끼 (Tier 3), 철 곡괭이/도끼 (Tier 4) 및 성능/도구 효율 반영.
   - [x] 등급 잠금(Tech Lock) 적용: `Iron Node` 채광 시 구리 곡괭이(Tier 3, ToolPower 3) 이상의 도구 장착 필수 조건 부여 (낮은 등급의 도구 사용 시 내구도 데미지 0 처리 및 "You need a stronger Pickaxe to gather this!" 말풍선 출력).
   - [x] **바이옴별 드롭 차등화**: 자원이 파괴되는 위치의 바이옴 ID를 동적으로 판별하고, 해당 바이옴에 특화된 드롭 아이템 및 확률로 드롭 롤링이 진행되도록 구현 (예: Rocky 바이옴의 Big Stone 채집 시 Stone 대신 더 높은 확률의 Copper/Iron Ore 드롭).
-- [ ] **탑다운 격자형 몬스터 AI 및 전투 통합**:
+- [ ] **탑다운 격자형 몬스터 AI 및 전투 통합** (🔶 진행 중):
+  - ✅ M1 완료: 제네릭 몬스터 행동 스크립트 3종(`Monster`/`MonsterAI`/`MonsterMeleeAttack`, `RootDesk/MyDesk/Monster/Scripts/`), `Slime.model`(Pattern A·RectTile·Kinematicbody, modelId `slime`, 녹색 슬라임 `mob/0210100.img`), map01 테스트 배치(SlimeTest01). 빌드 클린.
+  - ✅ M2a 완료: 플레이어 Ctrl 공격→몬스터 데미지. `PlayerCombat`(AttackComponent, BaseDamage 8) DefaultPlayer에 부착, `PlayerController:RequestMine`이 조준 셀의 몬스터 감지 시 채광 대신 공격(`FindMonsterAt`). Slime에 `DamageSkinComponent` 추가(피격 숫자). 빌드 클린.
+  - 🔶 M2b 진행 중:
+    - ✅ 몬스터→플레이어 데미지: 슬라임 AI가 인접 시 접촉 공격, 베이스 `player` 모델 내장 HitComponent가 HP 자동 차감.
+    - ✅ 넉백 양방향: 피격 시 공격자 반대 방향으로 밀림. 몬스터=`MonsterAI:ApplyKnockback`(서버, kb.MoveVelocity), 플레이어=`PlayerController` 서버 `HandlePlayerHit`→Client RPC `ClientApplyKnockback`(클라 OnUpdate에서 입력 무시하고 적용). 몬스터 피격 시 적색 플래시(`Monster:FlashHit`).
+    - ⏳ 남음: 플레이어 i-frame, 사망(HP0)→3s 후 (0,0) 리스폰 + 자원 50% 손실, 플레이어 피격 플래시(아바타), 도구 등급별 공격력 스케일링(현재 flat 8).
+  - ⏳ AI 추격 튜닝 예정: 몬스터가 플레이어에게 끝까지 달려들지 않고 AttackRange(1.2칸) 경계에서 멈춰 **바로 앞칸**에서만 공격함. 추격이 마지막 한 칸을 좁히도록(또는 짧게 돌진 후 공격) 개선 필요. (`MonsterAI`의 CHASE→ATTACK 전이가 AttackRange 도달 즉시 `StopMovement` 하는 로직 조정)
+  - ⏳ M3 남음: `MonsterSpawner`(@Logic, 맵당 인구캡, 바이옴별 변종 HpMul/AtkMul, 녹색섬 중앙 제외, 낮/밤 부스트 보류) + `MonsterSpawnDataSet`.
   - 중력이 없는 `KinematicbodyComponent`를 사용하는 몬스터 모델(예: Slime 또는 Zombie) 제작.
   - 상태 기반 AI 컴포넌트 (`MonsterAI.mlua`) 설계:
     - **배회(Wander)**: 스폰 위치 반경 5칸 이내의 랜덤 셀을 목표로 저속 이동 후 대기.
@@ -447,9 +455,9 @@ graph TD
 - [x] **스폰 페이드 커버 (Spawn Fade Cover) 구현 (완료)**: HUDGroup에 SpawnFade 검은 스프라이트 추가, 서버 "홈 준비 완료" 신호 시 FadeOutSpawn() 및 8초 세이프티 폴백 타이머 (UIHUDController.mlua + build_ui.js).
 - [x] **단일 워프 (Single Warp Transition) 전환 (완료)**: 임시 위치(-3,0) 이중 점프 제거, LoadPlayerData에서 데이터 복원 후 단 한 번의 MoveToMapPosition 호출 (PersistenceManager.mlua).
 - [x] **자원 스폰 프레임 분할 (Chunked Resource Spawning) 최적화 (완료)**: 1,000여 개 자원의 동기 스폰 병목을 프레임당 1500셀 스캔하는 청크 분할 방식으로 전환, 가구 셀 가드 및 맵 파괴 시 중단 가드 적용 (ResourceSpawner.mlua).
-- [ ] 개인 맵 모델화: 런타임에 동적으로 복제 생성 가능하도록 MyHome 맵을 모델 자산으로 포맷.
-- [ ] 동적 맵 매니저 (`MapInstanceManager` Logic) 설계: 유저 진입 시 개인 맵 동적 생성, 텔레포트, 퇴장 시 소멸(Garbage Collection) 처리.
-- [ ] 공동 마을 (`TownMap`) 구성 및 포탈 연동: 공용 멀티플레이어 로비 타일셋 배치 및 맵 이동 스크립트 작성.
+- [x] **개인 맵 동적 생성 (완료)**: 유저 진입 시 `_DynamicMapService:CreateDynamicMap("map01", "Home_<UserId>")`로 map01 템플릿을 런타임 복제해 개인 홈맵 생성(별도 모델 자산화 대신 라이브 맵 템플릿 복제 방식 채택). 생성 직후 `ResourceSpawner:SpawnInitialResourcesForMap`로 자원 오버레이. (`PersistenceManager:OnUserEnter`)
+- [x] **동적 맵 매니저 (완료)**: 별도 `MapInstanceManager` Logic 대신 `PersistenceManager`(Logic)가 인스턴스 수명 관리 — 진입 시 개인 맵 생성+세이브 위치로 단일 워프, 퇴장 시 해당 맵 잔류 유저 0이면 `_DynamicMapService:DestroyDynamicMap`으로 소멸(GC). (`OnUserEnter`/`OnUserLeave`)
+- [x] **공동 마을(TownMap) 구성 & 포탈 연동 (완료 — 유저 테스트 대기)**: `map/town.map` 구성, `PortalGate` 컴포넌트(TriggerEnter 시 `PlayerController.ActivePortal` 설정) + F키/INFO 버튼 워프(`PlayerController:ServerRequestWarp` → `PlayerComponent:MoveToMapPosition`, `"Home"`→`"Home_<UserId>"` 매핑). 자원 스폰 시 포탈 엔티티(`TargetMapName="town"`) 배치, town 포탈은 철거 불가 처리(`TileDurabilityManager`), 미니맵도 home↔town 전환 대응.
 - [ ] 유저 영지 초대 및 권한 시스템 구축: 타 유저의 영지 방문 및 손님 유저에 대한 자원/설치물 변경 차단 로직 구현.
 - [ ] 시드(`PrngSeed`) 리디자인 UI 구현: 시드 문자열 입력 팝업 제작, 시드 변경 시 지형 및 자원 초기 배치 재생성 연동.
 - [ ] 유저 간 실시간 거래 시스템: 1:1 근접 유저 거래창 UI, 2-Phase Confirm 교환 안전 장치, 서버 권위 인벤토리 트랜잭션 처리.

@@ -1,0 +1,29 @@
+@Component
+script PlayerCombat extends AttackComponent
+	-- Player melee attack against monsters. Driven on demand from PlayerController's Ctrl
+	-- (mine/attack) flow: when a monster occupies the aimed cell, attack instead of mining.
+
+	property integer BaseDamage = 8
+	property number AttackBoxSize = 1.3
+	@HideFromInspector property integer PendingDamage = 8
+
+	@ExecSpace("ServerOnly")
+	method void DoAttackAt(Vector2 worldPos)
+		-- Emits a melee box at worldPos; only monster hitboxes (HitBox group) take damage.
+		self.PendingDamage = self.BaseDamage
+		local shape = BoxShape(worldPos, Vector2(self.AttackBoxSize, self.AttackBoxSize), 0)
+		self:AttackFast(shape, nil, CollisionGroups.HitBox)
+	end
+
+	method integer CalcDamage(Entity attacker, Entity defender, string attackInfo)
+		-- Damage dealt to the struck monster (flat base for now; tool scaling is a later pass).
+		return self.PendingDamage
+	end
+
+	method boolean IsAttackTarget(Entity defender, string attackInfo)
+		-- Restrict victims to entities carrying script.Monster (never the player itself).
+		if isvalid(defender:GetComponent("script.Monster")) == false then return false end
+		return __base:IsAttackTarget(defender, attackInfo)
+	end
+
+end

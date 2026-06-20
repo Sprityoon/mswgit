@@ -43,6 +43,10 @@ script PlayerController extends Component
 
 	property number LastMineTime = 0.0
 
+	property number KnockbackSpeed = 6.0
+	@HideFromInspector property number KnockTimer = 0
+	@HideFromInspector property Vector2 KnockVel = Vector2(0, 0)
+
 	property number MineCooldown = 0.6
 
 	property boolean HasRequestedInitialStones = false
@@ -124,7 +128,16 @@ script PlayerController extends Component
 	method void OnUpdate(number delta)
 		-- description: Monitor player movement inputs to track last facing direction and drive movement.
 		-- Initial stones request removed as per user request
-		
+
+		-- Knockback: while active, drive the body away from the hit and ignore input.
+		if self.KnockTimer > 0 then
+			self.KnockTimer = self.KnockTimer - delta
+			local body = self.Entity.KinematicbodyComponent
+			if isvalid(body) then body.MoveVelocity = self.KnockVel end
+			self.KnockVel = Vector2(self.KnockVel.x * 0.85, self.KnockVel.y * 0.85)
+			return
+		end
+
 		local dx = 0
 		local dy = 0
 		
@@ -214,6 +227,29 @@ script PlayerController extends Component
 		self.LastDirectionX = dirX
 		self.LastDirectionY = dirY
 		log("Player facing updated on server: " .. self.LastDirectionX .. ", " .. self.LastDirectionY)
+	end
+
+	@ExecSpace("ServerOnly")
+	@EventSender("Self")
+	handler HandlePlayerHit(HitEvent event)
+		-- On taking a hit, knock the player back away from the attacker (client applies it).
+		local playerComp = self.Entity.PlayerComponent
+		if playerComp == nil then return end
+		if not isvalid(event.AttackerEntity) then return end
+		local pp = self.Entity.TransformComponent.WorldPosition
+		local ap = event.AttackerEntity.TransformComponent.WorldPosition
+		local kx = pp.x - ap.x
+		local ky = pp.y - ap.y
+		local len = math.sqrt(kx * kx + ky * ky)
+		if len <= 0.0001 then kx = 1 ky = 0 len = 1 end
+		self:ClientApplyKnockback(kx / len, ky / len, self.KnockbackSpeed, playerComp.UserId)
+	end
+
+	@ExecSpace("Client")
+	method void ClientApplyKnockback(number dirX, number dirY, number speed)
+		-- Sets the knockback velocity on this player's client; OnUpdate consumes it next frames.
+		self.KnockVel = Vector2(dirX * speed, dirY * speed)
+		self.KnockTimer = 0.2
 	end
 
 	@ExecSpace("ClientOnly")
@@ -436,7 +472,21 @@ script PlayerController extends Component
 		
 		-- Locate cell targeted by client
 		local targetCell = Vector2Int(targetCellX, targetCellY)
-		
+
+		-- Combat: if a monster occupies the aimed cell, attack it instead of mining.
+		local targetWorldPos = tilemap:ToWorldPosition(targetCell)
+		local monsterEntity = self:FindMonsterAt(currentMap, targetWorldPos)
+		if isvalid(monsterEntity) then
+			local combat = self.Entity:GetComponent("script.PlayerCombat")
+			if isvalid(combat) then
+				---@type PlayerCombat
+				local pc = combat
+				pc:DoAttackAt(Vector2(targetWorldPos.x, targetWorldPos.y))
+			end
+			self:ClientPlayMineEffect(true, monsterEntity)
+			return
+		end
+
 		-- Query the spawned resource entity occupying the target cell (entity-only mining)
 		local key = math.floor(targetCell.x) .. "_" .. math.floor(targetCell.y)
 		local resourceSpawner = _ResourceSpawner
@@ -465,6 +515,27 @@ script PlayerController extends Component
 			self:ClientPlayMineEffect(false, nil)
 			log("No resource entity found at target cell " .. tostring(targetCell))
 		end
+	end
+
+	@ExecSpace("ServerOnly")
+	method Entity FindMonsterAt(Entity map, Vector3 worldPos)
+		-- Returns a living monster entity whose center is within ~1 cell of worldPos, or nil.
+		if not isvalid(map) then return nil end
+		local monsters = map:GetChildComponentsByTypeName("script.Monster", false)
+		if monsters == nil then return nil end
+		for i, mc in ipairs(monsters) do
+			if isvalid(mc) and isvalid(mc.Entity) then
+				---@type Monster
+				local mon = mc
+				if not mon.IsDead then
+					local p = mc.Entity.TransformComponent.WorldPosition
+					local dx = p.x - worldPos.x
+					local dy = p.y - worldPos.y
+					if dx * dx + dy * dy <= 0.81 then return mc.Entity end
+				end
+			end
+		end
+		return nil
 	end
 
 	@ExecSpace("Server")
