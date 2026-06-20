@@ -111,6 +111,11 @@ script ResourceSpawner extends Logic
 		for _, resName in ipairs(neededNames) do
 			local modelId = _EntryService:GetModelIdByName(resName)
 			if not modelId then
+				local cleanName = string.gsub(resName, " ", "")
+				local lookupName = string.lower(cleanName)
+				modelId = _EntryService:GetModelIdByName(lookupName)
+			end
+			if not modelId then
 				log("ResourceSpawner: Model not ready yet: " .. resName)
 				allReady = false
 				break
@@ -154,6 +159,53 @@ script ResourceSpawner extends Logic
 			_TimerService:ClearTimer(self.LoadingTimerId)
 			self.LoadingTimerId = 0
 		end
+	end
+
+	@ExecSpace("ServerOnly")
+	method string GetBiomeAt(number x, number y)
+		-- Returns the biome ID at the given world coordinate.
+		if self._T.MacroGridCache == nil then
+			local macroGrid = {}
+			local biomeMapDs = _DataService:GetTable("BiomeMapDataSet")
+			if biomeMapDs ~= nil then
+				local maxMacroIndex = self.MacroGridCount - 1
+				for i = 1, biomeMapDs:GetRowCount() do
+					local r = tonumber(biomeMapDs:GetCell(i, "Row"))
+					if r ~= nil then
+						macroGrid[r] = {}
+						for c = 0, maxMacroIndex do
+							local cellVal = biomeMapDs:GetCell(i, "C" .. c)
+							if cellVal ~= nil and cellVal ~= "" then
+								macroGrid[r][c] = cellVal
+							end
+						end
+					end
+				end
+			end
+			self._T.MacroGridCache = macroGrid
+		end
+
+		local seedVal = self.PrngSeed
+		local mapRadius = self.MapRadius
+		local macroSize = self.MacroCellSize
+		local maxMacroIndex = self.MacroGridCount - 1
+		local macroGrid = self._T.MacroGridCache
+
+		local jx = (self:Noise2D(x * 0.35, y * 0.35, seedVal + 4242) - 0.5) * 5.0
+		local jy = (self:Noise2D(x * 0.35, y * 0.35, seedVal + 2424) - 0.5) * 5.0
+		local sx = math.max(-mapRadius, math.min(mapRadius, x + jx))
+		local sy = math.max(-mapRadius, math.min(mapRadius, y + jy))
+		local c = math.floor((sx + mapRadius) / macroSize)
+		local r = math.floor((sy + mapRadius) / macroSize)
+		if c > maxMacroIndex then c = maxMacroIndex end
+		if r > maxMacroIndex then r = maxMacroIndex end
+		if c < 0 then c = 0 end
+		if r < 0 then r = 0 end
+		local rowT = macroGrid[r]
+		if rowT ~= nil and rowT[c] ~= nil then
+			return rowT[c]
+		end
+		return "earth_field"
 	end
 
 	@ExecSpace("ServerOnly")
@@ -227,6 +279,7 @@ script ResourceSpawner extends Logic
 				end
 			end
 		end
+		self._T.MacroGridCache = macroGrid
 		
 		local biomeInfo = {}
 		local biomeDs = _DataService:GetTable("BiomeDataSet")
@@ -266,11 +319,17 @@ script ResourceSpawner extends Logic
 				local resName = resDs:GetCell(i, "ResourceName")
 				if bid ~= nil and bid ~= "" and resName ~= nil and resName ~= "" then
 					if biomeResources[bid] == nil then biomeResources[bid] = {} end
+					local modelId = _EntryService:GetModelIdByName(resName)
+					if not modelId then
+						local cleanName = string.gsub(resName, " ", "")
+						local lookupName = string.lower(cleanName)
+						modelId = _EntryService:GetModelIdByName(lookupName)
+					end
 					table.insert(biomeResources[bid], {
 						name = resName,
 						chance = tonumber(resDs:GetCell(i, "SpawnChance")) or 0,
 						requiredTile = resDs:GetCell(i, "RequiredTile") or "",
-						modelId = _EntryService:GetModelIdByName(resName),
+						modelId = modelId,
 						salt = i * 101
 					})
 				end

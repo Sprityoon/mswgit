@@ -154,7 +154,8 @@ script TileDurabilityManager extends Logic
 			else
 				-- Normal resource entity pre-roll using ItemDropLogic
 				local sourceName = resourceEntity.Name or ""
-				local drops = _ItemDropLogic:GetDrops(sourceName)
+				local biomeId = _ResourceSpawner:GetBiomeAt(gridData.pivotX, gridData.pivotY)
+				local drops = _ItemDropLogic:GetDrops(sourceName, biomeId)
 				for _, drop in ipairs(drops) do
 					local totalCount = math.random(drop.min, drop.max)
 					data.dropPool[drop.id] = totalCount
@@ -168,9 +169,12 @@ script TileDurabilityManager extends Logic
 		local damage = 1
 		local hasCorrectTool = true
 		local requiredTool = ""
+		local requiredPower = 0
+		local playerToolPower = 0
 		
 		if not isTile and not isFurniture then
 			requiredTool = self:GetRequiredToolType(resourceEntity)
+			requiredPower = self:GetRequiredToolPower(resourceEntity)
 			if requiredTool ~= "" then
 				hasCorrectTool = false
 				if isvalid(attacker) then
@@ -179,9 +183,12 @@ script TileDurabilityManager extends Logic
 						---@type PlayerInventory
 						local pi = inv
 						local toolInfo = pi:GetEquippedToolInfo()
+						playerToolPower = toolInfo.power
 						if toolInfo.toolType == requiredTool then
-							damage = 1 + toolInfo.power
-							hasCorrectTool = true
+							if playerToolPower >= requiredPower then
+								damage = 1 + toolInfo.power
+								hasCorrectTool = true
+							end
 						end
 					end
 				end
@@ -219,7 +226,26 @@ script TileDurabilityManager extends Logic
 					elseif requiredTool == "axe" then
 						toolLabel = "Axe"
 					end
-					controller:ClientShowMineFeedback("You need a " .. toolLabel .. " to gather this!")
+					
+					-- Check if player has the correct tool type but insufficient power
+					local hasCorrectType = false
+					if isvalid(attacker) then
+						local inv = attacker:GetComponent("script.PlayerInventory")
+						if isvalid(inv) then
+							---@type PlayerInventory
+							local pi = inv
+							local toolInfo = pi:GetEquippedToolInfo()
+							if toolInfo.toolType == requiredTool then
+								hasCorrectType = true
+							end
+						end
+					end
+
+					if hasCorrectType then
+						controller:ClientShowMineFeedback("You need a stronger " .. toolLabel .. " to gather this!")
+					else
+						controller:ClientShowMineFeedback("You need a " .. toolLabel .. " to gather this!")
+					end
 				end
 			end
 			return
@@ -308,6 +334,7 @@ script TileDurabilityManager extends Logic
 						elseif sourceName == "Big Stone1" then xpAmount = 20
 						elseif sourceName == "Tree2" then xpAmount = 25
 						elseif sourceName == "Big Stone2" then xpAmount = 30
+						elseif sourceName == "IronNodeResource" then xpAmount = 40
 						end
 						pc:AddXP(xpAmount)
 					end
@@ -315,6 +342,11 @@ script TileDurabilityManager extends Logic
 				
 				-- Register for respawn
 				local modelId = _EntryService:GetModelIdByName(sourceName)
+				if not modelId then
+					local cleanName = string.gsub(sourceName, " ", "")
+					local lookupName = string.lower(cleanName)
+					modelId = _EntryService:GetModelIdByName(lookupName)
+				end
 				resourceSpawner:RegisterDestroyedResource(mapName, sourceName, modelId, gridData.pivotX, gridData.pivotY)
 				
 				resourceSpawner:RemoveEntity(mapName, pivotKey)
@@ -388,6 +420,20 @@ script TileDurabilityManager extends Logic
 		local row = ds:FindRow("SourceId", name)
 		if row == nil then return "" end
 		return row:GetItem("RequiredToolType") or ""
+	end
+
+	@ExecSpace("ServerOnly")
+	method integer GetRequiredToolPower(Entity resourceEntity)
+		-- Resolves required tool power from ResourceDataSet by the entity's name (SourceId).
+		local name = resourceEntity.Name or ""
+		local ds = _DataService:GetTable("ResourceDataSet")
+		if ds ~= nil then
+			local row = ds:FindRow("SourceId", name)
+			if row ~= nil then
+				return math.floor(tonumber(row:GetItem("RequiredToolPower")) or 0)
+			end
+		end
+		return 0
 	end
 
 	@ExecSpace("ServerOnly")

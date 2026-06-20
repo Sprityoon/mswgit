@@ -1,4 +1,4 @@
-﻿id,Name,ModelName,EntryId,Category,ToolType,ToolPower,IconRUID,PlacedTileName,Rarity,Tradable,Description
+id,Name,ModelName,EntryId,Category,ToolType,ToolPower,IconRUID,PlacedTileName,Rarity,Tradable,Description
 wood,Wood,Item_Wood,2cb8f37e-ef6b-4e17-86fb-d940f18a7412,resource,,0,b952164321fd4c9c94cb0d3e7c73b182,,Common,true,"""A flexible wooden branch. Useful for crafting basic tools."""
 stone,Stone,Item_Stone,05fa541a-a48d-4f36-bf82-0c60784a4a53,resource,,0,5ed8bdcf520044c0a1660873beb30b10,,Common,true,"""A common stone found in the wild. Used in crafting tools and buildings."""
 copper ore,Copper Ore,Item_CopperOre,3484bbf6-1973-4b23-a720-9d1b0754aa6f,resource,,0,914eb87802b64924b5f78bb97a55faeb,,Common,true,"""A chunk of copper ore. Can be smelted into copper bars."""
@@ -13,3 +13,7 @@ copper_bar,Copper Bar,Item_CopperBar,1234cdef-5678-4321-abcd-ef1234567890,resour
 iron_bar,Iron Bar,Item_IronBar,9876fedc-5432-1234-abcd-ef9876543210,resource,,0,7ac77c77fdc0480080303b2dc0b96c35,,Rare,true,"""A refined bar of strong iron. Used for high-tier crafting."""
 wood_floor,Wood Floor,Item_WoodFloor,a0123456-789a-bcde-f012-3456789abcde,furniture,,0,22e9f409617b4e4180f9c92fb26b13f7,Baram_167,Common,true,"""A wooden floor tile for building structures."""
 portal,Portal,Item_Portal,f9d3a4b5-67c8-49d0-bfd1-ebd3c4a2a1a0,furniture,,0,aba58d2139ca4736bab39f6b4c39aa37,,Epic,false,"""A magical portal structure that teleports you to another map."""
+copper_pickaxe,Copper Pickaxe,Item_CopperPickaxe,a53e3d22-1234-4567-bcde-56781234abcd,tool,pickaxe,3,thumbnail://79904036a8a1457cb9b5c624084383b8,,Uncommon,true,"""A refined copper pickaxe. Efficient for mining ores."""
+copper_axe,Copper Axe,Item_CopperAxe,b53e3d22-1234-4567-bcde-56781234abcd,tool,axe,3,thumbnail://233fd0760c124458b57928542f77bdc2,,Uncommon,true,"""A refined copper axe. Efficient for chopping trees."""
+iron_pickaxe,Iron Pickaxe,Item_IronPickaxe,c53e3d22-1234-4567-bcde-56781234abcd,tool,pickaxe,5,thumbnail://475260585aa44acba3bca0e4b820e208,,Rare,true,"""A sturdy iron pickaxe. Required for high-tier mining."""
+iron_axe,Iron Axe,Item_IronAxe,d53e3d22-1234-4567-bcde-56781234abcd,tool,axe,5,thumbnail://963cde7d88654f4a94b045e035ca1cae,,Rare,true,"""A sturdy iron axe. Required for high-tier chopping."""

@@ -390,11 +390,12 @@ graph TD
   - **철거**: Ctrl 채광으로 설치물 타격 시 파괴(내구도 2) → 해당 아이템 회수 + 점유 해제. 화로/상자는 내부 보관물도 함께 드롭(`TileDurabilityManager`).
   - **재설치**: 회수 아이템을 다른 빈 셀에 다시 설치 → 이동 배치 루프 성립.
   - ⏳ 잔여: 점유 레지스트리의 DataStorage 영속화(§3.6/§3.7)와 소유자 기록(현재 인메모리 `GridToEntity`).
-- [ ] **광석 추가 및 테크 등급 도구 밸런싱**:
-  - `iron_ore`(철 광석), `copper_bar`(구리 주괴), `iron_bar`(철 주괴) 아이템 추가 및 RUID 매핑.
-  - 신규 채집용 철광석 노드 (`Iron Node`) 추가: 월드 외곽 영역(Chebyshev 거리 22 초과 구역) 혹은 바위(Rocky)/사막(Desert) 등의 바이옴 구역에 절차적으로 스폰되도록 연동.
-  - 신규 장비 4종 추가: 구리 곡괭이/도끼 (Tier 3), 철 곡괭이/도끼 (Tier 4) 및 성능/도구 효율 반영.
-  - 등급 잠금(Tech Lock) 적용: `Iron Node` 채광 시 구리 곡괭이(Tier 3, ToolPower 3) 이상의 도구 장착 필수 조건 부여 (낮은 등급의 도구 사용 시 내구도 데미지 0 처리, 가이드라인 말풍선 출력).
+- [x] **광석 추가 및 테크 등급 도구 밸런싱 (완료)**:
+  - [x] `iron_ore`(철 광석), `copper_bar`(구리 주괴), `iron_bar`(철 주괴) 아이템 추가 및 RUID 매핑.
+  - [x] 신규 채집용 철광석 노드 (`Iron Node`) 추가: 바위(Rocky), 사막(Desert), 설원(Snowfield) 바이옴에 절차적으로 스폰되도록 연동.
+  - [x] 신규 장비 4종 추가: 구리 곡괭이/도끼 (Tier 3), 철 곡괭이/도끼 (Tier 4) 및 성능/도구 효율 반영.
+  - [x] 등급 잠금(Tech Lock) 적용: `Iron Node` 채광 시 구리 곡괭이(Tier 3, ToolPower 3) 이상의 도구 장착 필수 조건 부여 (낮은 등급의 도구 사용 시 내구도 데미지 0 처리 및 "You need a stronger Pickaxe to gather this!" 말풍선 출력).
+  - [x] **바이옴별 드롭 차등화**: 자원이 파괴되는 위치의 바이옴 ID를 동적으로 판별하고, 해당 바이옴에 특화된 드롭 아이템 및 확률로 드롭 롤링이 진행되도록 구현 (예: Rocky 바이옴의 Big Stone 채집 시 Stone 대신 더 높은 확률의 Copper/Iron Ore 드롭).
 - [ ] **탑다운 격자형 몬스터 AI 및 전투 통합**:
   - 중력이 없는 `KinematicbodyComponent`를 사용하는 몬스터 모델(예: Slime 또는 Zombie) 제작.
   - 상태 기반 AI 컴포넌트 (`MonsterAI.mlua`) 설계:
