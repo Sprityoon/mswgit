@@ -1,0 +1,257 @@
+@Component
+script UIChestController extends Component
+
+	property Entity btnClose = "c9643b31-20b6-4c4d-b7c8-b64a3346efcb"
+
+	property Entity slot1 = "4cddb2cb-4c79-45d5-b232-0a6ca9ff25d8"
+	property Entity slot2 = "2dc9e385-aba8-4cfc-a55b-4f3f46d7a1f7"
+	property Entity slot3 = "0a2776f1-88cb-4118-9b34-f0ff3e6eb58e"
+	property Entity slot4 = "3701f749-76fe-403d-a764-b60594f8d0e4"
+	property Entity slot5 = "a57ed43a-5465-406b-b481-4f34e1e1575f"
+	property Entity slot6 = "366c3ae1-78f6-4240-b01b-7a716d8f8f93"
+	property Entity slot7 = "113fa49e-0030-471f-9b58-da6d6f1516aa"
+	property Entity slot8 = "0248aeff-ffdd-493b-a30d-3fb4b0d3f5e6"
+
+	property Entity slot1_icon = "9c05a5fe-209f-4847-82ed-fddb167cbd15"
+	property Entity slot2_icon = "5e1e97a8-9061-4d3a-a326-9985038677f3"
+	property Entity slot3_icon = "2babd6c3-b0ae-438d-8af1-ebcb47fe97bd"
+	property Entity slot4_icon = "35572701-bfe5-42f6-a375-04838eeca0ce"
+	property Entity slot5_icon = "678d7b7e-33cc-4e31-814b-a1a981562d5a"
+	property Entity slot6_icon = "6633b551-f39c-42c5-8a93-eaa8ab3c6e96"
+	property Entity slot7_icon = "953b1467-f8d7-4bdd-a0d6-7d34ddc4ec7a"
+	property Entity slot8_icon = "04503168-696b-4205-a6ce-59a2bcae258a"
+
+	property Entity slot1_count = "296ef0ad-3d91-47ae-b4e5-ba1fd0469aea"
+	property Entity slot2_count = "83c58512-9714-424d-b368-c333d0251897"
+	property Entity slot3_count = "6bab35d9-9373-478a-8d1c-638ca194a99e"
+	property Entity slot4_count = "6753c193-9ca2-4cd8-8e4d-729453634fb5"
+	property Entity slot5_count = "cbaf90fd-4351-4e68-a666-b4b7e59ad5ad"
+	property Entity slot6_count = "e015313f-46a7-4bb9-9257-f1370a5a4fca"
+	property Entity slot7_count = "cf06d80b-2f70-4327-9c1a-ff97efe87506"
+	property Entity slot8_count = "440ce13e-9a8c-43b1-8217-289ca06920ac"
+
+	property Entity CurrentChest = nil
+
+	property table slotHandlers = {}
+	property table lastClickTimes = {}
+
+	property any closeHandler = nil
+
+	@ExecSpace("ClientOnly")
+	method void OnBeginPlay()
+		self.Entity.Enable = false
+		
+		if isvalid(self.btnClose) then
+			self.closeHandler = self.btnClose:ConnectEvent(ButtonClickEvent, self.OnCloseClicked)
+		end
+		
+		self:SetupSlotEvents()
+	end
+
+	@ExecSpace("ClientOnly")
+	method void OnEndPlay()
+		if self.closeHandler and isvalid(self.btnClose) then
+			self.btnClose:DisconnectEvent(ButtonClickEvent, self.closeHandler)
+		end
+		self:ClearSlotEvents()
+	end
+
+	@ExecSpace("ClientOnly")
+	method void Open(Entity chestEntity)
+		if not isvalid(chestEntity) then return end
+		self.CurrentChest = chestEntity
+		self.Entity.Enable = true
+		log("[CHEST-UI] Opened Chest UI for: " .. chestEntity.Name)
+		
+		local bg = self.Entity:GetChildByName("Bg")
+		if isvalid(bg) and isvalid(bg.UITransformComponent) then
+			bg.UITransformComponent.anchoredPosition = Vector2(330, 0)
+		end
+		
+		local invPopup = _EntityService:GetEntityByPath("/ui/PopupGroup/InventoryPopup")
+		if isvalid(invPopup) then
+			if isvalid(invPopup.UITransformComponent) then
+				invPopup.UITransformComponent.anchoredPosition = Vector2(-310, 0)
+			end
+			local invController = invPopup:GetComponent("script.UIInventoryController")
+			if isvalid(invController) then
+				invController:Open()
+			end
+		end
+		
+		self:Refresh()
+	end
+
+	@ExecSpace("ClientOnly")
+	method void Close()
+		self.Entity.Enable = false
+		self.CurrentChest = nil
+		log("[CHEST-UI] Closed Chest UI.")
+		
+		local bg = self.Entity:GetChildByName("Bg")
+		if isvalid(bg) and isvalid(bg.UITransformComponent) then
+			bg.UITransformComponent.anchoredPosition = Vector2(0, 0)
+		end
+		
+		local invPopup = _EntityService:GetEntityByPath("/ui/PopupGroup/InventoryPopup")
+		if isvalid(invPopup) then
+			if isvalid(invPopup.UITransformComponent) then
+				invPopup.UITransformComponent.anchoredPosition = Vector2(0, 0)
+			end
+			local invController = invPopup:GetComponent("script.UIInventoryController")
+			if isvalid(invController) then
+				invController:Close()
+			end
+		end
+	end
+
+	@ExecSpace("ClientOnly")
+	method void OnUpdate(number delta)
+		if not self.Entity.Enable or not isvalid(self.CurrentChest) then return end
+		self:Refresh()
+	end
+
+	@ExecSpace("ClientOnly")
+	method string GetItemIconRUID(string itemName)
+		local ds = _DataService:GetTable("item_dataset")
+		if ds ~= nil then
+			local row = ds:FindRow("Name", itemName)
+			if row ~= nil then
+				return row:GetItem("IconRUID") or ""
+			end
+		end
+		return ""
+	end
+
+	@ExecSpace("ClientOnly")
+	method string GetItemRarity(string itemName)
+		local ds = _DataService:GetTable("item_dataset")
+		if ds ~= nil then
+			local row = ds:FindRow("Name", itemName)
+			if row ~= nil then
+				return row:GetItem("Rarity") or "Common"
+			end
+		end
+		return "Common"
+	end
+
+	@ExecSpace("ClientOnly")
+	method Color GetRarityColor(string rarity)
+		if rarity == "Uncommon" then
+			return Color(0.2, 0.8, 0.2, 1.0)
+		elseif rarity == "Rare" then
+			return Color(0.2, 0.6, 1.0, 1.0)
+		elseif rarity == "Epic" then
+			return Color(0.6, 0.2, 0.8, 1.0)
+		elseif rarity == "Legendary" then
+			return Color(1.0, 0.5, 0.0, 1.0)
+		end
+		return Color(1.0, 1.0, 1.0, 1.0)
+	end
+
+	@ExecSpace("ClientOnly")
+	method void Refresh()
+		if not isvalid(self.CurrentChest) then return end
+		local chest = self.CurrentChest:GetComponent("script.Chest")
+		if not isvalid(chest) then return end
+		
+		local items = chest:GetItems()
+		
+		for i = 1, 8 do
+			local slotEnt = self["slot" .. i]
+			local iconEnt = self["slot" .. i .. "_icon"]
+			local countEnt = self["slot" .. i .. "_count"]
+			
+			if isvalid(slotEnt) and isvalid(iconEnt) and isvalid(countEnt) then
+				local item = items[i]
+				if item and item.count > 0 then
+					iconEnt.Enable = true
+					iconEnt.SpriteGUIRendererComponent.ImageRUID = self:GetItemIconRUID(item.name)
+					countEnt.TextComponent.Text = tostring(item.count)
+					
+					local rarity = self:GetItemRarity(item.name)
+					slotEnt.SpriteGUIRendererComponent.Color = self:GetRarityColor(rarity)
+				else
+					iconEnt.Enable = false
+					countEnt.TextComponent.Text = ""
+					slotEnt.SpriteGUIRendererComponent.Color = Color.white
+				end
+			end
+		end
+	end
+
+	@ExecSpace("ClientOnly")
+	method void SetupSlotEvents()
+		self:ClearSlotEvents()
+		for i = 1, 8 do
+			local slotEnt = self["slot" .. i]
+			if isvalid(slotEnt) then
+				local handler = slotEnt:ConnectEvent(ButtonClickEvent, function()
+					self:OnSlotClicked(i)
+				end)
+				self.slotHandlers[slotEnt] = handler
+			end
+		end
+	end
+
+	@ExecSpace("ClientOnly")
+	method void ClearSlotEvents()
+		for slotEnt, handler in pairs(self.slotHandlers) do
+			if isvalid(slotEnt) then
+				slotEnt:DisconnectEvent(ButtonClickEvent, handler)
+			end
+		end
+		self.slotHandlers = {}
+	end
+
+	@ExecSpace("ClientOnly")
+	method void OnSlotClicked(integer slotIndex)
+		if not isvalid(self.CurrentChest) then return end
+		local chest = self.CurrentChest:GetComponent("script.Chest")
+		if not isvalid(chest) then return end
+		
+		local items = chest:GetItems()
+		local item = items[slotIndex]
+		if not item or item.count <= 0 then return end
+		
+		local clickTime = _UtilLogic.ElapsedSeconds
+		local lastTime = self.lastClickTimes[slotIndex] or 0
+		self.lastClickTimes[slotIndex] = clickTime
+		
+		if clickTime - lastTime < 0.3 then
+			-- Double click: take all from slot
+			chest:ServerRequestTakeItem(slotIndex, item.count)
+			self:FlashSlot(slotIndex, Color(0.8, 0.6, 0.2, 1.0))
+			
+			-- Refresh inventory after a short delay
+			_TimerService:SetTimerOnce(function()
+				local invPopup = _EntityService:GetEntityByPath("/ui/PopupGroup/InventoryPopup")
+				if isvalid(invPopup) then
+					local invController = invPopup:GetComponent("script.UIInventoryController")
+					if isvalid(invController) then
+						invController:RefreshInventoryData()
+					end
+				end
+			end, 0.15)
+		end
+	end
+
+	@ExecSpace("ClientOnly")
+	method void FlashSlot(integer slotIndex, Color flashColor)
+		local slotEnt = self["slot" .. slotIndex]
+		if not isvalid(slotEnt) or not isvalid(slotEnt.SpriteGUIRendererComponent) then return end
+		local original = slotEnt.SpriteGUIRendererComponent.Color
+		slotEnt.SpriteGUIRendererComponent.Color = flashColor
+		_TimerService:SetTimerOnce(function()
+			if isvalid(slotEnt) and isvalid(slotEnt.SpriteGUIRendererComponent) then
+				slotEnt.SpriteGUIRendererComponent.Color = original
+			end
+		end, 0.3)
+	end
+
+	@ExecSpace("ClientOnly")
+	method void OnCloseClicked(ButtonClickEvent event)
+		self:Close()
+	end
+
+end

@@ -10,7 +10,18 @@ script PlayerCombat extends AttackComponent
 	@ExecSpace("ServerOnly")
 	method void DoAttackAt(Vector2 worldPos)
 		-- Emits a melee box at worldPos; only monster hitboxes (HitBox group) take damage.
-		self.PendingDamage = self.BaseDamage
+		local dmg = self.BaseDamage
+		local inv = self.Entity:GetComponent("script.PlayerInventory")
+		if isvalid(inv) then
+			---@type PlayerInventory
+			local pi = inv
+			local toolInfo = pi:GetEquippedToolInfo()
+			if toolInfo and toolInfo.power > 0 then
+				dmg = dmg + toolInfo.power * 4  -- 등급별 4배율 공격력 증가식
+			end
+		end
+		
+		self.PendingDamage = dmg
 		local shape = BoxShape(worldPos, Vector2(self.AttackBoxSize, self.AttackBoxSize), 0)
 		self:AttackFast(shape, nil, CollisionGroups.HitBox)
 	end

@@ -49,7 +49,7 @@ script PlayerInventory extends Component
 				self.Items[uniqueKey] = { name = itemName, count = 1, durability = 100 }
 				table.insert(keys, uniqueKey)
 			end
-			self.InventoryDataJson = _HttpService:JSONEncode(self.Items)
+			self.InventoryDataJson = self:SafeEncodeJson(self.Items, "{}")
 			
 			log("Inventory updated: added " .. count .. " unique " .. itemName .. "(s).")
 			self:ClientShowPickupMessage(itemName, count, self:GetItemCount(itemName))
@@ -57,7 +57,7 @@ script PlayerInventory extends Component
 		else
 			local current = self.Items[itemName] or 0
 			self.Items[itemName] = current + count
-			self.InventoryDataJson = _HttpService:JSONEncode(self.Items)
+			self.InventoryDataJson = self:SafeEncodeJson(self.Items, "{}")
 			
 			log("Inventory updated: added " .. count .. " " .. itemName .. ". Total: " .. self.Items[itemName])
 			self:ClientShowPickupMessage(itemName, count, self.Items[itemName])
@@ -68,6 +68,22 @@ script PlayerInventory extends Component
 			_PersistenceManager:MarkPlayerDirty(self.Entity.PlayerComponent.UserId)
 		end
 		return addedKey
+	end
+
+	@ExecSpace("ServerOnly")
+	method string AddToolInstanceWithDurability(string itemName, integer durability)
+		local uniqueId = tostring(math.floor(_UtilLogic.ServerElapsedSeconds * 1000)) .. "_" .. tostring(math.random(100000, 999999))
+		local uniqueKey = itemName .. "_" .. uniqueId
+		self.Items[uniqueKey] = { name = itemName, count = 1, durability = durability }
+		self.InventoryDataJson = self:SafeEncodeJson(self.Items, "{}")
+		
+		log("Inventory updated: added tool instance " .. uniqueKey .. " with durability " .. durability)
+		self:ClientShowPickupMessage(itemName, 1, self:GetItemCount(itemName))
+		
+		if _PersistenceManager and self.Entity.PlayerComponent then
+			_PersistenceManager:MarkPlayerDirty(self.Entity.PlayerComponent.UserId)
+		end
+		return uniqueKey
 	end
 
 	@ExecSpace("ServerOnly")
@@ -82,7 +98,7 @@ script PlayerInventory extends Component
 				if self.EquippedTool == itemName then
 					self.EquippedTool = ""
 				end
-				self.InventoryDataJson = _HttpService:JSONEncode(self.Items)
+				self.InventoryDataJson = self:SafeEncodeJson(self.Items, "{}")
 				if _PersistenceManager and self.Entity.PlayerComponent then
 					_PersistenceManager:MarkPlayerDirty(self.Entity.PlayerComponent.UserId)
 				end
@@ -93,7 +109,7 @@ script PlayerInventory extends Component
 				if self.Items[itemName] <= 0 then
 					self.Items[itemName] = nil
 				end
-				self.InventoryDataJson = _HttpService:JSONEncode(self.Items)
+				self.InventoryDataJson = self:SafeEncodeJson(self.Items, "{}")
 				if _PersistenceManager and self.Entity.PlayerComponent then
 					_PersistenceManager:MarkPlayerDirty(self.Entity.PlayerComponent.UserId)
 				end
@@ -123,7 +139,7 @@ script PlayerInventory extends Component
 			end
 		end
 		
-		self.InventoryDataJson = _HttpService:JSONEncode(self.Items)
+		self.InventoryDataJson = self:SafeEncodeJson(self.Items, "{}")
 		if _PersistenceManager and self.Entity.PlayerComponent then
 			_PersistenceManager:MarkPlayerDirty(self.Entity.PlayerComponent.UserId)
 		end
@@ -247,7 +263,7 @@ script PlayerInventory extends Component
 		if itemKey == nil or itemKey == "" then return "" end
 		local items = self.Items
 		if self:IsClient() then
-			items = _HttpService:JSONDecode(self.InventoryDataJson) or {}
+			items = self:SafeDecodeJson(self.InventoryDataJson, {})
 		end
 		local entry = items[itemKey]
 		if type(entry) == "table" and entry.name ~= nil then
@@ -265,7 +281,7 @@ script PlayerInventory extends Component
 		local count = 0
 		local items = self.Items
 		if self:IsClient() then
-			items = _HttpService:JSONDecode(self.InventoryDataJson) or {}
+			items = self:SafeDecodeJson(self.InventoryDataJson, {})
 		end
 		
 		for k, v in pairs(items) do
@@ -420,7 +436,7 @@ script PlayerInventory extends Component
 				if itemRow ~= nil then
 					local cat = itemRow:GetItem("Category")
 					if cat == "tool" or cat == "furniture" then
-						local slots = _HttpService:JSONDecode(self.QuickSlotsJson) or {}
+						local slots = self:SafeDecodeJson(self.QuickSlotsJson, {})
 						local emptySlotIndex = -1
 						for i = 1, 10 do
 							if slots[i] == nil or slots[i] == "" then
@@ -431,7 +447,7 @@ script PlayerInventory extends Component
 						if emptySlotIndex ~= -1 then
 							self.SelectedQuickSlotIndex = emptySlotIndex
 							slots[emptySlotIndex] = craftedKey
-							self.QuickSlotsJson = _HttpService:JSONEncode(slots)
+							self.QuickSlotsJson = self:SafeEncodeJson(slots, "[\"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\"]")
 							log("[QUICKSLOT] Auto-registered crafted item " .. craftedKey .. " to slot " .. emptySlotIndex)
 							self:SyncEquippedToolToSelectedSlot()
 						end
@@ -498,7 +514,7 @@ script PlayerInventory extends Component
 			end
 		end
 		
-		local slots = _HttpService:JSONDecode(self.QuickSlotsJson) or {}
+		local slots = self:SafeDecodeJson(self.QuickSlotsJson, {})
 		if itemName ~= "" then
 			for i = 1, 10 do
 				if slots[i] == itemName then
@@ -507,7 +523,7 @@ script PlayerInventory extends Component
 			end
 		end
 		slots[slotIndex] = itemName
-		self.QuickSlotsJson = _HttpService:JSONEncode(slots)
+		self.QuickSlotsJson = self:SafeEncodeJson(slots, "[\"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\"]")
 		
 		log("[QUICKSLOT] Player " .. self.Entity.Name .. " registered slot " .. slotIndex .. " = " .. itemName)
 		self:SyncEquippedToolToSelectedSlot()
@@ -529,12 +545,12 @@ script PlayerInventory extends Component
 			return
 		end
 		
-		local slots = _HttpService:JSONDecode(self.QuickSlotsJson) or {}
+		local slots = self:SafeDecodeJson(self.QuickSlotsJson, {})
 		local temp = slots[fromIndex] or ""
 		slots[fromIndex] = slots[toIndex] or ""
 		slots[toIndex] = temp
 		
-		self.QuickSlotsJson = _HttpService:JSONEncode(slots)
+		self.QuickSlotsJson = self:SafeEncodeJson(slots, "[\"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\"]")
 		log("[QUICKSLOT] Player " .. self.Entity.Name .. " swapped slot " .. fromIndex .. " <-> " .. toIndex)
 		self:SyncEquippedToolToSelectedSlot()
 		
@@ -546,7 +562,7 @@ script PlayerInventory extends Component
 	@ExecSpace("ServerOnly")
 	method void SyncEquippedToolToSelectedSlot()
 		-- description: Automatically equips the tool registered in the currently selected quickslot.
-		local slots = _HttpService:JSONDecode(self.QuickSlotsJson) or {}
+		local slots = self:SafeDecodeJson(self.QuickSlotsJson, {})
 		local itemName = slots[self.SelectedQuickSlotIndex] or ""
 		
 		if itemName ~= "" then
@@ -747,6 +763,15 @@ script PlayerInventory extends Component
 				end
 				log("[PLACE] Spawned furniture " .. itemName .. " at cell " .. tostring(cellPos))
 				
+				-- If the placed furniture is a Wooden Chest, attach script.Chest
+				if itemName == "Wooden Chest" then
+					local chestComp = spawnedEntity:GetComponent("script.Chest")
+					if not isvalid(chestComp) then
+						spawnedEntity:AddComponent("script.Chest")
+						log("[PLACE] Attached script.Chest component to placed Wooden Chest.")
+					end
+				end
+
 				-- If the placed furniture is a Portal, attach/initialize PortalGate
 				if itemName == "Portal" then
 					local portalGate = spawnedEntity:GetComponent("script.PortalGate")
@@ -766,6 +791,27 @@ script PlayerInventory extends Component
 				log_error("Failed to spawn furniture entity: " .. itemName)
 			end
 		end
+	end
+	method string SafeEncodeJson(table tbl, string defaultVal)
+		if tbl == nil or next(tbl) == nil then
+			return defaultVal or "{}"
+		end
+		local ok, encoded = pcall(function() return _HttpService:JSONEncode(tbl) end)
+		if ok and encoded and encoded ~= "" then
+			return encoded
+		end
+		return defaultVal or "{}"
+	end
+
+	method table SafeDecodeJson(string jsonStr, table defaultVal)
+		if jsonStr == nil or jsonStr == "" then
+			return defaultVal or {}
+		end
+		local ok, decoded = pcall(function() return _HttpService:JSONDecode(jsonStr) end)
+		if ok and decoded then
+			return decoded
+		end
+		return defaultVal or {}
 	end
 
 end

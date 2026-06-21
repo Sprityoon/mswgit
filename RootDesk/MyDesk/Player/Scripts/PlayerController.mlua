@@ -43,7 +43,7 @@ script PlayerController extends Component
 
 	property number LastMineTime = 0.0
 
-	property number KnockbackSpeed = 6.0
+	property number KnockbackSpeed = 16.0
 	@HideFromInspector property number KnockTimer = 0
 	@HideFromInspector property Vector2 KnockVel = Vector2(0, 0)
 
@@ -54,6 +54,12 @@ script PlayerController extends Component
 	property string ReticleSpriteRUID = "662fd2de11094cf08be40d8b3fab11bc"
 
 	property number ReticleScale = 0.5
+
+	@Sync
+	property number IFrameTimer = 0.0
+
+	@Sync
+	property boolean IsDead = false
 
 	method void OnBeginPlay()
 		-- description: Initialize key and screen touch event listeners on the client.
@@ -66,10 +72,11 @@ script PlayerController extends Component
 				movement.InputSpeed = 3.6  -- Set top-down movement speed
 			end
 			
-			log("PlayerController initialized on client. Current facing: " .. self.LastDirectionX .. ", " .. self.LastDirectionY)
+			log("PlayerController initialized on client. Facing: " .. self.LastDirectionX .. ", " .. self.LastDirectionY)
 		else
 			log("PlayerController initialized on server for player: " .. self.Entity.Name)
 			self._T.StaminaTimer = _TimerService:SetTimerRepeat(function()
+				if self.IsDead then return end
 				if self.Stamina < self.MaxStamina then
 					self.Stamina = math.min(self.MaxStamina, self.Stamina + 2)
 				end
@@ -104,7 +111,6 @@ script PlayerController extends Component
 		end
 	end
 
-	@ExecSpace("ClientOnly")
 	method boolean IsObstacle(Vector2 checkPos, number radius)
 		local simulator = _CollisionService:GetSimulator(self.Entity)
 		local checkShape = CircleShape(checkPos, radius)
@@ -127,14 +133,56 @@ script PlayerController extends Component
 	@ExecSpace("ClientOnly")
 	method void OnUpdate(number delta)
 		-- description: Monitor player movement inputs to track last facing direction and drive movement.
-		-- Initial stones request removed as per user request
+		-- Handle visual IFrame flashing (translucent blinking)
+		if self.IFrameTimer > 0 then
+			local avatar = self.Entity.AvatarRendererComponent
+			if isvalid(avatar) then
+				-- Blink visual every 0.1s
+				local sec = math.floor(_UtilLogic.ElapsedSeconds * 10)
+				if sec % 2 == 0 then
+					avatar:SetAlpha(0.4)
+				else
+					avatar:SetAlpha(0.8)
+				end
+			end
+		else
+			local avatar = self.Entity.AvatarRendererComponent
+			if isvalid(avatar) then
+				avatar:SetAlpha(1.0)
+			end
+		end
 
-		-- Knockback: while active, drive the body away from the hit and ignore input.
+		if self.IsDead then
+			local movement = self.Entity.MovementComponent
+			if isvalid(movement) then movement:Stop() end
+			return
+		end
+
+		-- Knockback: while active, interpolate player position smoothly on client (EaseOutCubic)
 		if self.KnockTimer > 0 then
 			self.KnockTimer = self.KnockTimer - delta
-			local body = self.Entity.KinematicbodyComponent
-			if isvalid(body) then body.MoveVelocity = self.KnockVel end
-			self.KnockVel = Vector2(self.KnockVel.x * 0.85, self.KnockVel.y * 0.85)
+			
+			local startPos = self._T.KnockStartPos
+			local targetPos = self._T.KnockTargetPos
+			local duration = self._T.KnockDuration
+			
+			if startPos and targetPos and duration and duration > 0 then
+				local progress = 1.0 - math.max(0.0, self.KnockTimer / duration)
+				-- EaseOutCubic formula: f(t) = 1 - (1-t)^3
+				local t = 1.0 - progress
+				local ease = 1.0 - (t * t * t)
+				
+				local currentPos = startPos + (targetPos - startPos) * ease
+				local transform = self.Entity.TransformComponent
+				if isvalid(transform) then
+					transform.WorldPosition = Vector3(currentPos.x, currentPos.y, transform.WorldPosition.z)
+				end
+			end
+			
+			local movement = self.Entity.MovementComponent
+			if isvalid(movement) then
+				movement:Stop()
+			end
 			return
 		end
 
@@ -232,24 +280,143 @@ script PlayerController extends Component
 	@ExecSpace("ServerOnly")
 	@EventSender("Self")
 	handler HandlePlayerHit(HitEvent event)
-		-- On taking a hit, knock the player back away from the attacker (client applies it).
+		if self.IsDead then return end
+		if self.IFrameTimer > 0 then return end
+		
 		local playerComp = self.Entity.PlayerComponent
 		if playerComp == nil then return end
 		if not isvalid(event.AttackerEntity) then return end
+
+		-- Check contact damage from attacker
+		local damage = event.TotalDamage
+		if damage <= 0 then
+			local monsterAttack = event.AttackerEntity:GetComponent("script.MonsterMeleeAttack")
+			if isvalid(monsterAttack) then
+				damage = math.max(1, math.floor(monsterAttack.ContactDamage - self.Defense * 0.1))
+			else
+				damage = 5
+			end
+		end
+
+		-- Apply damage to player HP and start server-side IFrame cooldown
+		playerComp.Hp = math.max(0, playerComp.Hp - damage)
+		self.IFrameTimer = 1.0  -- 1 second i-frame
+		_TimerService:SetTimerOnce(function()
+			if isvalid(self.Entity) then
+				self.IFrameTimer = 0.0
+				log("[IFRAME] Server reset player IFrameTimer to 0.0")
+			end
+		end, 1.0)
+
+		-- Trigger hit animation state and schedule IDLE restore on server
+		local sc = self.Entity.StateComponent
+		if isvalid(sc) then
+			sc:ChangeState("HIT")
+			_TimerService:SetTimerOnce(function()
+				if isvalid(self.Entity) and not self.IsDead then
+					local currentSc = self.Entity.StateComponent
+					if isvalid(currentSc) and currentSc.CurrentStateName == "HIT" then
+						currentSc:ChangeState("IDLE")
+						log("[KNOCKBACK] Server restored player state from HIT to IDLE")
+					end
+				end
+			end, 0.25)
+		end
+
+		-- Apply Knockback (Server-side teleport push with obstacle checking)
 		local pp = self.Entity.TransformComponent.WorldPosition
 		local ap = event.AttackerEntity.TransformComponent.WorldPosition
 		local kx = pp.x - ap.x
 		local ky = pp.y - ap.y
 		local len = math.sqrt(kx * kx + ky * ky)
 		if len <= 0.0001 then kx = 1 ky = 0 len = 1 end
-		self:ClientApplyKnockback(kx / len, ky / len, self.KnockbackSpeed, playerComp.UserId)
+		
+		local dirX = kx / len
+		local dirY = ky / len
+		
+		local dist = 1.2
+		local targetPos = Vector3(pp.x + dirX * dist, pp.y + dirY * dist, pp.z)
+		local finalKnockPos = pp  -- Default to no movement
+		
+		if not self:IsObstacle(Vector2(targetPos.x, targetPos.y), 0.3) then
+			playerComp:SetWorldPosition(targetPos)
+			finalKnockPos = targetPos
+			log("[KNOCKBACK] Server pushed player to: (" .. string.format("%.2f, %.2f", targetPos.x, targetPos.y) .. ")")
+		else
+			local halfPos = Vector3(pp.x + dirX * (dist * 0.5), pp.y + dirY * (dist * 0.5), pp.z)
+			if not self:IsObstacle(Vector2(halfPos.x, halfPos.y), 0.3) then
+				playerComp:SetWorldPosition(halfPos)
+				finalKnockPos = halfPos
+				log("[KNOCKBACK] Server pushed player (half-distance) to: (" .. string.format("%.2f, %.2f", halfPos.x, halfPos.y) .. ")")
+			end
+		end
+
+		self:ClientApplyKnockback(pp.x, pp.y, finalKnockPos.x, finalKnockPos.y, 0.25)
+
+		log("Player " .. self.Entity.Name .. " hit for " .. damage .. " damage. HP remaining: " .. playerComp.Hp)
+
+		-- Check Death
+		if playerComp.Hp <= 0 then
+			self:ServerDie()
+		end
+	end
+
+	@ExecSpace("ServerOnly")
+	method void ServerDie()
+		if self.IsDead then return end
+		self.IsDead = true
+		log("Player " .. self.Entity.Name .. " has died.")
+
+		-- Stop movement immediately
+		local movement = self.Entity.MovementComponent
+		if isvalid(movement) then movement:Stop() end
+
+		-- 50% resource loss on death (only raw materials like wood, stone, copper_ore, iron_ore)
+		local inv = self.Entity:GetComponent("script.PlayerInventory")
+		if isvalid(inv) then
+			local resources = { "wood", "stone", "copper_ore", "iron_ore" }
+			for _, resName in ipairs(resources) do
+				local count = inv:GetItemCount(resName)
+				if count > 0 then
+					local loss = math.floor(count * 0.5)
+					if loss > 0 then
+						inv:RemoveItem(resName, loss)
+						log("Player lost " .. loss .. " " .. resName .. " on death.")
+					end
+				end
+			end
+		end
+
+		-- 3s Respawn Loop
+		_TimerService:SetTimerOnce(function()
+			self:ServerRespawn()
+		end, 3.0)
+	end
+
+	@ExecSpace("ServerOnly")
+	method void ServerRespawn()
+		if not self.IsDead then return end
+		self.IsDead = false
+		
+		local playerComp = self.Entity.PlayerComponent
+		if isvalid(playerComp) then
+			playerComp.Hp = playerComp.MaxHp
+			-- Spawn at map center (0,0)
+			local defaultPos = Vector3(0, 0, 0)
+			playerComp:SetWorldPosition(defaultPos)
+			log("Player " .. self.Entity.Name .. " respawned at (0,0) with full HP.")
+		end
 	end
 
 	@ExecSpace("Client")
-	method void ClientApplyKnockback(number dirX, number dirY, number speed)
-		-- Sets the knockback velocity on this player's client; OnUpdate consumes it next frames.
-		self.KnockVel = Vector2(dirX * speed, dirY * speed)
-		self.KnockTimer = 0.2
+	method void ClientApplyKnockback(number startX, number startY, number targetX, number targetY, number duration)
+		-- Initializes the visual cubic-ease-out knockback interpolation on the client.
+		self._T.KnockStartPos = Vector2(startX, startY)
+		self._T.KnockTargetPos = Vector2(targetX, targetY)
+		self._T.KnockDuration = duration
+		self.KnockTimer = duration
+		
+		log("[KNOCKBACK] ClientApplyKnockback initialized: StartPos=(" .. string.format("%.2f, %.2f", startX, startY) .. "), TargetPos=(" .. string.format("%.2f, %.2f", targetX, targetY) .. "), Duration=" .. duration)
 	end
 
 	@ExecSpace("ClientOnly")
@@ -367,6 +534,23 @@ script PlayerController extends Component
 						end
 					end
 				end
+				return
+			end
+			
+			local nearbyChest = self:FindNearbyChest()
+			if isvalid(nearbyChest) then
+				local popup = _EntityService:GetEntityByPath("/ui/PopupGroup/ChestPopup")
+				if isvalid(popup) then
+					local controller = popup:GetComponent("script.UIChestController")
+					if isvalid(controller) then
+						local c = controller
+						if popup.Enable then
+							c:Close()
+						else
+							c:Open(nearbyChest)
+						end
+					end
+				end
 			end
 		else
 			-- Numeric Keys (1 to 0)
@@ -406,6 +590,36 @@ script PlayerController extends Component
 		if not furnaceComponents then return nil end
 		
 		for _, comp in ipairs(furnaceComponents) do
+			if isvalid(comp) then
+				local ent = comp.Entity
+				if isvalid(ent) then
+					local fPos = ent.TransformComponent.WorldPosition:ToVector2()
+					local dist = (myPos - fPos):Magnitude()
+					if dist < minDist then
+						minDist = dist
+						closest = ent
+					end
+				end
+			end
+		end
+		
+		return closest
+	end
+
+	@ExecSpace("ClientOnly")
+	method Entity FindNearbyChest()
+		-- description: Finds the closest chest entity within interaction distance on the client.
+		local currentMap = self.Entity.CurrentMap
+		if not isvalid(currentMap) then return nil end
+		
+		local myPos = self.Entity.TransformComponent.WorldPosition:ToVector2()
+		local closest = nil
+		local minDist = 1.5 -- Interaction distance (1.5 grid cells)
+		
+		local chestComponents = currentMap:GetChildComponentsByTypeName("script.Chest", true)
+		if not chestComponents then return nil end
+		
+		for _, comp in ipairs(chestComponents) do
 			if isvalid(comp) then
 				local ent = comp.Entity
 				if isvalid(ent) then

@@ -22,7 +22,8 @@
         "MOD.Core.SpriteRendererComponent",
         "MOD.Core.TouchReceiveComponent",
         "script.PlaceableFurniture",
-        "script.ResourceOccupiedArea"
+        "script.ResourceOccupiedArea",
+        "script.Chest"
       ],
       "Properties": [
         {

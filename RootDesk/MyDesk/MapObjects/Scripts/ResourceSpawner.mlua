@@ -1035,6 +1035,15 @@ script ResourceSpawner extends Logic
 						sprite.OrderInLayer = math.floor((self.MapRadius - fy) * 100)
 					end
 					
+					-- If the spawned entity is a Wooden Chest, attach script.Chest
+					if f.itemName == "Wooden Chest" then
+						local chestComp = spawnedEntity:GetComponent("script.Chest")
+						if not isvalid(chestComp) then
+							spawnedEntity:AddComponent("script.Chest")
+							log("ResourceSpawner: Attached script.Chest component to reconstructed Wooden Chest.")
+						end
+					end
+
 					-- If the spawned entity has script.PortalGate, make sure it is initialized
 					local portalGate = spawnedEntity:GetComponent("script.PortalGate")
 					if not isvalid(portalGate) and f.itemName == "Portal" then

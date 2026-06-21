@@ -157,8 +157,18 @@ script PersistenceManager extends Logic
 			-- Restore PlayerInventory
 			local inv = player:GetComponent("script.PlayerInventory")
 			if isvalid(inv) then
-				inv.InventoryDataJson = data.inventoryData or "{}"
-				inv.Items = _HttpService:JSONDecode(inv.InventoryDataJson) or {}
+				local invData = data.inventoryData
+				if invData == nil or invData == "" then
+					invData = "{}"
+				end
+				inv.InventoryDataJson = invData
+				local ok, decoded = pcall(function() return _HttpService:JSONDecode(inv.InventoryDataJson) end)
+				if ok and decoded then
+					inv.Items = decoded
+				else
+					log_warning("PersistenceManager: Failed to decode inventoryData, fallback to empty.")
+					inv.Items = {}
+				end
 				inv.EquippedTool = data.equippedTool or ""
 				inv.QuickSlotsJson = data.quickSlots or "[\"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\"]"
 				inv.SelectedQuickSlotIndex = data.selectedSlot or 1
@@ -190,6 +200,35 @@ script PersistenceManager extends Logic
 			_ResourceSpawner:SetPlacedFurnitureJson(mapName, furnRaw)
 			_ResourceSpawner:LoadDestroyedResourcesFromJson(mapName, destRaw)
 			_ResourceSpawner:ReconstructWorldPlacementsForMap(map)
+
+			-- Reconstruct 후 상자 아이템 데이터 복원
+			local furnList = {}
+			if furnRaw ~= nil and furnRaw ~= "" then
+				local ok, decoded = pcall(function() return _HttpService:JSONDecode(furnRaw) end)
+				if ok and decoded then
+					furnList = decoded
+				end
+			end
+			local chestComps = map:GetChildComponentsByTypeName("script.Chest", true)
+			local tilemap = map:GetFirstChildComponentByTypeName("RectTileMapComponent", true)
+			if chestComps and isvalid(tilemap) then
+				for _, comp in ipairs(chestComps) do
+					local ent = comp.Entity
+					if isvalid(ent) then
+						local entCell = tilemap:ToCellPosition(ent.TransformComponent.WorldPosition)
+						if entCell then
+							for _, furn in ipairs(furnList) do
+								if furn.itemName == "Wooden Chest" and furn.x == entCell.x and furn.y == entCell.y then
+									if furn.chestItems then
+										comp:SetItems(furn.chestItems)
+									end
+									break
+								end
+							end
+						end
+					end
+				end
+			end
 
 			-- Remember saved position; the single warp happens after this branch.
 			spawnX = data.posX or -3.0
@@ -245,22 +284,53 @@ script PersistenceManager extends Logic
 
 		-- Retrieve home map placements and destroyed resources to save to player user data
 		local tilesJson = _ResourceSpawner:GetPlacedTilesJson(mapName)
-		local furnJson = _ResourceSpawner:GetPlacedFurnitureJson(mapName)
+		local furnRaw = _ResourceSpawner:GetPlacedFurnitureJson(mapName)
+		local furnList = {}
+		if furnRaw ~= nil and furnRaw ~= "" then
+			local ok, decoded = pcall(function() return _HttpService:JSONDecode(furnRaw) end)
+			if ok and decoded then
+				furnList = decoded
+			end
+		end
+		
+		local map = _EntityService:GetEntityByPath("/maps/" .. mapName)
+		if isvalid(map) then
+			local chestComps = map:GetChildComponentsByTypeName("script.Chest", true)
+			local tilemap = map:GetFirstChildComponentByTypeName("RectTileMapComponent", true)
+			if chestComps and isvalid(tilemap) then
+				for _, comp in ipairs(chestComps) do
+					local ent = comp.Entity
+					if isvalid(ent) then
+						local entCell = tilemap:ToCellPosition(ent.TransformComponent.WorldPosition)
+						if entCell then
+							for _, furn in ipairs(furnList) do
+								if furn.itemName == "Wooden Chest" and furn.x == entCell.x and furn.y == entCell.y then
+									furn.chestItems = comp:GetItems()
+									break
+								end
+							end
+						end
+					end
+				end
+			end
+		end
+		
+		local furnJson = _HttpService:JSONEncode(furnList)
 		local destJson = _ResourceSpawner:GetDestroyedResourcesAsJson(mapName)
 
 		local data = {
-			level = pc.Level,
-			xp = pc.XP,
-			maxRawXp = pc.MaxXP,
-			stamina = pc.Stamina,
-			maxStamina = pc.MaxStamina,
-			gatheringSpeed = pc.GatheringSpeed,
+			level = tonumber(pc.Level) or 1,
+			xp = tonumber(pc.XP) or 0,
+			maxRawXp = tonumber(pc.MaxXP) or 100,
+			stamina = tonumber(pc.Stamina) or 100,
+			maxStamina = tonumber(pc.MaxStamina) or 100,
+			gatheringSpeed = tonumber(pc.GatheringSpeed) or 1.0,
 			inventoryData = inv.InventoryDataJson,
 			equippedTool = inv.EquippedTool,
 			quickSlots = inv.QuickSlotsJson,
-			selectedSlot = inv.SelectedQuickSlotIndex,
-			posX = posX,
-			posY = posY,
+			selectedSlot = tonumber(inv.SelectedQuickSlotIndex) or 1,
+			posX = tonumber(posX) or 0.0,
+			posY = tonumber(posY) or 0.0,
 			homeTiles = tilesJson,
 			homeFurniture = furnJson,
 			homeDestroyedResources = destJson

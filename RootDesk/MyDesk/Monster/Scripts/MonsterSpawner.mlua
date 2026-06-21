@@ -1,0 +1,222 @@
+@Logic
+script MonsterSpawner extends Logic
+
+	property integer MonsterCap = 10
+	property number SpawnInterval = 10.0
+	property any SpawnTimerId = nil
+
+	@ExecSpace("ServerOnly")
+	method void OnBeginPlay()
+		log("MonsterSpawner: Spawner logic system starting...")
+		self:TryStartSpawner()
+	end
+
+	@ExecSpace("ServerOnly")
+	method void TryStartSpawner()
+		local spawnDs = _DataService:GetTable("MonsterSpawnDataSet")
+		if spawnDs == nil then
+			log_warning("MonsterSpawner: MonsterSpawnDataSet not found yet. Retrying in 0.5s...")
+			_TimerService:SetTimerOnce(function() self:TryStartSpawner() end, 0.5)
+			return
+		end
+
+		self.SpawnTimerId = _TimerService:SetTimerRepeat(function()
+			self:TickMonsterSpawn()
+		end, self.SpawnInterval)
+		log("MonsterSpawner: System initialized successfully.")
+	end
+
+	@ExecSpace("ServerOnly")
+	method void OnEndPlay()
+		if self.SpawnTimerId then
+			_TimerService:ClearTimer(self.SpawnTimerId)
+			self.SpawnTimerId = nil
+		end
+	end
+
+	@ExecSpace("ServerOnly")
+	method void TickMonsterSpawn()
+		local mapNames = _DynamicMapService:GetDynamicMapNameList()
+		if not mapNames then return end
+
+		for _, mapName in ipairs(mapNames) do
+			local map = _EntityService:GetEntityByPath("/maps/" .. mapName)
+			if isvalid(map) then
+				self:SpawnMonstersForMap(map)
+			end
+		end
+	end
+
+	@ExecSpace("ServerOnly")
+	method void SpawnMonstersForMap(Entity map)
+		local mapName = map.Name
+		local monsters = map:GetChildComponentsByTypeName("script.Monster", true)
+		
+		-- Count active (not dead) monsters
+		local activeCount = 0
+		if monsters then
+			for _, m in ipairs(monsters) do
+				if isvalid(m) and not m.IsDead then
+					activeCount = activeCount + 1
+				end
+			end
+		end
+
+		if activeCount >= self.MonsterCap then
+			return
+		end
+
+		local toSpawn = self.MonsterCap - activeCount
+		log("MonsterSpawner: Map " .. mapName .. " needs " .. toSpawn .. " monster(s). Active: " .. activeCount)
+
+		local spawnDs = _DataService:GetTable("MonsterSpawnDataSet")
+		if spawnDs == nil then return end
+
+		local resourceSpawner = _ResourceSpawner
+		if resourceSpawner == nil then return end
+
+		local radius = resourceSpawner.MapRadius or 75
+		local gridToEntity = resourceSpawner:GetGridToEntity(mapName)
+
+		-- Selectable biomes list from DataSet
+		local biomeConfigs = {}
+		local totalRows = spawnDs:GetRowCount()
+		for i = 1, totalRows do
+			local bid = spawnDs:GetCell(i, "BiomeId")
+			local mid = spawnDs:GetCell(i, "MonsterModelId")
+			local weight = tonumber(spawnDs:GetCell(i, "SpawnWeight")) or 100
+			local hpMul = tonumber(spawnDs:GetCell(i, "HpMultiplier")) or 1.0
+			local atkMul = tonumber(spawnDs:GetCell(i, "AtkMultiplier")) or 1.0
+			
+			if bid ~= nil and bid ~= "" then
+				if biomeConfigs[bid] == nil then biomeConfigs[bid] = {} end
+				table.insert(biomeConfigs[bid], {
+					modelId = mid,
+					weight = weight,
+					hpMul = hpMul,
+					atkMul = atkMul
+				})
+			end
+		end
+
+		-- Spawn attempt loop
+		for s = 1, toSpawn do
+			local spawnedOk = false
+			-- Maximum 30 location search attempts per spawn
+			for attempt = 1, 30 do
+				local rx = math.random(-radius, radius)
+				local ry = math.random(-radius, radius)
+
+				local biomeId = resourceSpawner:GetBiomeAt(rx, ry)
+				
+				-- Safe Zone filtering (no spawn in green_island)
+				if biomeId ~= "green_island" and biomeConfigs[biomeId] ~= nil then
+					local gridKey = rx .. "_" .. ry
+					-- Occupancy check
+					if gridToEntity[gridKey] == nil then
+						-- Player proximity check: spawn kills prevention
+						local playerOk = true
+						local users = _UserService:GetUsersByMapComponent(map.MapComponent)
+						if users then
+							for _, user in ipairs(users) do
+								if isvalid(user) then
+									local up = user.TransformComponent.WorldPosition
+									local distSq = (up.x - (rx + 0.5))^2 + (up.y - (ry + 0.5))^2
+									if distSq < 16.0 then -- 4.0 blocks radius
+										playerOk = false
+										break
+									end
+								end
+							end
+						end
+
+						if playerOk then
+							-- Biome configuration match found
+							local options = biomeConfigs[biomeId]
+							if #options > 0 then
+								-- Weighted selection
+								local totalWeight = 0
+								for _, opt in ipairs(options) do
+									totalWeight = totalWeight + opt.weight
+								end
+								
+								local roll = math.random(1, totalWeight)
+								local runningSum = 0
+								local chosenOpt = options[1]
+								for _, opt in ipairs(options) do
+									runningSum = runningSum + opt.weight
+									if roll <= runningSum then
+										chosenOpt = opt
+										break
+									end
+								end
+
+								local modelId = _EntryService:GetModelIdByName(chosenOpt.modelId)
+								if not modelId or modelId == "" then
+									modelId = chosenOpt.modelId -- Fallback to direct modelId string
+								end
+
+								local spawnPos = Vector3(rx + 0.5, ry + 0.5, 0)
+								local spawnedMonster = _SpawnService:SpawnByModelId(
+									modelId,
+									"Slime_" .. biomeId,
+									spawnPos,
+									map
+								)
+
+								if isvalid(spawnedMonster) then
+									-- Attach & tune Monster script properties
+									local mComp = spawnedMonster:GetComponent("script.Monster")
+									if isvalid(mComp) then
+										mComp.MaxHp = mComp.MaxHp * chosenOpt.hpMul
+										mComp.Hp = mComp.MaxHp
+									end
+
+									-- Tune attack damage
+									local atkComp = spawnedMonster:GetComponent("script.MonsterMeleeAttack")
+									if isvalid(atkComp) then
+										atkComp.ContactDamage = atkComp.ContactDamage * chosenOpt.atkMul
+									end
+
+									-- Set initial AI anchor pos to avoid leashing bugs
+									local aiComp = spawnedMonster:GetComponent("script.MonsterAI")
+									if isvalid(aiComp) then
+										aiComp.SpawnPos = Vector2(rx + 0.5, ry + 0.5)
+									end
+
+									-- Tint sprite color based on biome aesthetics
+									local sprite = spawnedMonster.SpriteRendererComponent
+									if isvalid(sprite) then
+										sprite.IgnoreMapLayerCheck = true
+										sprite.SortingLayer = "MapLayer2"
+										sprite.OrderInLayer = math.floor((radius - ry) * 100)
+
+										if biomeId == "desert" then
+											sprite.Color = Color(1.0, 0.9, 0.6, 1.0) -- Yellowish Desert tint
+										elseif biomeId == "snowfield" then
+											sprite.Color = Color(0.7, 0.9, 1.0, 1.0) -- Cyanish Snowfield tint
+										elseif biomeId == "rocky" then
+											sprite.Color = Color(0.65, 0.65, 0.65, 1.0) -- Grayish/Rocky dark tint
+										else
+											sprite.Color = Color(1.0, 1.0, 1.0, 1.0) -- Default Earth Field white
+										end
+									end
+
+									log("[SPAWN] Spawned variant monster " .. chosenOpt.modelId .. " at cell (" .. rx .. ", " .. ry .. ") in map " .. mapName .. " (HpMul=" .. chosenOpt.hpMul .. ", AtkMul=" .. chosenOpt.atkMul .. ")")
+									spawnedOk = true
+									break
+								end
+							end
+						end
+					end
+				end
+			end
+			-- If one spawn succeeds, yield or let loop continue
+			if not spawnedOk then
+				-- Optimization: if failed to find a spot after 30 checks, break the spawn loop for this tick
+				break
+			end
+		end
+	end
+
+end

@@ -118,6 +118,44 @@ function patchPopups() {
   b.button(`${IP}/DiscardPopup/Card/BtnCancel`, "취소", { anchor: "middle-center", pos: [0, -122], rect_size: [200, 46], font_size: 21, color: "#FFFFFF" });
   b.patchComponent(`${IP}/DiscardPopup/Card/BtnCancel`, "MOD.Core.SpriteGUIRendererComponent", { Color: { r: 0.34, g: 0.34, b: 0.40, a: 1.0 } });
 
+  // 3) ChestPopup Panel (hidden by default)
+  const CP = "ChestPopup";
+  if (!b.getId(`/ui/PopupGroup/${CP}`)) {
+    b.panel(CP, { anchor: "middle-center", pos: [0, 0], rect_size: [800, 700], enable: false });
+    b.addComponent(CP, "script.UIChestController");
+    b.patch(CP, { display_order: 40 });
+    
+    // Background card
+    b.sprite(`${CP}/Bg`, { anchor: "middle-center", pos: [330, 0], rect_size: [340, 390], color: "#2B2B33", alpha: 1.0, raycast: true });
+    
+    // Title
+    b.text(`${CP}/Bg/Title`, "보관함 (8슬롯)", { anchor: "middle-center", pos: [0, 145], rect_size: [280, 40], size: 26, color: "#FFE9A8", alignment: 4 });
+    
+    // Close button
+    b.button(`${CP}/Bg/BtnClose`, "X", { anchor: "middle-center", pos: [135, 145], rect_size: [40, 40], font_size: 22, color: "#FFFFFF" });
+    b.patchComponent(`${CP}/Bg/BtnClose`, "MOD.Core.SpriteGUIRendererComponent", { Color: { r: 0.55, g: 0.18, b: 0.16, a: 1.0 } });
+    
+    // 8 Slots
+    const positions = [
+      [-120, 35], [-40, 35], [40, 35], [120, 35],
+      [-120, -55], [-40, -55], [40, -55], [120, -55]
+    ];
+    
+    for (let i = 1; i <= 8; i++) {
+      const pos = positions[i - 1];
+      const slotName = `${CP}/Bg/Slot${i}`;
+      b.button(slotName, "", { anchor: "middle-center", pos: pos, rect_size: [72, 72] });
+      b.patchComponent(slotName, "MOD.Core.SpriteGUIRendererComponent", { Color: { r: 1.0, g: 1.0, b: 1.0, a: 1.0 } });
+      
+      b.sprite(`${slotName}/Icon`, { anchor: "middle-center", pos: [0, 0], rect_size: [48, 48], image_ruid: "" });
+      b.text(`${slotName}/Count`, "", { anchor: "middle-center", pos: [0, -20], rect_size: [72, 24], size: 18, color: "#FFFFFF", alignment: 4 });
+    }
+  } else {
+    if (!b.hasComponent(CP, "script.UIChestController")) {
+      b.addComponent(CP, "script.UIChestController");
+    }
+  }
+
   b.write(file, {
     bind: {
       mlua: path.join(rootUIDir, "UIInventoryController.mlua"),
@@ -134,6 +172,18 @@ function patchPopups() {
       },
     },
   });
+
+  // Inject Chest bindings
+  const chestProps = {
+    btnClose: `${CP}/Bg/BtnClose`
+  };
+  for (let i = 1; i <= 8; i++) {
+    chestProps[`slot${i}`] = `${CP}/Bg/Slot${i}`;
+    chestProps[`slot${i}_icon`] = `${CP}/Bg/Slot${i}/Icon`;
+    chestProps[`slot${i}_count`] = `${CP}/Bg/Slot${i}/Count`;
+  }
+  b.injectBindings(path.join(rootUIDir, "UIChestController.mlua"), chestProps);
+
   const after = b.listEntities().length;
   console.log(`PopupGroup.ui patched: ${before} -> ${after} entities.`);
 }

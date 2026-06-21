@@ -3,8 +3,8 @@ script MonsterMeleeAttack extends AttackComponent
 	-- On-demand contact attack for top-down monsters. The AI script calls DoAttack()
 	-- when a player is in range; a box centered on the monster damages player hitboxes.
 
-	property integer ContactDamage = 5
-	property number AttackBoxSize = 1.6
+	property number ContactDamage = 5
+	property number AttackBoxSize = 2.2
 
 	@ExecSpace("ServerOnly")
 	method void DoAttack()

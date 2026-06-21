@@ -339,7 +339,7 @@ script UIInventoryController extends Component
 		local inv = player:GetComponent("script.PlayerInventory")
 		if not isvalid(inv) then return end
 		
-		local items = _HttpService:JSONDecode(inv.InventoryDataJson) or {}
+		local items = inv:SafeDecodeJson(inv.InventoryDataJson, {})
 		
 		-- Filter items based on activeTab
 		self.filteredItems = {}
@@ -488,11 +488,15 @@ script UIInventoryController extends Component
 		
 				local furnacePopup = _EntityService:GetEntityByPath("/ui/PopupGroup/FurnacePopup")
 				local furnaceOpen = isvalid(furnacePopup) and furnacePopup.Enable
+				local chestPopup = _EntityService:GetEntityByPath("/ui/PopupGroup/ChestPopup")
+				local chestOpen = isvalid(chestPopup) and chestPopup.Enable
 		
 				if clickTime - lastTime < 0.3 then
 					-- Double click
 					if furnaceOpen then
 						self:TransferToFurnace(data.key, data.count, slotEntity)
+					elseif chestOpen then
+						self:TransferToChest(data.key, data.count, slotEntity)
 					else
 						local player = _UserService.LocalPlayer
 						if isvalid(player) then
@@ -509,6 +513,8 @@ script UIInventoryController extends Component
 						self.SelectedForFurnace = data.key
 						self:ShowTooltip(data.key, data.count)
 						self:FlashSlotEntity(slotEntity, Color(0.3, 0.7, 1.0, 1.0))
+					elseif chestOpen then
+						self:ShowTooltip(data.key, data.count)
 					else
 						self:ShowTooltip(data.key, data.count)
 					end
@@ -604,6 +610,25 @@ script UIInventoryController extends Component
 		else
 			self:FlashSlotEntity(slotEntity, Color(0.8, 0.2, 0.2, 1.0))
 		end
+	end
+
+	@ExecSpace("ClientOnly")
+	method void TransferToChest(string itemKey, integer count, Entity slotEntity)
+		local chestPopup = _EntityService:GetEntityByPath("/ui/PopupGroup/ChestPopup")
+		if not isvalid(chestPopup) then return end
+		local chestController = chestPopup:GetComponent("script.UIChestController")
+		if not isvalid(chestController) or not isvalid(chestController.CurrentChest) then return end
+		local chestComp = chestController.CurrentChest:GetComponent("script.Chest")
+		if not isvalid(chestComp) then return end
+		
+		chestComp:ServerRequestPutItem(itemKey, count)
+		
+		self:FlashSlotEntity(slotEntity, Color(0.2, 0.8, 0.2, 1.0))
+		_TimerService:SetTimerOnce(function()
+			if isvalid(self) then
+				self:RefreshInventoryData()
+			end
+		end, 0.15)
 	end
 
 	@ExecSpace("ClientOnly")

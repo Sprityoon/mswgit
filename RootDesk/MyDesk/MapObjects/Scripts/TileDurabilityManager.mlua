@@ -136,18 +136,33 @@ script TileDurabilityManager extends Logic
 					end
 				end
 				
-				-- If it's a chest, add its contents to the drop pool (generic check)
-				local chestComp = resourceEntity:GetComponent("script.Chest") or resourceEntity:GetComponent("script.WoodenChest") or resourceEntity:GetComponent("script.Storage")
-				if isvalid(chestComp) and chestComp.Items ~= nil then
-					for cItemKey, val in pairs(chestComp.Items) do
-						local isTable = (type(val) == "table")
-						local cItemName = isTable and val.name or cItemKey
-						local count = isTable and (val.count or 1) or val
-						if count > 0 then
+				-- If it's a chest, add its contents to the drop pool (generic check + script.Chest check)
+				local chestComp = resourceEntity:GetComponent("script.Chest")
+				if isvalid(chestComp) then
+					---@type Chest
+					local cc = chestComp
+					local chestItems = cc:GetItems()
+					for _, item in ipairs(chestItems) do
+						if item.count > 0 and item.name ~= "" then
 							local f_ds = _DataService:GetTable("item_dataset")
-							local c_row = f_ds and f_ds:FindRow("Name", cItemName)
-							local c_id = c_row and c_row:GetItem("id") or cItemName
-							data.dropPool[c_id] = (data.dropPool[c_id] or 0) + count
+							local c_row = f_ds and f_ds:FindRow("Name", item.name)
+							local c_id = c_row and c_row:GetItem("id") or item.name
+							data.dropPool[c_id] = (data.dropPool[c_id] or 0) + item.count
+						end
+					end
+				else
+					local genericChest = resourceEntity:GetComponent("script.WoodenChest") or resourceEntity:GetComponent("script.Storage")
+					if isvalid(genericChest) and genericChest.Items ~= nil then
+						for cItemKey, val in pairs(genericChest.Items) do
+							local isTable = (type(val) == "table")
+							local cItemName = isTable and val.name or cItemKey
+							local count = isTable and (val.count or 1) or val
+							if count > 0 then
+								local f_ds = _DataService:GetTable("item_dataset")
+								local c_row = f_ds and f_ds:FindRow("Name", cItemName)
+								local c_id = c_row and c_row:GetItem("id") or cItemName
+								data.dropPool[c_id] = (data.dropPool[c_id] or 0) + count
+							end
 						end
 					end
 				end
@@ -287,7 +302,7 @@ script TileDurabilityManager extends Logic
 			end
 		end
 		
-		data.currentHits += damage
+		data.currentHits = data.currentHits + damage
 		data.strikeCount = data.strikeCount + 1
 		data.lastHitTime = os.clock()
 		

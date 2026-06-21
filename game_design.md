@@ -399,18 +399,19 @@ graph TD
 - [ ] **탑다운 격자형 몬스터 AI 및 전투 통합** (🔶 진행 중):
   - ✅ M1 완료: 제네릭 몬스터 행동 스크립트 3종(`Monster`/`MonsterAI`/`MonsterMeleeAttack`, `RootDesk/MyDesk/Monster/Scripts/`), `Slime.model`(Pattern A·RectTile·Kinematicbody, modelId `slime`, 녹색 슬라임 `mob/0210100.img`), map01 테스트 배치(SlimeTest01). 빌드 클린.
   - ✅ M2a 완료: 플레이어 Ctrl 공격→몬스터 데미지. `PlayerCombat`(AttackComponent, BaseDamage 8) DefaultPlayer에 부착, `PlayerController:RequestMine`이 조준 셀의 몬스터 감지 시 채광 대신 공격(`FindMonsterAt`). Slime에 `DamageSkinComponent` 추가(피격 숫자). 빌드 클린.
-  - 🔶 M2b 진행 중:
+  - ✅ M2b 완료:
     - ✅ 몬스터→플레이어 데미지: 슬라임 AI가 인접 시 접촉 공격, 베이스 `player` 모델 내장 HitComponent가 HP 자동 차감.
-    - ✅ 넉백 양방향: 피격 시 공격자 반대 방향으로 밀림. 몬스터=`MonsterAI:ApplyKnockback`(서버, kb.MoveVelocity), 플레이어=`PlayerController` 서버 `HandlePlayerHit`→Client RPC `ClientApplyKnockback`(클라 OnUpdate에서 입력 무시하고 적용). 몬스터 피격 시 적색 플래시(`Monster:FlashHit`).
-    - ⏳ 남음: 플레이어 i-frame, 사망(HP0)→3s 후 (0,0) 리스폰 + 자원 50% 손실, 플레이어 피격 플래시(아바타), 도구 등급별 공격력 스케일링(현재 flat 8).
-  - ⏳ AI 추격 튜닝 예정: 몬스터가 플레이어에게 끝까지 달려들지 않고 AttackRange(1.2칸) 경계에서 멈춰 **바로 앞칸**에서만 공격함. 추격이 마지막 한 칸을 좁히도록(또는 짧게 돌진 후 공격) 개선 필요. (`MonsterAI`의 CHASE→ATTACK 전이가 AttackRange 도달 즉시 `StopMovement` 하는 로직 조정)
+    - ✅ 넉백 양방향 및 보간: 피격 시 EaseOutCubic 곡선을 이용해 롤백 없이 부드럽게 감속하는 클라이언트 넉백 연출 적용.
+    - ✅ 연속 피격/넉백 정상화: IFrameTimer의 갱신을 서버 타이머 루틴으로 이관하여 2차 피격 넉백 씹힘을 완전히 제거함.
+    - ⏳ 남음: 사망(HP0)→3s 후 (0,0) 리스폰 + 자원 50% 손실, 플레이어 피격 플래시(아바타), 도구 등급별 공격력 스케일링(현재 flat 8).
+  - ✅ AI 추격 튜닝 완료: 몬스터가 플레이어에게 끝까지 달려들지 않고 바로 앞칸에서 공격을 멈추던 현상을 `DSq <= 0.81`(밀착) 및 공격 쿨타임 중에도 근접 타겟팅을 유지하도록 튜닝하여 해결.
   - ⏳ M3 남음: `MonsterSpawner`(@Logic, 맵당 인구캡, 바이옴별 변종 HpMul/AtkMul, 녹색섬 중앙 제외, 낮/밤 부스트 보류) + `MonsterSpawnDataSet`.
   - 중력이 없는 `KinematicbodyComponent`를 사용하는 몬스터 모델(예: Slime 또는 Zombie) 제작.
   - 상태 기반 AI 컴포넌트 (`MonsterAI.mlua`) 설계:
     - **배회(Wander)**: 스폰 위치 반경 5칸 이내의 랜덤 셀을 목표로 저속 이동 후 대기.
     - **추적(Chase)**: 6칸 이내에 플레이어 감지 시 타겟팅 후 최단 경로 추적. 사막/설원/바위 지역 등 외곽 바이옴으로 갈수록 체력/공격력이 높은 변종 몬스터 배치.
     - **공격(Attack)**: 인접(1칸 이하) 시 플레이어 체력 차감.
-    - **복귀(Return)**: 플레이어가 10칸 이상 멀어지면 스폰 포인트로 복귀.
+    - **복귀(Return)**: 플레이어가 10칸 이상 멀어지면 스폰 포인트로 복귀. (귀환 복귀 중 플레이어 추적과 꼬임 방지 튜닝 진행 중)
   - 플레이어 체력 컴포넌트 (`PlayerHealth.mlua`) 도입 및 UI 연동:
     - 피격 시 적색 깜빡임 화면 연출, 넉백(바라보는 반대 방향 격자로 밀림), 피격 무적 시간(i-frame) 1초 동안 반투명 깜빡임 연출 적용.
     - 사망 시 3초 후 중앙(0,0)에 전체 체력으로 리스폰 및 원자재 인벤토리 자원 50% 유실 처리.

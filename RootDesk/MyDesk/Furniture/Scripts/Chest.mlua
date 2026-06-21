@@ -1,0 +1,158 @@
+@Component
+script Chest extends Component
+
+	-- Array of items stored in the chest. Max 8 slots.
+	-- Structure of item element: { name: string, count: integer }
+	@Sync
+	property string ItemsJson = "[]"
+
+	@ExecSpace("ServerOnly")
+	method void OnBeginPlay()
+		if self.ItemsJson == nil or self.ItemsJson == "" then
+			self.ItemsJson = "[]"
+		end
+	end
+
+	method table GetItems()
+		return self:SafeDecodeJson(self.ItemsJson, {})
+	end
+
+	@ExecSpace("ServerOnly")
+	method void SetItems(table items)
+		self.ItemsJson = self:SafeEncodeJson(items, "[]")
+	end
+
+	@ExecSpace("Server")
+	method void ServerRequestPutItem(string itemKey, integer count)
+		-- atomic transaction to transfer item from player inventory into the chest.
+		if itemKey == nil or itemKey == "" then return end
+		local userId = senderUserId
+		if userId == nil or userId == "" then
+			userId = _G.senderUserId or ""
+		end
+		local player = _UserService:GetUserEntityByUserId(userId)
+		if not isvalid(player) then return end
+		local inv = player:GetComponent("script.PlayerInventory")
+		if not isvalid(inv) then return end
+
+		local entry = inv.Items[itemKey]
+		if entry == nil then
+			log_warning("Chest: Player does not own item key " .. itemKey)
+			return
+		end
+
+		local items = self:GetItems()
+		local baseName = ""
+		local isTool = false
+		local durability = 100
+
+		if type(entry) == "table" then
+			-- It's a unique tool
+			baseName = entry.name
+			isTool = true
+			durability = entry.durability or 100
+			count = 1 -- Tools are transferred one by one
+		else
+			-- It's a standard resource
+			baseName = itemKey
+			if entry < count then
+				count = entry
+			end
+		end
+
+		if count <= 0 then return end
+
+		local existingIndex = -1
+		if not isTool then
+			for i, item in ipairs(items) do
+				if item.name == baseName and not item.isTool then
+					existingIndex = i
+					break
+				end
+			end
+		end
+
+		if existingIndex ~= -1 then
+			items[existingIndex].count = items[existingIndex].count + count
+		else
+			if #items >= 8 then
+				log_warning("Chest is full (8 slots max).")
+				return
+			end
+			local newItem = { name = baseName, count = count }
+			if isTool then
+				newItem.isTool = true
+				newItem.durability = durability
+			end
+			table.insert(items, newItem)
+		end
+
+		-- Remove from player inventory using the specific key (works for both unique tools and common resources)
+		if inv:RemoveItem(itemKey, count) then
+			self:SetItems(items)
+			log("Chest: Transferred " .. count .. " " .. baseName .. " from player " .. userId)
+		end
+	end
+
+	@ExecSpace("Server")
+	method void ServerRequestTakeItem(integer slotIndex, integer count)
+		-- atomic transaction to transfer item from chest to player inventory.
+		if slotIndex < 1 or slotIndex > 8 then return end
+		local userId = senderUserId
+		if userId == nil or userId == "" then
+			userId = _G.senderUserId or ""
+		end
+		local player = _UserService:GetUserEntityByUserId(userId)
+		if not isvalid(player) then return end
+		local inv = player:GetComponent("script.PlayerInventory")
+		if not isvalid(inv) then return end
+
+		local items = self:GetItems()
+		local item = items[slotIndex]
+		if not item or item.count < count then
+			log_warning("Chest: Invalid chest slot or count.")
+			return
+		end
+
+		local addedKey = ""
+		if item.isTool then
+			addedKey = inv:AddToolInstanceWithDurability(item.name, item.durability or 100)
+			count = 1 -- Tools are taken one by one
+		else
+			addedKey = inv:AddItem(item.name, count)
+		end
+
+		if addedKey ~= "" then
+			item.count = item.count - count
+			if item.count <= 0 then
+				table.remove(items, slotIndex)
+			else
+				items[slotIndex] = item
+			end
+			self:SetItems(items)
+			log("Chest: Transferred " .. count .. " " .. item.name .. " to player " .. userId)
+		end
+	end
+	method table SafeDecodeJson(string jsonStr, table defaultVal)
+		if jsonStr == nil or jsonStr == "" then
+			return defaultVal or {}
+		end
+		local ok, decoded = pcall(function() return _HttpService:JSONDecode(jsonStr) end)
+		if ok and decoded then
+			return decoded
+		end
+		return defaultVal or {}
+	end
+
+	method string SafeEncodeJson(table tbl, string defaultVal)
+		if tbl == nil or next(tbl) == nil then
+			return defaultVal or "[]"
+		end
+		local ok, encoded = pcall(function() return _HttpService:JSONEncode(tbl) end)
+		if ok and encoded and encoded ~= "" then
+			return encoded
+		end
+		return defaultVal or "[]"
+	end
+
+end
