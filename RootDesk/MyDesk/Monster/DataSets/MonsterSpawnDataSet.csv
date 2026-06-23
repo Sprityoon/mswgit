@@ -1,4 +1,4 @@
-BiomeId,MonsterModelId,SpawnWeight,HpMultiplier,AtkMultiplier
+﻿BiomeId,MonsterModelId,SpawnWeight,HpMultiplier,AtkMultiplier
 earth_field,slime,100,1.0,1.0
 rocky,slime,100,1.8,1.4
 desert,slime,100,2.5,1.8

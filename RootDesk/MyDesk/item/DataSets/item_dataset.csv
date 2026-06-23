@@ -1,4 +1,4 @@
-id,Name,ModelName,EntryId,Category,ToolType,ToolPower,IconRUID,PlacedTileName,Rarity,Tradable,Description
+﻿id,Name,ModelName,EntryId,Category,ToolType,ToolPower,IconRUID,PlacedTileName,Rarity,Tradable,Description
 wood,Wood,Item_Wood,2cb8f37e-ef6b-4e17-86fb-d940f18a7412,resource,,0,b952164321fd4c9c94cb0d3e7c73b182,,Common,true,"""A flexible wooden branch. Useful for crafting basic tools."""
 stone,Stone,Item_Stone,05fa541a-a48d-4f36-bf82-0c60784a4a53,resource,,0,5ed8bdcf520044c0a1660873beb30b10,,Common,true,"""A common stone found in the wild. Used in crafting tools and buildings."""
 copper ore,Copper Ore,Item_CopperOre,3484bbf6-1973-4b23-a720-9d1b0754aa6f,resource,,0,914eb87802b64924b5f78bb97a55faeb,,Common,true,"""A chunk of copper ore. Can be smelted into copper bars."""

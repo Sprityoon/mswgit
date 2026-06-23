@@ -54,6 +54,7 @@ script UIHUDController extends Component
 
 	@ExecSpace("ClientOnly")
 	method void OnBeginPlay()
+		log("TEST_LOG: UIHUDController OnBeginPlay")
 		-- Ensure the spawn cover is opaque and blocking from the first frame; the server
 		-- fades it out (FadeOutSpawn) once this client's home map is ready.
 		if isvalid(self.spawnFade) then
@@ -74,6 +75,8 @@ script UIHUDController extends Component
 		self.updateTimer = _TimerService:SetTimerRepeat(function()
 			self:UpdateHUD()
 		end, 1/10)
+		
+		self:InitTimeUI()
 		
 		local btnMine = _EntityService:GetEntityByPath("/ui/HUDGroup/MobileUI/BtnMine")
 		if isvalid(btnMine) then
@@ -527,6 +530,7 @@ script UIHUDController extends Component
 				end
 			end
 		end
+		self:UpdateTimeUI()
 	end
 
 	@ExecSpace("ClientOnly")
@@ -565,6 +569,110 @@ script UIHUDController extends Component
 				fade.Color = Color(col.r, col.g, col.b, a)
 			end
 		end, 1/60)
+	end
+
+	@ExecSpace("ClientOnly")
+	method void InitTimeUI()
+		-- 동적 오버레이 패널 생성 (uisprite 모델을 활용하여 화면을 덮는 밤낮 색상 오버레이로 사용)
+		local overlay = self.Entity:GetChildByName("NightOverlay")
+		if isvalid(overlay) and not isvalid(overlay.SpriteGUIRendererComponent) then
+			overlay:Destroy()
+			overlay = nil
+		end
+		if not isvalid(overlay) then
+			overlay = _SpawnService:SpawnByModelId("uisprite", "NightOverlay", Vector3.zero, self.Entity)
+		end
+		
+		if isvalid(overlay) then
+			self._T.NightOverlayEntity = overlay
+			local sprite = overlay.SpriteGUIRendererComponent
+			if isvalid(sprite) then
+				sprite.Color = Color(0.04, 0.04, 0.16, 0.0)
+				sprite.RaycastTarget = false
+			end
+			local transform = overlay.UITransformComponent
+			if isvalid(transform) then
+				transform.AlignmentOption = AlignmentType.CastFrom("StretchAll")
+				transform.OffsetMin = Vector2(0, 0)
+				transform.OffsetMax = Vector2(0, 0)
+			end
+		end
+
+		-- 동적 시계 텍스트 생성
+		local clock = self.Entity:GetChildByName("TimeClock")
+		if not isvalid(clock) then
+			clock = _SpawnService:SpawnByModelId("uitext", "TimeClock", Vector3.zero, self.Entity)
+		end
+		
+		if isvalid(clock) then
+			self._T.TimeClockEntity = clock
+			local sprite = clock.SpriteGUIRendererComponent
+			if isvalid(sprite) then
+				sprite.Color = Color(0, 0, 0, 0)
+				sprite.RaycastTarget = false
+			end
+			local transform = clock.UITransformComponent
+			if isvalid(transform) then
+				transform.AlignmentOption = AlignmentType.CastFrom("TopCenter")
+				transform.anchoredPosition = Vector2(0, -55) -- 상단 중앙 배치
+				transform.RectSize = Vector2(200, 35)
+			end
+			local textComp = clock.TextComponent
+			if isvalid(textComp) then
+				textComp.FontSize = 20
+				textComp.FontColor = Color(1.0, 1.0, 1.0, 1.0)
+				textComp.UseOutLine = true
+				textComp.OutlineColor = Color(0.0, 0.0, 0.0, 1.0)
+				textComp.OutlineWidth = 1.0
+				textComp.Alignment = 4 -- MiddleCenter
+			end
+		end
+	end
+
+	@ExecSpace("ClientOnly")
+	method void UpdateTimeUI()
+		if not _PersistenceManager then return end
+
+		local curTime = _PersistenceManager:GetCurrentTime()
+		local isNight = _PersistenceManager:IsNight()
+		
+		-- 1. 시간 텍스트 업데이트
+		local clock = self._T.TimeClockEntity
+		if isvalid(clock) and isvalid(clock.TextComponent) then
+			-- 600초가 24시간(1440분)이므로, 1초당 2.4분
+			local totalMinutes = math.floor(curTime * 2.4)
+			local gameHour = (math.floor(totalMinutes / 60) + 6) % 24 -- 0초를 오전 6시로 기준
+			local gameMin = totalMinutes % 60
+			
+			local icon = isNight and "🌙" or "🌞"
+			local statusStr = isNight and "밤" or "낮"
+			clock.TextComponent.Text = string.format("%s %s %02d:%02d", icon, statusStr, gameHour, gameMin)
+		end
+
+		-- 2. 화면 밤낮 톤 오버레이 알파 보간
+		local overlay = self._T.NightOverlayEntity
+		if isvalid(overlay) and isvalid(overlay.SpriteGUIRendererComponent) then
+			local alpha = 0.0
+			-- 275초 ~ 325초: 일몰 (0.0 -> 0.35)
+			-- 575초 ~ 25초: 일출 (0.35 -> 0.0)
+			if curTime >= 275 and curTime <= 325 then
+				local t = (curTime - 275) / 50
+				alpha = t * 0.35
+			elseif curTime >= 575 then
+				local t = (curTime - 575) / 50
+				alpha = 0.35 - (t * 0.35)
+			elseif curTime <= 25 then
+				local t = (curTime + 25) / 50
+				alpha = 0.35 - (t * 0.35)
+			elseif curTime > 325 and curTime < 575 then
+				alpha = 0.35
+			else
+				alpha = 0.0
+			end
+			
+			-- 자연스럽게 군청색 어두운 톤 적용
+			overlay.SpriteGUIRendererComponent.Color = Color(0.04, 0.04, 0.16, alpha)
+		end
 	end
 
 end

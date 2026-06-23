@@ -5,6 +5,8 @@ script MonsterSpawner extends Logic
 	property number SpawnInterval = 10.0
 	property any SpawnTimerId = nil
 
+	@HideFromInspector property boolean IsNight = false
+
 	@ExecSpace("ServerOnly")
 	method void OnBeginPlay()
 		log("MonsterSpawner: Spawner logic system starting...")
@@ -39,6 +41,15 @@ script MonsterSpawner extends Logic
 		local mapNames = _DynamicMapService:GetDynamicMapNameList()
 		if not mapNames then return end
 
+		-- Day/Night Cycle calculated by PersistenceManager
+		if _PersistenceManager then
+			self.IsNight = _PersistenceManager:IsNight()
+		else
+			-- Fallback in case PersistenceManager is not initialized yet
+			local time = _UtilLogic.ServerElapsedSeconds % 600
+			self.IsNight = (time >= 300)
+		end
+
 		for _, mapName in ipairs(mapNames) do
 			local map = _EntityService:GetEntityByPath("/maps/" .. mapName)
 			if isvalid(map) then
@@ -62,12 +73,14 @@ script MonsterSpawner extends Logic
 			end
 		end
 
-		if activeCount >= self.MonsterCap then
+		local effectiveCap = self.IsNight and (self.MonsterCap * 2) or self.MonsterCap
+
+		if activeCount >= effectiveCap then
 			return
 		end
 
-		local toSpawn = self.MonsterCap - activeCount
-		log("MonsterSpawner: Map " .. mapName .. " needs " .. toSpawn .. " monster(s). Active: " .. activeCount)
+		local toSpawn = effectiveCap - activeCount
+		log("MonsterSpawner: Map " .. mapName .. " needs " .. toSpawn .. " monster(s). Active: " .. activeCount .. " (IsNight: " .. tostring(self.IsNight) .. ")")
 
 		local spawnDs = _DataService:GetTable("MonsterSpawnDataSet")
 		if spawnDs == nil then return end
@@ -168,14 +181,16 @@ script MonsterSpawner extends Logic
 									-- Attach & tune Monster script properties
 									local mComp = spawnedMonster:GetComponent("script.Monster")
 									if isvalid(mComp) then
-										mComp.MaxHp = mComp.MaxHp * chosenOpt.hpMul
+										local finalHpMul = self.IsNight and (chosenOpt.hpMul * 1.5) or chosenOpt.hpMul
+										mComp.MaxHp = mComp.MaxHp * finalHpMul
 										mComp.Hp = mComp.MaxHp
 									end
 
 									-- Tune attack damage
 									local atkComp = spawnedMonster:GetComponent("script.MonsterMeleeAttack")
 									if isvalid(atkComp) then
-										atkComp.ContactDamage = atkComp.ContactDamage * chosenOpt.atkMul
+										local finalAtkMul = self.IsNight and (chosenOpt.atkMul * 1.5) or chosenOpt.atkMul
+										atkComp.ContactDamage = atkComp.ContactDamage * finalAtkMul
 									end
 
 									-- Set initial AI anchor pos to avoid leashing bugs
