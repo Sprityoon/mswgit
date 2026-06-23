@@ -1,4 +1,4 @@
-RecipeName,Desc,Icon,Ing1Name,Ing1Count,Ing2Name,Ing2Count
+﻿RecipeName,Desc,Icon,Ing1Name,Ing1Count,Ing2Name,Ing2Count
 Hand Axe,A simple axe made of stone. Used to cut trees.,57345d4aa6a640419af19e340c29940f,Stone,2,,0
 Stone Pickaxe,A sturdy tool for mining ores and breaking large stones.,428577ffb2964719b8ab0bb18e5171e1,Wood,1,Stone,3
 Stone Axe,A sturdy axe made of stone and wood. Used to cut trees faster.,2e0751aabbb14ccf85cfb99c024511c9,Stone,3,Wood,1
@@ -9,4 +9,3 @@ Copper Pickaxe,A refined copper pickaxe.,thumbnail://79904036a8a1457cb9b5c624084
 Copper Axe,A refined copper axe.,thumbnail://233fd0760c124458b57928542f77bdc2,Copper Bar,3,Wood,1
 Iron Pickaxe,A sturdy iron pickaxe.,thumbnail://475260585aa44acba3bca0e4b820e208,Iron Bar,3,Wood,1
 Iron Axe,A sturdy iron axe.,thumbnail://963cde7d88654f4a94b045e035ca1cae,Iron Bar,3,Wood,1
-

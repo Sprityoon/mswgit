@@ -627,6 +627,28 @@ script PlayerInventory extends Component
 			return
 		end
 		
+		local currentMap = self.Entity.CurrentMap
+		if not isvalid(currentMap) then return end
+		local mapName = currentMap.Name
+
+		-- Enforce map-specific placement permissions
+		local pc = self.Entity:GetComponent("script.PlayerController")
+		if mapName == "town" then
+			if isvalid(pc) then
+				pc:ShowMineFeedback("마을에서는 설치를 할 수 없습니다.")
+			end
+			return
+		elseif string.sub(mapName, 1, 5) == "Home_" then
+			local ownerId = string.sub(mapName, 6)
+			local guestUserId = playerComp.UserId
+			if _PersistenceManager and not _PersistenceManager:CheckGuestPermission(ownerId, guestUserId, "place") then
+				if isvalid(pc) then
+					pc:ShowMineFeedback("이 영지에서 배치할 수 있는 권한이 없습니다.")
+				end
+				return
+			end
+		end
+		
 		-- Validate item ownership
 		if not self:HasItem(itemName, 1) then
 			log_warning("Player " .. self.Entity.Name .. " does not own " .. itemName)

@@ -224,7 +224,11 @@ function collectComponentScalarTypeIssues(data, findings) {
           findings.push({ severity: "error", rule: "U002", message: `${label} must be int32. Got ${JSON.stringify(value)}` });
         }
         if (NUMBER_COMPONENT_FIELDS.has(key) && (typeof value !== "number" || !Number.isFinite(value))) {
-          findings.push({ severity: "error", rule: "U003", message: `${label} must be a finite number. Got ${JSON.stringify(value)}` });
+          if (key === "Spacing" && compType === "MOD.Core.GridViewComponent") {
+            // Spacing is a Vector2 on GridViewComponent, skip scalar validation
+          } else {
+            findings.push({ severity: "error", rule: "U003", message: `${label} must be a finite number. Got ${JSON.stringify(value)}` });
+          }
         }
         if (BOOLEAN_COMPONENT_FIELDS.has(key) && typeof value !== "boolean") {
           findings.push({ severity: "error", rule: "U004", message: `${label} must be boolean. Got ${JSON.stringify(value)}` });

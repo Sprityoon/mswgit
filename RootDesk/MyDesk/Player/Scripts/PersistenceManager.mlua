@@ -2,6 +2,8 @@
 script PersistenceManager extends Logic
 
 	property table DirtyPlayers = {}
+	property table GuestPermissions = {}
+	property table SubTerritoriesData = {}
 	property any PeriodicSaveTimerId = nil
 
 	-- 월드 밤낮 시간 영속화 관련 속성
@@ -13,6 +15,8 @@ script PersistenceManager extends Logic
 	@ExecSpace("ServerOnly")
 	method void OnBeginPlay()
 		self.DirtyPlayers = {}
+		self.GuestPermissions = {}
+		self.SubTerritoriesData = {}
 
 		_UserService:ConnectEvent(UserEnterEvent, self.OnUserEnter)
 		_UserService:ConnectEvent(UserLeaveEvent, self.OnUserLeave)
@@ -106,6 +110,9 @@ script PersistenceManager extends Logic
 		if isvalid(player) then
 			self:LoadPlayerData(player)
 
+			-- Connect map changed event on server
+			player:ConnectEvent(EntityMapChangedEvent, self.OnPlayerMapChanged)
+
 			-- Reveal the world: fade out the spawn cover now that the player is placed.
 			local pc = player:GetComponent("script.PlayerController")
 			if isvalid(pc) then
@@ -124,21 +131,29 @@ script PersistenceManager extends Logic
 		log("PersistenceManager: Player left: " .. userId .. ". Saving data...")
 		
 		local player = _UserService:GetUserEntityByUserId(userId)
+		local currentMap = nil
 		if isvalid(player) then
+			currentMap = player.CurrentMap
 			self:SavePlayerData(player, true)
 			self.DirtyPlayers[userId] = nil
 		end
 		
-		-- Cleanup dynamic map if no players are left in it
-		local mapName = "Home_" .. userId
-		local map = _EntityService:GetEntityByPath("/maps/" .. mapName)
-		if isvalid(map) then
-			local mapComp = map.MapComponent
+		-- Cleanup dynamic map if no players are left in the map player was in
+		if isvalid(currentMap) and string.sub(currentMap.Name, 1, 5) == "Home_" then
+			local mapComp = currentMap.MapComponent
 			if isvalid(mapComp) then
 				local users = _UserService:GetUsersByMapComponent(mapComp)
-				if not users or #users == 0 then
-					log("PersistenceManager: Destroying empty dynamic map " .. mapName)
-					_DynamicMapService:DestroyDynamicMap(mapName)
+				local count = 0
+				if users then
+					for _, u in ipairs(users) do
+						if isvalid(u) and u.PlayerComponent and u.PlayerComponent.UserId ~= userId then
+							count = count + 1
+						end
+					end
+				end
+				if count == 0 then
+					log("PersistenceManager: Destroying empty dynamic map " .. currentMap.Name .. " on player disconnect")
+					_DynamicMapService:DestroyDynamicMap(currentMap.Name)
 				end
 			end
 		end
@@ -176,6 +191,16 @@ script PersistenceManager extends Logic
 				self:SetDefaultPlayerData(player)
 				return
 			end
+
+			-- Restore Guest Permissions
+			local permRaw = data.guestPermissions or "{}"
+			local p_ok, p_dec = pcall(function() return _HttpService:JSONDecode(permRaw) end)
+			self.GuestPermissions[userId] = p_ok and p_dec or {}
+
+			-- Restore Sub-Territories Data
+			local subRaw = data.subTerritories or "{}"
+			local sub_ok, sub_dec = pcall(function() return _HttpService:JSONDecode(subRaw) end)
+			self.SubTerritoriesData[userId] = sub_ok and sub_dec or {}
 
 			-- Restore PlayerController stats
 			local pc = player:GetComponent("script.PlayerController")
@@ -274,6 +299,7 @@ script PersistenceManager extends Logic
 			else
 				log_warning("PersistenceManager: Load failed for " .. userId .. " with error code: " .. tostring(errorCode))
 			end
+			self.GuestPermissions[userId] = {}
 			self:SetDefaultPlayerData(player)
 			
 			_ResourceSpawner:SetPlacedTilesJson(mapName, "[]")
@@ -352,6 +378,52 @@ script PersistenceManager extends Logic
 		
 		local furnJson = _HttpService:JSONEncode(furnList)
 		local destJson = _ResourceSpawner:GetDestroyedResourcesAsJson(mapName)
+		local permList = self.GuestPermissions[userId] or {}
+		local permJson = _HttpService:JSONEncode(permList)
+
+		-- Collect and serialize active sub-territories currently in memory
+		local subTerritories = self.SubTerritoriesData[userId] or {}
+		for i = 1, 5 do
+			local subMapName = "Home_" .. userId .. "_Sub_" .. i
+			local subMap = _EntityService:GetEntityByPath("/maps/" .. subMapName)
+			if isvalid(subMap) then
+				local subTiles = _ResourceSpawner:GetPlacedTilesJson(subMapName)
+				local subFurnRaw = _ResourceSpawner:GetPlacedFurnitureJson(subMapName)
+				local subFurnList = {}
+				if subFurnRaw ~= nil and subFurnRaw ~= "" then
+					local ok, decoded = pcall(function() return _HttpService:JSONDecode(subFurnRaw) end)
+					if ok and decoded then
+						subFurnList = decoded
+					end
+				end
+				
+				local subChestComps = subMap:GetChildComponentsByTypeName("script.Chest", true)
+				local subTilemap = subMap:GetFirstChildComponentByTypeName("RectTileMapComponent", true)
+				if subChestComps and isvalid(subTilemap) then
+					for _, comp in ipairs(subChestComps) do
+						local ent = comp.Entity
+						if isvalid(ent) then
+							local entCell = subTilemap:ToCellPosition(ent.TransformComponent.WorldPosition)
+							if entCell then
+								for _, furn in ipairs(subFurnList) do
+									if furn.itemName == "Wooden Chest" and furn.x == entCell.x and furn.y == entCell.y then
+										furn.chestItems = comp:GetItems()
+										break
+									end
+								end
+							end
+						end
+					end
+				end
+				
+				subTerritories[tostring(i)] = {
+					tiles = subTiles,
+					furniture = _HttpService:JSONEncode(subFurnList),
+					destroyed = _ResourceSpawner:GetDestroyedResourcesAsJson(subMapName)
+				}
+			end
+		end
+		local subJson = _HttpService:JSONEncode(subTerritories)
 
 		local data = {
 			level = tonumber(pc.Level) or 1,
@@ -368,7 +440,9 @@ script PersistenceManager extends Logic
 			posY = tonumber(posY) or 0.0,
 			homeTiles = tilesJson,
 			homeFurniture = furnJson,
-			homeDestroyedResources = destJson
+			homeDestroyedResources = destJson,
+			guestPermissions = permJson,
+			subTerritories = subJson
 		}
 
 		local jsonStr = _HttpService:JSONEncode(data)
@@ -498,6 +572,165 @@ script PersistenceManager extends Logic
 			curTime = self.ClientAccumulatedTime
 		end
 		return curTime % 600
+	end
+
+	@ExecSpace("ServerOnly")
+	method void OnPlayerMapChanged(EntityMapChangedEvent event)
+		local player = event.Entity
+		if not isvalid(player) or player.PlayerComponent == nil then return end
+
+		local oldMap = event.OldMap
+		local newMap = event.NewMap
+		local userId = player.PlayerComponent.UserId
+
+		-- 1. GC empty map if visitor left it
+		if isvalid(oldMap) and string.sub(oldMap.Name, 1, 5) == "Home_" then
+			local mapComp = oldMap.MapComponent
+			if isvalid(mapComp) then
+				local users = _UserService:GetUsersByMapComponent(mapComp)
+				local count = 0
+				if users then
+					for _, u in ipairs(users) do
+						if isvalid(u) and u.PlayerComponent and u.PlayerComponent.UserId ~= userId then
+							count = count + 1
+						end
+					end
+				end
+				if count == 0 then
+					log("PersistenceManager: Destroying empty dynamic map " .. oldMap.Name .. " after visitor warped out")
+					_DynamicMapService:DestroyDynamicMap(oldMap.Name)
+				end
+			end
+		end
+
+		-- 2. Sync B's permissions in newMap
+		if isvalid(newMap) then
+			local mapName = newMap.Name
+			local mine, place, interact = false, false, false
+			if mapName == "Home_" .. userId then
+				-- Own map: full permission
+				mine = true
+				place = true
+				interact = true
+			elseif string.sub(mapName, 1, 5) == "Home_" then
+				-- Other player's home map: check permissions
+				local ownerId = string.sub(mapName, 6)
+				local hasPerm = self:CheckGuestPermission(ownerId, userId, "place") -- Using "place" as proxy
+				mine = hasPerm
+				place = hasPerm
+				interact = hasPerm
+			else
+				-- Town or other public maps: no placement/mining/interact permission
+				mine = false
+				place = false
+				interact = false
+			end
+			local pc = player:GetComponent("script.PlayerController")
+			if isvalid(pc) then
+				pc:ClientSetCurrentMapPermissions(mine, place, interact)
+			end
+		end
+	end
+
+	@ExecSpace("ServerOnly")
+	method boolean CheckGuestPermission(string ownerId, string guestId, string actionType)
+		if ownerId == guestId then return true end
+		local ownerPerms = self.GuestPermissions[ownerId]
+		if ownerPerms == nil then return false end
+		local guestPerms = ownerPerms[guestId]
+		if guestPerms == nil then return false end
+		return guestPerms[actionType] == true
+	end
+
+	@ExecSpace("ServerOnly")
+	method void ServerRequestTogglePermission(string ownerId, string guestUserId)
+		if self.GuestPermissions[ownerId] == nil then
+			self.GuestPermissions[ownerId] = {}
+		end
+		
+		local current = self.GuestPermissions[ownerId][guestUserId]
+		local newPerm = true
+		if current and current.place then
+			newPerm = false
+		end
+		
+		self.GuestPermissions[ownerId][guestUserId] = { mine = newPerm, place = newPerm, interact = newPerm }
+		self:MarkPlayerDirty(ownerId)
+		log("PersistenceManager: Toggled guest permission for owner " .. ownerId .. " -> guest " .. guestUserId .. " to " .. tostring(newPerm))
+		
+		-- Notify the guest if they are currently in the owner's map
+		local guestPlayer = _UserService:GetUserEntityByUserId(guestUserId)
+		if isvalid(guestPlayer) and isvalid(guestPlayer.CurrentMap) and guestPlayer.CurrentMap.Name == "Home_" .. ownerId then
+			local pc = guestPlayer:GetComponent("script.PlayerController")
+			if isvalid(pc) then
+				pc:ClientSetCurrentMapPermissions(newPerm, newPerm, newPerm)
+			end
+		end
+	end
+
+	@ExecSpace("ServerOnly")
+	method void LoadSubTerritoryMap(string userId, integer index)
+		local mapName = "Home_" .. userId .. "_Sub_" .. index
+		local map = _EntityService:GetEntityByPath("/maps/" .. mapName)
+		if not isvalid(map) then
+			log("PersistenceManager: Creating dynamic sub-territory map " .. mapName)
+			local ec = _DynamicMapService:CreateDynamicMap("map01", mapName)
+			if ec == DynamicMapResultCode.Success then
+				map = _EntityService:GetEntityByPath("/maps/" .. mapName)
+				if isvalid(map) then
+					log("PersistenceManager: Dynamic sub-territory map created successfully. Loading placements...")
+					
+					_ResourceSpawner:SpawnInitialResourcesForMap(map)
+					
+					local subData = self.SubTerritoriesData[userId] and self.SubTerritoriesData[userId][tostring(index)]
+					local tilesRaw = subData and subData.tiles or "[]"
+					local furnRaw = subData and subData.furniture
+					local destRaw = subData and subData.destroyed or "[]"
+					
+					if furnRaw == nil or furnRaw == "" or furnRaw == "[]" then
+						furnRaw = "[{\"itemName\":\"Portal\",\"x\":-5,\"y\":0}]"
+					end
+					
+					_ResourceSpawner:SetPlacedTilesJson(mapName, tilesRaw)
+					_ResourceSpawner:SetPlacedFurnitureJson(mapName, furnRaw)
+					_ResourceSpawner:LoadDestroyedResourcesFromJson(mapName, destRaw)
+					_ResourceSpawner:ReconstructWorldPlacementsForMap(map)
+					
+					-- Reconstruct chest items
+					local furnList = {}
+					if furnRaw ~= nil and furnRaw ~= "" then
+						local ok, decoded = pcall(function() return _HttpService:JSONDecode(furnRaw) end)
+						if ok and decoded then
+							furnList = decoded
+						end
+					end
+					local chestComps = map:GetChildComponentsByTypeName("script.Chest", true)
+					local tilemap = map:GetFirstChildComponentByTypeName("RectTileMapComponent", true)
+					if chestComps and isvalid(tilemap) then
+						for _, comp in ipairs(chestComps) do
+							local ent = comp.Entity
+							if isvalid(ent) then
+								local entCell = tilemap:ToCellPosition(ent.TransformComponent.WorldPosition)
+								if entCell then
+									for _, furn in ipairs(furnList) do
+										if furn.itemName == "Wooden Chest" and furn.x == entCell.x and furn.y == entCell.y then
+											if furn.chestItems then
+												comp:SetItems(furn.chestItems)
+											end
+											break
+										end
+									end
+								end
+							end
+						end
+					end
+				else
+					log_error("PersistenceManager: Failed to get sub map entity after creation for " .. mapName)
+				end
+			else
+				log_error("PersistenceManager: CreateDynamicMap failed for " .. mapName)
+			end
+		end
 	end
 
 end

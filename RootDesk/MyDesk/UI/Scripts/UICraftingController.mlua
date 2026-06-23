@@ -51,6 +51,8 @@ script UICraftingController extends Component
 
 	property boolean isCrafting = false
 
+	property number LastToggleTime = 0
+
 	@ExecSpace("ClientOnly")
 	method void OnBeginPlay()
 		self.Entity.Enable = false
@@ -176,6 +178,11 @@ script UICraftingController extends Component
 
 	@ExecSpace("ClientOnly")
 	method void Toggle()
+		-- description: Toggles the crafting popup with time-based debounce check.
+		local now = _UtilLogic.ElapsedSeconds
+		if now - self.LastToggleTime < 0.15 then return end
+		self.LastToggleTime = now
+		
 		if self.TargetScale > 0.9 and self.Entity.Enable then
 			self:Close()
 		else

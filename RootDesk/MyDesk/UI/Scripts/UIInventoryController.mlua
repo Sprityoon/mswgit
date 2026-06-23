@@ -90,6 +90,8 @@ script UIInventoryController extends Component
 
 	property any keyDownHandler = nil
 
+	property number LastToggleTime = 0
+
 	@ExecSpace("ClientOnly")
 	method void OnBeginPlay()
 		self.inventoryPopup.Enable = false
@@ -232,6 +234,11 @@ script UIInventoryController extends Component
 
 	@ExecSpace("ClientOnly")
 	method void Toggle()
+		-- description: Toggles the inventory popup with time-based debounce check.
+		local now = _UtilLogic.ElapsedSeconds
+		if now - self.LastToggleTime < 0.15 then return end
+		self.LastToggleTime = now
+		
 		if self.TargetScale > 0.9 and self.inventoryPopup.Enable then
 			self:Close()
 		else

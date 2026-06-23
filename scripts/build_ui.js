@@ -156,6 +156,74 @@ function patchPopups() {
     }
   }
 
+  // 4) PermissionPopup Panel (hidden by default)
+  const PP = "PermissionPopup";
+  if (!b.getId(`/ui/PopupGroup/${PP}`)) {
+    b.panel(PP, { anchor: "middle-center", pos: [0, 0], rect_size: [800, 700], enable: false });
+    b.addComponent(PP, "script.UIPermissionController");
+    b.patch(PP, { display_order: 45 });
+    
+    b.sprite(`${PP}/Bg`, { anchor: "middle-center", pos: [0, 0], rect_size: [380, 420], color: "#2B2B33", alpha: 1.0, raycast: true });
+    b.text(`${PP}/Bg/Title`, "영지 권한 설정", { anchor: "middle-center", pos: [0, 160], rect_size: [280, 40], size: 26, color: "#FFE9A8", alignment: 4 });
+    b.button(`${PP}/Bg/BtnClose`, "X", { anchor: "middle-center", pos: [155, 160], rect_size: [40, 40], font_size: 22, color: "#FFFFFF" });
+    b.patchComponent(`${PP}/Bg/BtnClose`, "MOD.Core.SpriteGUIRendererComponent", { Color: { r: 0.55, g: 0.18, b: 0.16, a: 1.0 } });
+    
+    const rowYPositions = [80, 20, -40, -100];
+    for (let i = 1; i <= 4; i++) {
+      const rowY = rowYPositions[i - 1];
+      const rowName = `${PP}/Bg/Row${i}`;
+      b.panel(rowName, { anchor: "middle-center", pos: [0, rowY], rect_size: [340, 50], enable: false });
+      b.text(`${rowName}/Name`, "Guest Name", { anchor: "middle-left", pos: [20, 0], rect_size: [180, 30], size: 18, color: "#FFFFFF", alignment: 3 });
+      b.button(`${rowName}/BtnToggle`, "권한 부여", { anchor: "middle-right", pos: [-20, 0], rect_size: [100, 38], font_size: 16, color: "#FFFFFF" });
+      b.patchComponent(`${rowName}/BtnToggle`, "MOD.Core.SpriteGUIRendererComponent", { Color: { r: 0.30, g: 0.30, b: 0.36, a: 1.0 } });
+    }
+    
+    b.text(`${PP}/Bg/Notice`, "영지 주인만 권한을 조정할 수 있습니다.", { anchor: "middle-center", pos: [0, -165], rect_size: [340, 30], size: 14, color: "#999999", alignment: 4 });
+  } else {
+    if (!b.hasComponent(PP, "script.UIPermissionController")) {
+      b.addComponent(PP, "script.UIPermissionController");
+    }
+  }
+
+  // 5) WarpPopup Panel (hidden by default)
+  const WP = "WarpPopup";
+  if (!b.getId(`/ui/PopupGroup/${WP}`)) {
+    b.panel(WP, { anchor: "middle-center", pos: [0, 0], rect_size: [800, 700], enable: false });
+    b.addComponent(WP, "script.UIWarpController");
+    b.patch(WP, { display_order: 42 });
+    
+    b.sprite(`${WP}/Bg`, { anchor: "middle-center", pos: [0, 0], rect_size: [380, 360], color: "#2B2B33", alpha: 1.0, raycast: true });
+    b.text(`${WP}/Bg/Title`, "이동 포탈", { anchor: "middle-center", pos: [0, 130], rect_size: [280, 40], size: 26, color: "#FFE9A8", alignment: 4 });
+    b.button(`${WP}/Bg/BtnClose`, "X", { anchor: "middle-center", pos: [155, 130], rect_size: [40, 40], font_size: 22, color: "#FFFFFF" });
+    b.patchComponent(`${WP}/Bg/BtnClose`, "MOD.Core.SpriteGUIRendererComponent", { Color: { r: 0.55, g: 0.18, b: 0.16, a: 1.0 } });
+    
+    b.button(`${WP}/Bg/BtnMyHome`, "내 영지로 이동", { anchor: "middle-center", pos: [0, 60], rect_size: [280, 50], font_size: 20, color: "#FFFFFF" });
+    b.patchComponent(`${WP}/Bg/BtnMyHome`, "MOD.Core.SpriteGUIRendererComponent", { Color: { r: 0.19, g: 0.19, b: 0.24, a: 1.0 } });
+    
+    b.text(`${WP}/Bg/Divider`, "— 또는 다른 영지 방문 —", { anchor: "middle-center", pos: [0, 0], rect_size: [280, 20], size: 14, color: "#AAAAAA", alignment: 4 });
+    b.textInput(`${WP}/Bg/InputName`, "유저 이름을 입력하세요", { anchor: "middle-center", pos: [-50, -50], rect_size: [180, 42], font_size: 16 });
+    b.button(`${WP}/Bg/BtnVisit`, "방문", { anchor: "middle-center", pos: [100, -50], rect_size: [80, 42], font_size: 18, color: "#FFFFFF" });
+    b.patchComponent(`${WP}/Bg/BtnVisit`, "MOD.Core.SpriteGUIRendererComponent", { Color: { r: 0.18, g: 0.40, b: 0.20, a: 1.0 } });
+  } else {
+    if (!b.hasComponent(WP, "script.UIWarpController")) {
+      b.addComponent(WP, "script.UIWarpController");
+    }
+  }
+
+  // 6) BtnPermission inside CharacterPopup/StatsPanel
+  if (!b.getId(`/ui/PopupGroup/CharacterPopup/StatsPanel/BtnPermission`)) {
+    b.button("CharacterPopup/StatsPanel/BtnPermission", "영지 권한 설정", {
+      anchor: "top-center",
+      pos: [180, -420],
+      rect_size: [240, 46],
+      font_size: 20,
+      color: "#FFFFFF"
+    });
+    b.patchComponent("CharacterPopup/StatsPanel/BtnPermission", "MOD.Core.SpriteGUIRendererComponent", {
+      Color: { r: 0.19, g: 0.19, b: 0.24, a: 1.0 }
+    });
+  }
+
   b.write(file, {
     bind: {
       mlua: path.join(rootUIDir, "UIInventoryController.mlua"),
@@ -183,6 +251,30 @@ function patchPopups() {
     chestProps[`slot${i}_count`] = `${CP}/Bg/Slot${i}/Count`;
   }
   b.injectBindings(path.join(rootUIDir, "UIChestController.mlua"), chestProps);
+
+  // Inject Character bindings
+  b.injectBindings(path.join(rootUIDir, "UICharacterController.mlua"), {
+    btnPermission: "CharacterPopup/StatsPanel/BtnPermission"
+  });
+
+  // Inject Permission bindings
+  const permissionProps = {
+    btnClose: `${PP}/Bg/BtnClose`
+  };
+  for (let i = 1; i <= 4; i++) {
+    permissionProps[`row${i}`] = `${PP}/Bg/Row${i}`;
+    permissionProps[`row${i}_name`] = `${PP}/Bg/Row${i}/Name`;
+    permissionProps[`row${i}_btn`] = `${PP}/Bg/Row${i}/BtnToggle`;
+  }
+  b.injectBindings(path.join(rootUIDir, "UIPermissionController.mlua"), permissionProps);
+
+  // Inject Warp bindings
+  b.injectBindings(path.join(rootUIDir, "UIWarpController.mlua"), {
+    btnClose: `${WP}/Bg/BtnClose`,
+    btnMyHome: `${WP}/Bg/BtnMyHome`,
+    inputName: `${WP}/Bg/InputName`,
+    btnVisit: `${WP}/Bg/BtnVisit`
+  });
 
   const after = b.listEntities().length;
   console.log(`PopupGroup.ui patched: ${before} -> ${after} entities.`);

@@ -1,4 +1,4 @@
-SourceId,BiomeId,ItemId,MinCount,MaxCount,Probability
+﻿SourceId,BiomeId,ItemId,MinCount,MaxCount,Probability
 Big Stone1,,stone,8,12,1.0
 Big Stone1,,copper ore,1,2,0.2
 Big Stone1,rocky,stone,8,12,1.0

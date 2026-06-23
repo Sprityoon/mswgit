@@ -4,6 +4,7 @@ script UICharacterController extends Component
 	property Entity characterPopup = "d069e6fa-bcb5-4bd0-b1a9-accf919aafb3"
 
 	property ButtonComponent btnClose = "1fbacf8c-7528-4613-9ec6-a00269c0fdbe"
+	property Entity btnPermission = "c1473594-13dc-472b-b585-f8884284fe14"
 
 	property TextComponent charName = "339fef99-6df2-40cf-b8a1-f775a76519ef"
 
@@ -37,10 +38,26 @@ script UICharacterController extends Component
 
 	property any closeHandler = nil
 
+	property number LastToggleTime = 0
+
 	@ExecSpace("ClientOnly")
 	method void OnBeginPlay()
 		self.characterPopup.Enable = false
 		self.closeHandler = self.btnClose.Entity:ConnectEvent(ButtonClickEvent, function() self:Close() end)
+		
+		if isvalid(self.btnPermission) then
+			self.btnPermission:ConnectEvent(ButtonClickEvent, function()
+				self:Close()
+				local permPopup = _EntityService:GetEntityByPath("/ui/PopupGroup/PermissionPopup")
+				if isvalid(permPopup) then
+					local ctrl = permPopup:GetComponent("script.UIPermissionController")
+					if isvalid(ctrl) then
+						ctrl:Open()
+					end
+				end
+			end)
+		end
+		
 		self:UpdateDimmer()
 	end
 
@@ -53,6 +70,11 @@ script UICharacterController extends Component
 
 	@ExecSpace("ClientOnly")
 	method void Toggle()
+		-- description: Toggles the character information popup with time-based debounce check.
+		local now = _UtilLogic.ElapsedSeconds
+		if now - self.LastToggleTime < 0.15 then return end
+		self.LastToggleTime = now
+		
 		if self.TargetScale > 0.9 and self.characterPopup.Enable then
 			self:Close()
 		else
@@ -126,6 +148,20 @@ script UICharacterController extends Component
 		
 		-- Update HP
 		local playerComp = player.PlayerComponent
+		
+		-- Show/hide permissions button based on whether we are the owner of the current home map
+		if isvalid(self.btnPermission) then
+			local currentMap = player.CurrentMap
+			local isOwnerOfHome = false
+			if isvalid(currentMap) and string.sub(currentMap.Name, 1, 5) == "Home_" then
+				local ownerId = string.sub(currentMap.Name, 6)
+				if playerComp and playerComp.UserId == ownerId then
+					isOwnerOfHome = true
+				end
+			end
+			self.btnPermission.Enable = isOwnerOfHome
+		end
+		
 		if isvalid(playerComp) then
 			local hp = playerComp.Hp
 			local maxHp = playerComp.MaxHp

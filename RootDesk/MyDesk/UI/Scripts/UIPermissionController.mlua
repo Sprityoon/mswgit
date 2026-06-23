@@ -1,0 +1,136 @@
+@Component
+script UIPermissionController extends Component
+
+	property Entity btnClose = "9fd06324-fe68-44d6-b5dd-3f4688518bec"
+
+	property Entity row1 = "1e850911-1d8c-43ab-804f-4fbaee176dda"
+	property Entity row1_name = "100fe625-84b0-47c1-a508-702ddba4da03"
+	property Entity row1_btn = "d17e9aa8-059a-4fef-9f8a-d43b55a7392c"
+
+	property Entity row2 = "36930165-b8fa-4fec-b869-4bffa0d0d958"
+	property Entity row2_name = "e09636e5-842c-4031-b98b-941783e242ce"
+	property Entity row2_btn = "4a6d6472-2e02-4296-aaf9-b1636e1bccdb"
+
+	property Entity row3 = "ea3fb2e4-4202-4ffa-ab14-335b549f8053"
+	property Entity row3_name = "be803022-8c8d-4b24-99bc-b855a01be118"
+	property Entity row3_btn = "63f42617-d1b1-4fad-a012-5627ffe47f47"
+
+	property Entity row4 = "8db8500f-ca4b-44a9-a6bd-251af453b198"
+	property Entity row4_name = "72a064c8-5325-41c5-820f-cbfc425cad4c"
+	property Entity row4_btn = "8ec34750-0e47-4552-9f13-2ae49e640a90"
+
+	property table guestList = {}
+
+	@ExecSpace("ClientOnly")
+	method void OnBeginPlay()
+		self.Entity.Enable = false
+		if isvalid(self.btnClose) then
+			self.btnClose:ConnectEvent(ButtonClickEvent, function() self:Close() end)
+		end
+
+		-- Setup row button handlers
+		for i = 1, 4 do
+			local btn = self["row" .. i .. "_btn"]
+			if isvalid(btn) then
+				btn:ConnectEvent(ButtonClickEvent, function()
+					self:OnToggleClick(i)
+				end)
+			end
+		end
+	end
+
+	@ExecSpace("ClientOnly")
+	method void Open()
+		self.Entity.Enable = true
+		local localPlayer = _UserService.LocalPlayer
+		if isvalid(localPlayer) then
+			local pc = localPlayer:GetComponent("script.PlayerController")
+			if isvalid(pc) then
+				-- Request permission list from server via PlayerController
+				pc:ServerRequestOpenPermissionSettings()
+			end
+		end
+	end
+
+	@ExecSpace("ClientOnly")
+	method void Close()
+		self.Entity.Enable = false
+		
+		-- Also ensure character info popup can be updated
+		local dimmer = _EntityService:GetEntityByPath("/ui/PopupGroup/Dimmer")
+		if isvalid(dimmer) then
+			local inv = _EntityService:GetEntityByPath("/ui/PopupGroup/InventoryPopup")
+			local craft = _EntityService:GetEntityByPath("/ui/PopupGroup/CraftingPopup")
+			local char = _EntityService:GetEntityByPath("/ui/PopupGroup/CharacterPopup")
+			local anyOpen = (isvalid(inv) and inv.Enable) or (isvalid(craft) and craft.Enable) or (isvalid(char) and char.Enable)
+			dimmer.Enable = anyOpen
+		end
+	end
+
+	@ExecSpace("ClientOnly")
+	method void UpdatePermissionUI(string guestListJson)
+		-- description: Updates the permission setting UI with safely decoded guest list JSON.
+		self.guestList = {}
+		local decoded = {}
+		
+		if guestListJson ~= nil and guestListJson ~= "" then
+			local trimmed = string.match(guestListJson, "^%s*(.-)%s*$")
+			if trimmed ~= "" and (string.sub(trimmed, 1, 1) == "[" or string.sub(trimmed, 1, 1) == "{") then
+				local ok, result = pcall(function() return _HttpService:JSONDecode(trimmed) end)
+				if ok and type(result) == "table" then
+					decoded = result
+				end
+			end
+		end
+		
+		for i = 1, 4 do
+			local guest = decoded[i]
+			local row = self["row" .. i]
+			local nameText = self["row" .. i .. "_name"]
+			local btn = self["row" .. i .. "_btn"]
+			
+			if isvalid(row) then
+				if guest then
+					row.Enable = true
+					self.guestList[i] = guest.UserId
+					
+					if isvalid(nameText) and isvalid(nameText.TextComponent) then
+						nameText.TextComponent.Text = guest.Name
+					end
+					
+					if isvalid(btn) then
+						if guest.HasPermission then
+							if isvalid(btn.TextComponent) then btn.TextComponent.Text = "권한 회수" end
+							if isvalid(btn.SpriteGUIRendererComponent) then
+								btn.SpriteGUIRendererComponent.Color = Color(0.55, 0.18, 0.16, 1.0) -- Red
+							end
+						else
+							if isvalid(btn.TextComponent) then btn.TextComponent.Text = "권한 부여" end
+							if isvalid(btn.SpriteGUIRendererComponent) then
+								btn.SpriteGUIRendererComponent.Color = Color(0.18, 0.40, 0.20, 1.0) -- Green
+							end
+						end
+					end
+				else
+					row.Enable = false
+					self.guestList[i] = nil
+				end
+			end
+		end
+	end
+
+	@ExecSpace("ClientOnly")
+	method void OnToggleClick(integer rowIndex)
+		local guestId = self.guestList[rowIndex]
+		if guestId == nil or guestId == "" then return end
+		
+		local localPlayer = _UserService.LocalPlayer
+		if isvalid(localPlayer) then
+			local pc = localPlayer:GetComponent("script.PlayerController")
+			if isvalid(pc) then
+				pc:ServerRequestTogglePermission(guestId)
+			end
+		end
+	end
+
+end

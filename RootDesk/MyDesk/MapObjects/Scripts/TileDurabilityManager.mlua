@@ -32,6 +32,26 @@ script TileDurabilityManager extends Logic
 		if not isvalid(mapEntity) then return end
 		
 		local mapName = mapEntity.Name
+		
+		-- Enforce map-specific harvesting permissions
+		if mapName == "town" then
+			local pc = attacker:GetComponent("script.PlayerController")
+			if isvalid(pc) then
+				pc:ShowMineFeedback("마을에서는 채집/철거를 할 수 없습니다.")
+			end
+			return
+		elseif string.sub(mapName, 1, 5) == "Home_" then
+			local ownerId = string.sub(mapName, 6)
+			local guestId = attacker.PlayerComponent.UserId
+			if _PersistenceManager and not _PersistenceManager:CheckGuestPermission(ownerId, guestId, "mine") then
+				local pc = attacker:GetComponent("script.PlayerController")
+				if isvalid(pc) then
+					pc:ShowMineFeedback("이 영지에서 채집/철거할 수 있는 권한이 없습니다.")
+				end
+				return
+			end
+		end
+
 		local resourceSpawner = _ResourceSpawner
 		if resourceSpawner == nil then
 			log_warning("TileDurabilityManager: ResourceSpawner is not available.")

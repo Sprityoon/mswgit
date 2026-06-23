@@ -1,7 +1,7 @@
 {
   "Id": "",
   "GameId": "",
-  "EntryKey": "model://maplestorymapobject$72373e3670464e5ca1aaae6a0005564f",
+  "EntryKey": "model://maplestorymapobject$ironnode",
   "ContentType": "x-mod/model",
   "Content": "",
   "Usage": 0,
@@ -14,16 +14,16 @@
     "Use": "Json",
     "Json": {
       "Type": "MODLazyModel",
-      "Name": "IronNodeResource",
-      "Id": "maplestorymapobject$72373e3670464e5ca1aaae6a0005564f",
+      "Name": "Iron Node",
+      "Id": "maplestorymapobject$ironnode",
       "ModelId": "MapObject",
       "DataSetId": "MapObjectDataSet",
-      "DataId": "72373e3670464e5ca1aaae6a0005564f",
+      "DataId": "ironnode",
       "Target": {
         "Version": 1,
-        "Name": "IronNodeResource",
+        "Name": "Iron Node",
         "BaseModelId": "mapobject",
-        "Id": "maplestorymapobject$72373e3670464e5ca1aaae6a0005564f",
+        "Id": "ironnode",
         "Components": [
           "script.ResourceOccupiedArea",
           "MOD.Core.PhysicsColliderComponent",

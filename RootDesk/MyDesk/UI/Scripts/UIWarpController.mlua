@@ -1,0 +1,67 @@
+@Component
+script UIWarpController extends Component
+
+	property Entity btnClose = "23f03517-14f6-4f18-9265-ce78e9df7f71"
+	property Entity btnMyHome = "f8073c95-03e4-4bd9-9716-30404d97d66a"
+	property Entity inputName = "9ca5fe8c-af1b-4d67-ada7-61cdc5a70601"
+	property Entity btnVisit = "afda47d6-3606-48c8-aa91-9bea17dd15bc"
+
+	@ExecSpace("ClientOnly")
+	method void OnBeginPlay()
+		self.Entity.Enable = false
+		if isvalid(self.btnClose) then
+			self.btnClose:ConnectEvent(ButtonClickEvent, function() self:Close() end)
+		end
+		if isvalid(self.btnMyHome) then
+			self.btnMyHome:ConnectEvent(ButtonClickEvent, function() self:OnMyHomeClick() end)
+		end
+		if isvalid(self.btnVisit) then
+			self.btnVisit:ConnectEvent(ButtonClickEvent, function() self:OnVisitClick() end)
+		end
+	end
+
+	@ExecSpace("ClientOnly")
+	method void Open()
+		self.Entity.Enable = true
+		if isvalid(self.inputName) and isvalid(self.inputName.TextInputComponent) then
+			self.inputName.TextInputComponent.Text = ""
+		end
+	end
+
+	@ExecSpace("ClientOnly")
+	method void Close()
+		self.Entity.Enable = false
+	end
+
+	@ExecSpace("ClientOnly")
+	method void OnMyHomeClick()
+		local localPlayer = _UserService.LocalPlayer
+		if isvalid(localPlayer) then
+			local pc = localPlayer:GetComponent("script.PlayerController")
+			if isvalid(pc) then
+				pc:ServerRequestWarp()
+			end
+		end
+		self:Close()
+	end
+
+	@ExecSpace("ClientOnly")
+	method void OnVisitClick()
+		if not isvalid(self.inputName) or not isvalid(self.inputName.TextInputComponent) then return end
+		local targetName = self.inputName.TextInputComponent.Text
+		if targetName == "" then
+			_ScreenMessageLogic:PrivateMsg("방문할 유저 이름을 입력하세요.")
+			return
+		end
+
+		local localPlayer = _UserService.LocalPlayer
+		if isvalid(localPlayer) then
+			local pc = localPlayer:GetComponent("script.PlayerController")
+			if isvalid(pc) then
+				pc:ServerRequestVisitHome(targetName)
+			end
+		end
+		self:Close()
+	end
+
+end

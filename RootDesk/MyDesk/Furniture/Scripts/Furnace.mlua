@@ -135,15 +135,26 @@ script Furnace extends Component
 	@ExecSpace("Server")
 	method void RequestPutItem(string slotType, string itemName, integer amount)
 		-- Processes the player request to transfer ore or fuel into the furnace slots.
-		local playerEntity = nil
-		for _, user in ipairs(_UserService.UserEntities.Values) do
-			if isvalid(user) and user.PlayerComponent and user.PlayerComponent.UserId == senderUserId then
-				playerEntity = user
-				break
+		local userId = senderUserId
+		if userId == nil or userId == "" then
+			userId = _G.senderUserId or ""
+		end
+		local playerEntity = _UserService:GetUserEntityByUserId(userId)
+		if not isvalid(playerEntity) then return end
+		
+		-- Enforce map interact permission
+		local currentMap = self.Entity.CurrentMap
+		if isvalid(currentMap) and string.sub(currentMap.Name, 1, 5) == "Home_" then
+			local ownerId = string.sub(currentMap.Name, 6)
+			if _PersistenceManager and not _PersistenceManager:CheckGuestPermission(ownerId, userId, "interact") then
+				local pc = playerEntity:GetComponent("script.PlayerController")
+				if isvalid(pc) then
+					pc:ShowMineFeedback("이 영지의 화로를 이용할 수 있는 권한이 없습니다.")
+				end
+				return
 			end
 		end
-		
-		if not isvalid(playerEntity) then return end
+
 		local inv = playerEntity:GetComponent("script.PlayerInventory")
 		if not isvalid(inv) then return end
 		
@@ -177,15 +188,26 @@ script Furnace extends Component
 	@ExecSpace("Server")
 	method void RequestTakeItem(string slotType)
 		-- Processes the player request to take items back from the furnace slots.
-		local playerEntity = nil
-		for _, user in ipairs(_UserService.UserEntities.Values) do
-			if isvalid(user) and user.PlayerComponent and user.PlayerComponent.UserId == senderUserId then
-				playerEntity = user
-				break
+		local userId = senderUserId
+		if userId == nil or userId == "" then
+			userId = _G.senderUserId or ""
+		end
+		local playerEntity = _UserService:GetUserEntityByUserId(userId)
+		if not isvalid(playerEntity) then return end
+		
+		-- Enforce map interact permission
+		local currentMap = self.Entity.CurrentMap
+		if isvalid(currentMap) and string.sub(currentMap.Name, 1, 5) == "Home_" then
+			local ownerId = string.sub(currentMap.Name, 6)
+			if _PersistenceManager and not _PersistenceManager:CheckGuestPermission(ownerId, userId, "interact") then
+				local pc = playerEntity:GetComponent("script.PlayerController")
+				if isvalid(pc) then
+					pc:ShowMineFeedback("이 영지의 화로를 이용할 수 있는 권한이 없습니다.")
+				end
+				return
 			end
 		end
-		
-		if not isvalid(playerEntity) then return end
+
 		local inv = playerEntity:GetComponent("script.PlayerInventory")
 		if not isvalid(inv) then return end
 		

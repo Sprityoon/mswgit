@@ -6,11 +6,12 @@ script ResourceSpawner extends Logic
 	property table DestroyedResourcesMap = {}
 	property table PlacedTilesJsonMap = {}
 	property table PlacedFurnitureJsonMap = {}
+	property table LoadedChunksMap = {}
 
 	property any RespawnTimerId = nil
 	property integer LoadingTimerId = 0
 	property integer PrngSeed = 12345
-	property integer MapRadius = 75
+	property integer MapRadius = 120
 	property integer SpawnZoneRadius = 5
 	property integer MacroCellSize = 10
 	property integer MacroGridCount = 15
@@ -163,51 +164,121 @@ script ResourceSpawner extends Logic
 
 	@ExecSpace("ServerOnly")
 	method string GetBiomeAt(number x, number y)
-		-- Returns the biome ID at the given world coordinate.
-		if self._T.MacroGridCache == nil then
-			local macroGrid = {}
-			local biomeMapDs = _DataService:GetTable("BiomeMapDataSet")
-			if biomeMapDs ~= nil then
-				local maxMacroIndex = self.MacroGridCount - 1
-				for i = 1, biomeMapDs:GetRowCount() do
-					local r = tonumber(biomeMapDs:GetCell(i, "Row"))
-					if r ~= nil then
-						macroGrid[r] = {}
-						for c = 0, maxMacroIndex do
-							local cellVal = biomeMapDs:GetCell(i, "C" .. c)
-							if cellVal ~= nil and cellVal ~= "" then
-								macroGrid[r][c] = cellVal
-							end
-						end
-					end
-				end
-			end
-			self._T.MacroGridCache = macroGrid
-		end
-
 		local seedVal = self.PrngSeed
 		local mapRadius = self.MapRadius
 		local macroSize = self.MacroCellSize
-		local maxMacroIndex = self.MacroGridCount - 1
-		local macroGrid = self._T.MacroGridCache
-
+		
+		-- 1. Apply coordinate jitter (same as original macro biome selection)
 		local jx = (self:Noise2D(x * 0.35, y * 0.35, seedVal + 4242) - 0.5) * 5.0
 		local jy = (self:Noise2D(x * 0.35, y * 0.35, seedVal + 2424) - 0.5) * 5.0
 		local sx = math.max(-mapRadius, math.min(mapRadius, x + jx))
 		local sy = math.max(-mapRadius, math.min(mapRadius, y + jy))
+		
+		-- 2. Convert to macro grid coordinate
 		local c = math.floor((sx + mapRadius) / macroSize)
 		local r = math.floor((sy + mapRadius) / macroSize)
+		
+		local maxMacroIndex = math.floor((mapRadius * 2) / macroSize)
 		if c > maxMacroIndex then c = maxMacroIndex end
 		if r > maxMacroIndex then r = maxMacroIndex end
 		if c < 0 then c = 0 end
 		if r < 0 then r = 0 end
-		local rowT = macroGrid[r]
-		if rowT ~= nil and rowT[c] ~= nil then
-			return rowT[c]
+
+		-- 3. Procedural macro biome selection
+		local center_c = math.floor(mapRadius / macroSize)
+		local center_r = math.floor(mapRadius / macroSize)
+		
+		local dc = c - center_c
+		local dr = r - center_r
+		local dist = math.sqrt(dc*dc + dr*dr)
+		
+		-- Warp the central safe zone check using a macro cell noise
+		local macroNoise = self:Noise2D(c * 0.25, r * 0.25, seedVal + 9876)
+		local safeRadius = 2.2 + (macroNoise - 0.5) * 1.5
+		
+		if dist <= safeRadius then
+			return "green_island"
 		end
-		return "earth_field"
+		
+		-- Outside safe zone: vertical gradient + noise
+		local yNorm = r / maxMacroIndex
+		local nVal = self:Noise2D(c * 0.15, r * 0.15, seedVal + 54321)
+		local biomeScore = yNorm * 0.65 + nVal * 0.35
+		
+		if biomeScore < 0.25 then
+			return "desert"
+		elseif biomeScore < 0.50 then
+			return "earth_field"
+		elseif biomeScore < 0.75 then
+			return "rocky"
+		else
+			return "snowfield"
+		end
 	end
 
+	@ExecSpace("ServerOnly")
+	method boolean IsGrassAt(number x, number y)
+		local biomeId = self:GetBiomeAt(x, y)
+		if biomeId ~= "green_island" then
+			return false
+		end
+		local seedVal = self.PrngSeed
+		local nVal = self:Noise2D(x * 0.12, y * 0.12, seedVal + 5555)
+		return nVal >= 0.40
+	end
+
+	@ExecSpace("ServerOnly")
+	method boolean ChunkContainsPlayerStructures(string mapName, integer cx, integer cy)
+		local xMin = cx * 10
+		local xMax = xMin + 9
+		local yMin = cy * 10
+		local yMax = yMin + 9
+		
+		-- Check placed tiles (Layer 3)
+		local tilesJson = self:GetPlacedTilesJson(mapName)
+		local placedTiles = (tilesJson ~= nil and tilesJson ~= "") and _HttpService:JSONDecode(tilesJson) or {}
+		for _, t in ipairs(placedTiles) do
+			if t.x >= xMin and t.x <= xMax and t.y >= yMin and t.y <= yMax then
+				return true
+			end
+		end
+		
+		-- Check placed furniture
+		local furnitureJson = self:GetPlacedFurnitureJson(mapName)
+		local placedFurniture = (furnitureJson ~= nil and furnitureJson ~= "") and _HttpService:JSONDecode(furnitureJson) or {}
+		for _, f in ipairs(placedFurniture) do
+			if f.x >= xMin and f.x <= xMax and f.y >= yMin and f.y <= yMax then
+				return true
+			end
+		end
+		
+		return false
+	end
+
+	@ExecSpace("ServerOnly")
+	method Entity GetOrCreateLayer(Entity map, string name)
+		local layer = map:GetChildByName(name)
+		if isvalid(layer) then
+			return layer
+		end
+		
+		local modelId = _EntryService:GetModelIdByName("RectTileMap")
+		if not modelId or modelId == "" then
+			modelId = "model://recttilemap"
+		end
+		
+		local newLayer = _SpawnService:SpawnByModelId(modelId, name, Vector3.zero, map)
+		if isvalid(newLayer) then
+			if not newLayer.RectTileMapComponent then
+				newLayer:AddComponent("RectTileMapComponent")
+			end
+			log("ResourceSpawner: Dynamically created map layer " .. name)
+			return newLayer
+		end
+		return nil
+	end
+
+	@ExecSpace("ServerOnly")
 	@ExecSpace("ServerOnly")
 	method void SpawnInitialResourcesForMap(Entity map)
 		if not isvalid(map) then
@@ -216,7 +287,7 @@ script ResourceSpawner extends Logic
 		end
 		
 		local mapName = map.Name
-		log("ResourceSpawner: Starting generation for map: " .. mapName)
+		log("ResourceSpawner: Dynamic setup starting for map: " .. mapName)
 		
 		local layer1Entity = map:GetChildByName("RectTileMap")
 		local layer2Entity = map:GetChildByName("RectTileMap2")
@@ -240,46 +311,39 @@ script ResourceSpawner extends Logic
 		tilemap2:Clear()
 		tilemap3:Clear()
 		
+		-- Clear dynamic layer 4 if it exists
+		local layer4Entity = map:GetChildByName("RectTileMap4")
+		if isvalid(layer4Entity) and layer4Entity.RectTileMapComponent then
+			layer4Entity.RectTileMapComponent:Clear()
+		end
+		
 		if not map:GetComponent("PhysicsSimulatorComponent") then
 			map:AddComponent("PhysicsSimulatorComponent")
 		end
 		
 		local mapComp = map.MapComponent
+		local mapRadius = self.MapRadius
 		if isvalid(mapComp) then
-			mapComp.LeftBottom = Vector2(-90, -90)
-			mapComp.RightTop = Vector2(90, 90)
+			mapComp.LeftBottom = Vector2(-mapRadius - 10, -mapRadius - 10)
+			mapComp.RightTop = Vector2(mapRadius + 10, mapRadius + 10)
 		end
 		
-		local seedVal = self.PrngSeed
-		local mapRadius = self.MapRadius
-		local macroSize = self.MacroCellSize
-		local spawnZoneRadius = self.SpawnZoneRadius
-		
-		-- Clear dynamic spawned registry for this map
+		-- Clear dynamic spawned registries
 		self.SpawnedEntitiesMap[mapName] = {}
 		self.GridToEntityMap[mapName] = {}
-		local spawnedEntities = self:GetSpawnedEntities(mapName)
-		local gridToEntity = self:GetGridToEntity(mapName)
-		local destroyedResources = self:GetDestroyedResources(mapName)
+		self.LoadedChunksMap[mapName] = {}
 		
-		-- ── Load biome datasets ──
-		local macroGrid = {}
-		local biomeMapDs = _DataService:GetTable("BiomeMapDataSet")
-		if biomeMapDs == nil then return end
-		local maxMacroIndex = self.MacroGridCount - 1
-		for i = 1, biomeMapDs:GetRowCount() do
-			local r = tonumber(biomeMapDs:GetCell(i, "Row"))
-			if r ~= nil then
-				macroGrid[r] = {}
-				for c = 0, maxMacroIndex do
-					local cellVal = biomeMapDs:GetCell(i, "C" .. c)
-					if cellVal ~= nil and cellVal ~= "" then
-						macroGrid[r][c] = cellVal
-					end
-				end
-			end
+		-- Reconstruct player-placed tiles and furniture
+		self:ReconstructWorldPlacementsForMap(map)
+		
+		log("ResourceSpawner: Dynamic setup completed for map: " .. mapName)
+	end
+
+	@ExecSpace("ServerOnly")
+	method void EnsureBiomeDatasetsCached()
+		if self._T.BiomeDatasetsCached == true then
+			return
 		end
-		self._T.MacroGridCache = macroGrid
 		
 		local biomeInfo = {}
 		local biomeDs = _DataService:GetTable("BiomeDataSet")
@@ -294,6 +358,7 @@ script ResourceSpawner extends Logic
 				end
 			end
 		end
+		self._T.BiomeInfoCache = biomeInfo
 		
 		local biomeTerrain = {}
 		local terrainDs = _DataService:GetTable("BiomeTerrainDataSet")
@@ -310,6 +375,7 @@ script ResourceSpawner extends Logic
 				end
 			end
 		end
+		self._T.BiomeTerrainCache = biomeTerrain
 		
 		local biomeResources = {}
 		local resDs = _DataService:GetTable("BiomeResourceDataSet")
@@ -335,156 +401,118 @@ script ResourceSpawner extends Logic
 				end
 			end
 		end
+		self._T.BiomeResourcesCache = biomeResources
 		
-		local function biomeAt(x, y)
-			local jx = (self:Noise2D(x * 0.35, y * 0.35, seedVal + 4242) - 0.5) * 5.0
-			local jy = (self:Noise2D(x * 0.35, y * 0.35, seedVal + 2424) - 0.5) * 5.0
-			local sx = math.max(-mapRadius, math.min(mapRadius, x + jx))
-			local sy = math.max(-mapRadius, math.min(mapRadius, y + jy))
-			local c = math.floor((sx + mapRadius) / macroSize)
-			local r = math.floor((sy + mapRadius) / macroSize)
-			if c > maxMacroIndex then c = maxMacroIndex end
-			if r > maxMacroIndex then r = maxMacroIndex end
-			if c < 0 then c = 0 end
-			if r < 0 then r = 0 end
-			local rowT = macroGrid[r]
-			if rowT ~= nil and rowT[c] ~= nil then
-				return rowT[c]
-			end
-			return "earth_field"
+		self._T.BiomeDatasetsCached = true
+		log("ResourceSpawner: Biome datasets cached successfully.")
+	end
+
+	@ExecSpace("ServerOnly")
+	method void LoadChunk(Entity map, integer cx, integer cy)
+		if not isvalid(map) then return end
+		local mapName = map.Name
+		
+		if not self.LoadedChunksMap[mapName] then
+			self.LoadedChunksMap[mapName] = {}
 		end
 		
-		local grassMap = {}
-		local tileChoice = {}
-		local cellBiome = {}
-		for x = -mapRadius - 1, mapRadius + 1 do
-			grassMap[x] = {}
-			tileChoice[x] = {}
-			cellBiome[x] = {}
-			for y = -mapRadius - 1, mapRadius + 1 do
-				local biomeId = biomeAt(x, y)
-				cellBiome[x][y] = biomeId
-				local info = biomeInfo[biomeId]
-				local scale = (info and info.scale) or 0.12
-				local seedOffset = (info and info.seedOffset) or 5555
-				local nVal = self:Noise2D(x * scale, y * scale, seedVal + seedOffset)
-		
-				local tileName = "BaseEarth"
-				local terrainRows = biomeTerrain[biomeId]
-				if terrainRows ~= nil then
-					for _, t in ipairs(terrainRows) do
-						if nVal >= t.nMin and nVal < t.nMax then
-							tileName = t.tile
-							break
-						end
-					end
-				end
-		
-				tileChoice[x][y] = tileName
-				grassMap[x][y] = (tileName == "BaseGrass")
-			end
+		local chunkKey = cx .. "_" .. cy
+		if self.LoadedChunksMap[mapName][chunkKey] ~= nil then
+			return
 		end
 		
-		local function isGrassAt(cx, cy)
-			if grassMap[cx] and grassMap[cx][cy] then
-				return true
-			end
-			return false
+		self:EnsureBiomeDatasetsCached()
+		local biomeResources = self._T.BiomeResourcesCache
+		
+		local layer1Entity = map:GetChildByName("RectTileMap")
+		local layer2Entity = map:GetChildByName("RectTileMap2")
+		local layer3Entity = map:GetChildByName("RectTileMap3")
+		local layer4Entity = self:GetOrCreateLayer(map, "RectTileMap4")
+		
+		if not isvalid(layer1Entity) or not isvalid(layer2Entity) or not isvalid(layer3Entity) or not isvalid(layer4Entity) then
+			log_warning("ResourceSpawner: Missing layer entities for chunk loading in map: " .. mapName)
+			return
 		end
 		
-		local function setGrass(cx, cy, value)
-			if grassMap[cx] ~= nil then
-				grassMap[cx][cy] = value
-				if tileChoice[cx] ~= nil then
-					if value then
-						tileChoice[cx][cy] = "BaseGrass"
-					elseif tileChoice[cx][cy] == "BaseGrass" then
-						tileChoice[cx][cy] = "BaseEarth"
-					end
-				end
+		local tilemap1 = layer1Entity.RectTileMapComponent
+		local tilemap2 = layer2Entity.RectTileMapComponent
+		local tilemap3 = layer3Entity.RectTileMapComponent
+		local tilemap4 = layer4Entity.RectTileMapComponent
+		
+		local seedVal = self.PrngSeed
+		local mapRadius = self.MapRadius
+		local chunkSize = self.MacroCellSize
+		
+		local xMin = cx * chunkSize
+		local xMax = xMin + chunkSize - 1
+		local yMin = cy * chunkSize
+		local yMax = yMin + chunkSize - 1
+		
+		local chunkEntities = {}
+		local gridToEntity = self:GetGridToEntity(mapName)
+		
+		-- 1. Cache IsGrassAt values for the chunk and its 1-tile border to optimize neighbor checking
+		local grassCache = {}
+		for x = xMin - 1, xMax + 1 do
+			grassCache[x] = {}
+			for y = yMin - 1, yMax + 1 do
+				grassCache[x][y] = self:IsGrassAt(x, y)
 			end
 		end
 		
-		local diagonalDirs = { {1, 1}, {1, -1}, {-1, 1}, {-1, -1} }
-		for pass = 1, 6 do
-			local changed = false
-			for x = -mapRadius - 1, mapRadius + 1 do
-				for y = -mapRadius - 1, mapRadius + 1 do
-					if isGrassAt(x, y) then
-						local t = isGrassAt(x, y + 1)
-						local d = isGrassAt(x, y - 1)
-						local l = isGrassAt(x - 1, y)
-						local r = isGrassAt(x + 1, y)
-						local orthoCount = (t and 1 or 0) + (d and 1 or 0) + (l and 1 or 0) + (r and 1 or 0)
-						if orthoCount < 2 or (not t and not d) or (not l and not r) then
-							setGrass(x, y, false)
-							changed = true
-						end
-					end
+		-- 2. Tile painting loop
+		for x = xMin, xMax do
+			for y = yMin, yMax do
+				if x < -mapRadius or x > mapRadius or y < -mapRadius or y > mapRadius then
+					continue
 				end
-			end
-		
-			for x = -mapRadius, mapRadius do
-				for y = -mapRadius, mapRadius do
-					if isGrassAt(x, y) then
-						for _, dxy in ipairs(diagonalDirs) do
-							local dx = dxy[1]
-							local dy = dxy[2]
-							if isGrassAt(x + dx, y + dy) and not isGrassAt(x + dx, y) and not isGrassAt(x, y + dy) then
-								setGrass(x + dx, y, true)
-								changed = true
-							end
-						end
-					end
+				
+				-- Handle boundaries
+				if math.abs(x) == mapRadius or math.abs(y) == mapRadius then
+					tilemap4:SetTile("Rocks", x, y)
+					continue
 				end
-			end
-		
-			for x = -mapRadius, mapRadius do
-				for y = -mapRadius, mapRadius do
-					if isGrassAt(x, y) then
-						local t = isGrassAt(x, y + 1)
-						local d = isGrassAt(x, y - 1)
-						local l = isGrassAt(x - 1, y)
-						local r = isGrassAt(x + 1, y)
-						local orthoMissing = (not t) or (not d) or (not l) or (not r)
-		
-						local demands = {}
-						for _, dxy in ipairs(diagonalDirs) do
-							local dx = dxy[1]
-							local dy = dxy[2]
-							if not isGrassAt(x + dx, y + dy) and isGrassAt(x + dx, y) and isGrassAt(x, y + dy) then
-								table.insert(demands, dxy)
-							end
-						end
-		
-						if #demands > 0 and (orthoMissing or #demands >= 2) then
-							for _, dxy in ipairs(demands) do
-								setGrass(x + dxy[1], y + dxy[2], true)
-							end
-							changed = true
-						end
+				
+				local biomeId = self:GetBiomeAt(x, y)
+				local choice = "BaseEarth"
+				
+				if biomeId == "desert" then
+					local decoRoll = self:Hash2D(x, y, seedVal + 8888)
+					if decoRoll < 0.03 then
+						local decoIndex = math.floor(self:Hash2D(x, y, seedVal + 8889) * 3) + 1
+						choice = "DessertDeco" .. decoIndex
+					else
+						choice = "Dessert"
 					end
+				elseif biomeId == "rocky" then
+					choice = "Rocks"
+				elseif biomeId == "snowfield" then
+					choice = "Snow"
+				elseif biomeId == "green_island" then
+					local isGrass = grassCache[x][y]
+					if isGrass then
+						choice = "BaseGrass"
+					else
+						choice = "BaseEarth"
+					end
+				else
+					choice = "BaseEarth"
 				end
-			end
-		
-			if not changed then break end
-		end
-		
-		-- ── Pass 2: set tiles with grass autotiling ──
-		for x = -mapRadius, mapRadius do
-			for y = -mapRadius, mapRadius do
+				
+				-- Draw base background tile on Layer 1
 				tilemap1:SetTile("BaseEarth", x, y)
+				
+				-- Paint autotiled grass or decoration tile on Layer 2
+				if choice == "BaseGrass" then
+					local t = grassCache[x][y + 1]
+					local d = grassCache[x][y - 1]
+					local l = grassCache[x - 1][y]
+					local r = grassCache[x + 1][y]
 		
-				if isGrassAt(x, y) then
-					local t = isGrassAt(x, y + 1)
-					local d = isGrassAt(x, y - 1)
-					local l = isGrassAt(x - 1, y)
-					local r = isGrassAt(x + 1, y)
-		
-					local tl = isGrassAt(x - 1, y + 1)
-					local tr = isGrassAt(x + 1, y + 1)
-					local dl = isGrassAt(x - 1, y - 1)
-					local dr = isGrassAt(x + 1, y - 1)
+					local tl = grassCache[x - 1][y + 1]
+					local tr = grassCache[x + 1][y + 1]
+					local dl = grassCache[x - 1][y - 1]
+					local dr = grassCache[x + 1][y - 1]
 		
 					local tileName = "BaseGrass"
 					if not t and not l then
@@ -512,235 +540,30 @@ script ResourceSpawner extends Logic
 					elseif not dr then
 						tileName = "BaseGrassRD1"
 					end
-		
+					
 					tilemap2:SetTile(tileName, x, y)
 				else
-					local choice = tileChoice[x][y]
-					if choice ~= nil and choice ~= "BaseEarth" and choice ~= "BaseGrass" then
-						if choice == "Dessert" then
-							local decoRoll = self:Hash2D(x, y, seedVal + 8888)
-							if decoRoll < 0.03 then
-								local decoIndex = math.floor(self:Hash2D(x, y, seedVal + 8889) * 3) + 1
-								choice = "DessertDeco" .. decoIndex
-							end
-						end
+					if choice ~= "BaseEarth" then
 						tilemap2:SetTile(choice, x, y)
 					end
 				end
-			end
-		end
-		log("ResourceSpawner: Biome-driven tile generation complete for map " .. mapName)
-		
-		-- ── Occupancy grid ──
-		local occupied = {}
-		local function isOccupied(cx, cy)
-			if occupied[cx] and occupied[cx][cy] then
-				return true
-			end
-			return false
-		end
-		local function setOccupied(cx, cy)
-			if not occupied[cx] then
-				occupied[cx] = {}
-			end
-			occupied[cx][cy] = true
-		end
-		
-		-- Pre-occupy spawn zone around center (0,0)
-		for sx = -spawnZoneRadius, spawnZoneRadius do
-			for sy = -spawnZoneRadius, spawnZoneRadius do
-				setOccupied(sx, sy)
-			end
-		end
-		
-		local function trySpawnResource(modelId, name, x, y)
-			if destroyedResources then
-				local isDestroyed = false
-				for _, dr in ipairs(destroyedResources) do
-					if dr.x == x and dr.y == y then
-						local duration = 300
-						local ds = _DataService:GetTable("ResourceDataSet")
-						if ds then
-							local row = ds:FindRow("SourceId", name)
-							if row then
-								duration = tonumber(row:GetItem("RespawnDuration")) or 300
-							end
-						end
-						if os.time() - dr.destroyedTime < duration then
-							isDestroyed = true
-							break
-						end
-					end
-				end
-				if isDestroyed then
-					return nil
-				end
-			end
-
-			local spawnPos = Vector3(x + 0.5, y + 0.5, 0)
-			local resEntity = _SpawnService:SpawnByModelId(
-				modelId,
-				name,
-				spawnPos,
-				map
-			)
-			if not isvalid(resEntity) then
-				return nil
-			end
-		
-			local xMin, xMax, yMin, yMax = x, x, y, y
-			local occupiedArea = resEntity:GetComponent("script.ResourceOccupiedArea")
-			if isvalid(occupiedArea) then
-				xMin = math.floor(x + occupiedArea.OffsetXMin)
-				xMax = math.floor(x + occupiedArea.OffsetXMax)
-				yMin = math.floor(y + occupiedArea.OffsetYMin)
-				yMax = math.floor(y + occupiedArea.OffsetYMax)
-			end
-		
-			local canPlace = true
-			for nx = xMin - 1, xMax + 1 do
-				for ny = yMin - 1, yMax + 1 do
-					if isOccupied(nx, ny) then
-						canPlace = false
-						break
-					end
-				end
-				if not canPlace then break end
-			end
-		
-			if not canPlace then
-				resEntity:Destroy()
-				return nil
-			end
-		
-			local sprite = resEntity.SpriteRendererComponent
-			if isvalid(sprite) then
-				sprite.IgnoreMapLayerCheck = true
-				sprite.SortingLayer = "MapLayer2"
-				sprite.OrderInLayer = math.floor((mapRadius - y) * 100)
-			end
-		
-			for nx = xMin, xMax do
-				for ny = yMin, yMax do
-					local ix = math.floor(nx)
-					local iy = math.floor(ny)
-					setOccupied(ix, iy)
-					local gKey = ix .. "_" .. iy
-					gridToEntity[gKey] = { entity = resEntity, pivotX = math.floor(x), pivotY = math.floor(y) }
-				end
-			end
-			
-			-- Seed stone rolls
-			local ds = _DataService:GetTable("ResourceDataSet")
-			if ds then
-				local row = ds:FindRow("SourceId", name)
-				if row then
-					local chance = tonumber(row:GetItem("SeedDropChance")) or 0
-					local count = tonumber(row:GetItem("SeedDropCount")) or 0
-					if chance > 0 and count > 0 then
-						local dropRoll = self:Hash2D(x, y, seedVal + 9999)
-						if dropRoll < chance then
-							local adjacentEmptyCells = {}
-							for nx = xMin - 1, xMax + 1 do
-								for ny = yMin - 1, yMax + 1 do
-									if nx >= -mapRadius and nx <= mapRadius and ny >= -mapRadius and ny <= mapRadius then
-										local isSelfOccupied = (nx >= xMin and nx <= xMax and ny >= yMin and ny <= yMax)
-										if not isSelfOccupied and not isOccupied(nx, ny) then
-											table.insert(adjacentEmptyCells, {x = nx, y = ny})
-										end
-									end
-								end
-							end
-							
-							local itemModelId = _EntryService:GetModelIdByName("Item_Stone")
-							if not itemModelId or itemModelId == "" then
-								itemModelId = "05fa541a-a48d-4f36-bf82-0c60784a4a53"
-							end
-							
-							local seedOffset = 10000
-							for i = 1, count do
-								if #adjacentEmptyCells == 0 then break end
-								local cellIndexRoll = self:Hash2D(x, y, seedVal + seedOffset + i * 7)
-								local idx = math.floor(cellIndexRoll * #adjacentEmptyCells) + 1
-								local cell = table.remove(adjacentEmptyCells, idx)
-								
-								local dropSpawnPos = Vector3(cell.x + 0.5, cell.y + 0.5, 0)
-								local drop = _SpawnService:SpawnByModelId(
-									itemModelId,
-									"Item_stone",
-									dropSpawnPos,
-									map
-								)
-								if isvalid(drop) then
-									local dropTransform = drop.TransformComponent
-									if isvalid(dropTransform) then
-										dropTransform.Scale = Vector3(2.0, 2.0, 1)
-									end
-									
-									local itemDropComp = drop:GetComponent("script.itemreact")
-									if not isvalid(itemDropComp) then
-										drop:AddComponent("script.itemreact")
-										itemDropComp = drop:GetComponent("script.itemreact")
-									end
-									if isvalid(itemDropComp) then
-										local idc = itemDropComp
-										idc:Init("Stone")
-									end
-									
-									local dropSprite = drop.SpriteRendererComponent
-									if isvalid(dropSprite) then
-										dropSprite.IgnoreMapLayerCheck = true
-										dropSprite.SortingLayer = "MapLayer2"
-										dropSprite.OrderInLayer = math.floor((mapRadius - cell.y) * 100)
-									end
-									
-									setOccupied(cell.x, cell.y)
-								end
-							end
-						end
-					end
-				end
-			end
-		
-			return resEntity
-		end
-		
-		-- ── Pass 3: biome-driven resource spawning (chunked across frames) ──
-		-- Spawning ~1000 entities in one frame stalls the server and keeps the player parked on
-		-- the start map. We instead scan a bounded number of cells per frame, so the heavy entity
-		-- creation is spread over a handful of frames (hidden behind the spawn fade).
-		local side = mapRadius * 2 + 1
-		local totalCells = side * side
-		local cursor = 0
-		local resourceCount = 0
-		local cellsPerBatch = 1500
-		local spawnBatch
-		spawnBatch = function()
-			if not isvalid(map) then return end
-			local cellsThisBatch = 0
-			while cursor < totalCells and cellsThisBatch < cellsPerBatch do
-				local x = -mapRadius + math.floor(cursor / side)
-				local y = -mapRadius + (cursor % side)
-				cursor = cursor + 1
-				cellsThisBatch = cellsThisBatch + 1
-				if not isOccupied(x, y) then
-					local key = x .. "_" .. y
-					local existing = gridToEntity[key]
-					-- Never overwrite a placed tile/furniture cell (furniture is reconstructed
-					-- concurrently while these batches run).
+				
+				-- 3. Resource Spawning
+				local spawnZoneRadius = self.SpawnZoneRadius
+				local inSpawnZone = (x >= -spawnZoneRadius and x <= spawnZoneRadius and y >= -spawnZoneRadius and y <= spawnZoneRadius)
+				
+				if not inSpawnZone then
+					local gKey = x .. "_" .. y
+					local existing = gridToEntity[gKey]
+					
 					if existing == nil or (existing.isTile ~= true and existing.isFurniture ~= true) then
-						local biomeId = cellBiome[x][y]
 						local resRows = biomeResources[biomeId]
 						if resRows ~= nil then
 							for _, res in ipairs(resRows) do
-								if res.modelId ~= nil and (res.requiredTile == "" or res.requiredTile == tileChoice[x][y]) then
+								if res.modelId ~= nil and (res.requiredTile == "" or res.requiredTile == choice) then
 									local roll = self:Hash2D(x, y, seedVal + res.salt)
 									if roll < res.chance then
-										local resEntity = trySpawnResource(res.modelId, res.name, x, y)
-										if isvalid(resEntity) then
-											spawnedEntities[key] = resEntity
-											resourceCount = resourceCount + 1
-										end
+										self:TrySpawnResourceInChunk(map, res.modelId, res.name, x, y, chunkEntities)
 										break
 									end
 								end
@@ -749,14 +572,174 @@ script ResourceSpawner extends Logic
 					end
 				end
 			end
+		end
+		
+		self.LoadedChunksMap[mapName][chunkKey] = {
+			entities = chunkEntities
+		}
+		log("ResourceSpawner: Loaded chunk " .. chunkKey .. " in map " .. mapName .. " with " .. #chunkEntities .. " entities.")
+	end
 
-			if cursor < totalCells then
-				_TimerService:SetTimerOnce(spawnBatch, 0.02)
-			else
-				log("ResourceSpawner: Biome resource spawning complete! Scattered " .. resourceCount .. " resources in map " .. mapName)
+	@ExecSpace("ServerOnly")
+	method Entity TrySpawnResourceInChunk(Entity map, string modelId, string name, number x, number y, table chunkEntities)
+		local mapName = map.Name
+		local seedVal = self.PrngSeed
+		local mapRadius = self.MapRadius
+		local gridToEntity = self:GetGridToEntity(mapName)
+		local spawnedEntities = self:GetSpawnedEntities(mapName)
+		local destroyedResources = self:GetDestroyedResources(mapName)
+
+		if destroyedResources then
+			local isDestroyed = false
+			for _, dr in ipairs(destroyedResources) do
+				if dr.x == x and dr.y == y then
+					local duration = 300
+					local ds = _DataService:GetTable("ResourceDataSet")
+					if ds then
+						local row = ds:FindRow("SourceId", name)
+						if row then
+							duration = tonumber(row:GetItem("RespawnDuration")) or 300
+						end
+					end
+					if os.time() - dr.destroyedTime < duration then
+						isDestroyed = true
+						break
+					end
+				end
+			end
+			if isDestroyed then
+				return nil
 			end
 		end
-		spawnBatch()
+
+		local spawnPos = Vector3(x + 0.5, y + 0.5, 0)
+		local resEntity = _SpawnService:SpawnByModelId(
+			modelId,
+			name,
+			spawnPos,
+			map
+		)
+		if not isvalid(resEntity) then
+			return nil
+		end
+	
+		local xMin, xMax, yMin, yMax = x, x, y, y
+		local occupiedArea = resEntity:GetComponent("script.ResourceOccupiedArea")
+		if isvalid(occupiedArea) then
+			xMin = math.floor(x + occupiedArea.OffsetXMin)
+			xMax = math.floor(x + occupiedArea.OffsetXMax)
+			yMin = math.floor(y + occupiedArea.OffsetYMin)
+			yMax = math.floor(y + occupiedArea.OffsetYMax)
+		end
+	
+		local canPlace = true
+		for nx = xMin, xMax do
+			for ny = yMin, yMax do
+				local gKey = math.floor(nx) .. "_" .. math.floor(ny)
+				if gridToEntity[gKey] ~= nil then
+					canPlace = false
+					break
+				end
+			end
+			if not canPlace then break end
+		end
+	
+		if not canPlace then
+			resEntity:Destroy()
+			return nil
+		end
+	
+		local sprite = resEntity.SpriteRendererComponent
+		if isvalid(sprite) then
+			sprite.IgnoreMapLayerCheck = true
+			sprite.SortingLayer = "MapLayer2"
+			sprite.OrderInLayer = math.floor((mapRadius - y) * 100)
+		end
+	
+		for nx = xMin, xMax do
+			for ny = yMin, yMax do
+				local ix = math.floor(nx)
+				local iy = math.floor(ny)
+				local gKey = ix .. "_" .. iy
+				gridToEntity[gKey] = { entity = resEntity, pivotX = math.floor(x), pivotY = math.floor(y) }
+			end
+		end
+		
+		local key = x .. "_" .. y
+		spawnedEntities[key] = resEntity
+		table.insert(chunkEntities, resEntity)
+	
+		return resEntity
+	end
+
+	@ExecSpace("ServerOnly")
+	method void UnloadChunk(Entity map, integer cx, integer cy)
+		if not isvalid(map) then return end
+		local mapName = map.Name
+		
+		if not self.LoadedChunksMap[mapName] then return end
+		local chunkKey = cx .. "_" .. cy
+		local chunkData = self.LoadedChunksMap[mapName][chunkKey]
+		if chunkData == nil then
+			return
+		end
+		
+		local spawnedEntities = self:GetSpawnedEntities(mapName)
+		local gridToEntity = self:GetGridToEntity(mapName)
+		
+		if chunkData.entities then
+			for _, entity in ipairs(chunkData.entities) do
+				if isvalid(entity) then
+					local entityX = math.floor(entity.TransformComponent.WorldPosition.x)
+					local entityY = math.floor(entity.TransformComponent.WorldPosition.y)
+					local pKey = entityX .. "_" .. entityY
+					
+					spawnedEntities[pKey] = nil
+					
+					local xMin, xMax, yMin, yMax = entityX, entityX, entityY, entityY
+					local occupiedArea = entity:GetComponent("script.ResourceOccupiedArea")
+					if isvalid(occupiedArea) then
+						xMin = math.floor(entityX + occupiedArea.OffsetXMin)
+						xMax = math.floor(entityX + occupiedArea.OffsetXMax)
+						yMin = math.floor(entityY + occupiedArea.OffsetYMin)
+						yMax = math.floor(entityY + occupiedArea.OffsetYMax)
+					end
+					for nx = xMin, xMax do
+						for ny = yMin, yMax do
+							local gKey = math.floor(nx) .. "_" .. math.floor(ny)
+							gridToEntity[gKey] = nil
+						end
+					end
+					
+					entity:Destroy()
+				end
+			end
+		end
+		
+		local layer1Entity = map:GetChildByName("RectTileMap")
+		local layer2Entity = map:GetChildByName("RectTileMap2")
+		local layer4Entity = map:GetChildByName("RectTileMap4")
+		
+		local tilemap1 = isvalid(layer1Entity) and layer1Entity.RectTileMapComponent or nil
+		local tilemap2 = isvalid(layer2Entity) and layer2Entity.RectTileMapComponent or nil
+		local tilemap4 = isvalid(layer4Entity) and layer4Entity.RectTileMapComponent or nil
+		
+		local chunkSize = self.MacroCellSize
+		local xMin = cx * chunkSize
+		local xMax = xMin + chunkSize - 1
+		local yMin = cy * chunkSize
+		local yMax = yMin + chunkSize - 1
+		
+		for x = xMin, xMax do
+			for y = yMin, yMax do
+				if tilemap1 then tilemap1:RemoveTile(x, y) end
+				if tilemap2 then tilemap2:RemoveTile(x, y) end
+				if tilemap4 then tilemap4:RemoveTile(x, y) end
+			end
+		end
+		
+		self.LoadedChunksMap[mapName][chunkKey] = nil
+		log("ResourceSpawner: Unloaded chunk " .. chunkKey .. " in map " .. mapName)
 	end
 
 	@ExecSpace("ServerOnly")
@@ -765,37 +748,82 @@ script ResourceSpawner extends Logic
 		if not isvalid(mapComp) then return end
 		
 		local mapName = map.Name
-		local spawnedEntities = self:GetSpawnedEntities(mapName)
 		local users = _UserService:GetUsersByMapComponent(mapComp)
 		if not users or #users == 0 then
-			for _, entity in pairs(spawnedEntities) do
-				if isvalid(entity) then
-					entity.Enable = false
+			if self.LoadedChunksMap[mapName] then
+				local chunksToUnload = {}
+				for chunkKey, _ in pairs(self.LoadedChunksMap[mapName]) do
+					table.insert(chunksToUnload, chunkKey)
+				end
+				for _, chunkKey in ipairs(chunksToUnload) do
+					local idx = string.find(chunkKey, "_")
+					if idx then
+						local cx = tonumber(string.sub(chunkKey, 1, idx - 1))
+						local cy = tonumber(string.sub(chunkKey, idx + 1))
+						if cx and cy then
+							if not self:ChunkContainsPlayerStructures(mapName, cx, cy) then
+								self:UnloadChunk(map, cx, cy)
+							end
+						end
+					end
 				end
 			end
 			return
 		end
 		
-		local playerPositions = {}
+		local chunkSize = self.MacroCellSize
+		local loadRadius = 2
+		
+		local desiredChunks = {}
 		for _, user in ipairs(users) do
 			if isvalid(user) then
-				table.insert(playerPositions, user.TransformComponent.WorldPosition)
+				local pos = user.TransformComponent.WorldPosition
+				local pcx = math.floor(pos.x / chunkSize)
+				local pcy = math.floor(pos.y / chunkSize)
+				
+				for dcx = -loadRadius, loadRadius do
+					for dcy = -loadRadius, loadRadius do
+						local cx = pcx + dcx
+						local cy = pcy + dcy
+						
+						local maxChunk = math.floor(self.MapRadius / chunkSize)
+						local minChunk = math.floor(-self.MapRadius / chunkSize)
+						if cx >= minChunk and cx <= maxChunk and cy >= minChunk and cy <= maxChunk then
+							local chunkKey = cx .. "_" .. cy
+							desiredChunks[chunkKey] = { cx = cx, cy = cy }
+						end
+					end
+				end
 			end
 		end
 		
-		local loadDistance = 15.0
-		for _, entity in pairs(spawnedEntities) do
-			if isvalid(entity) then
-				local entityPos = entity.TransformComponent.WorldPosition
-				local isNearAnyPlayer = false
-				for _, pPos in ipairs(playerPositions) do
-					local dist = Vector2.Distance(Vector2(entityPos.x, entityPos.y), Vector2(pPos.x, pPos.y))
-					if dist <= loadDistance then
-						isNearAnyPlayer = true
-						break
+		if not self.LoadedChunksMap[mapName] then
+			self.LoadedChunksMap[mapName] = {}
+		end
+		
+		for chunkKey, chunkCoord in pairs(desiredChunks) do
+			if self.LoadedChunksMap[mapName][chunkKey] == nil then
+				self:LoadChunk(map, chunkCoord.cx, chunkCoord.cy)
+			end
+		end
+		
+		local currentLoadedChunks = {}
+		for chunkKey, _ in pairs(self.LoadedChunksMap[mapName]) do
+			currentLoadedChunks[chunkKey] = true
+		end
+		
+		for chunkKey, _ in pairs(currentLoadedChunks) do
+			if desiredChunks[chunkKey] == nil then
+				local idx = string.find(chunkKey, "_")
+				if idx then
+					local cx = tonumber(string.sub(chunkKey, 1, idx - 1))
+					local cy = tonumber(string.sub(chunkKey, idx + 1))
+					if cx and cy then
+						if not self:ChunkContainsPlayerStructures(mapName, cx, cy) then
+							self:UnloadChunk(map, cx, cy)
+						end
 					end
 				end
-				entity.Enable = isNearAnyPlayer
 			end
 		end
 	end

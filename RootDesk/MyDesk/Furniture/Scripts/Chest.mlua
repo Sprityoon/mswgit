@@ -32,6 +32,20 @@ script Chest extends Component
 		end
 		local player = _UserService:GetUserEntityByUserId(userId)
 		if not isvalid(player) then return end
+		
+		-- Enforce map interact permission
+		local currentMap = self.Entity.CurrentMap
+		if isvalid(currentMap) and string.sub(currentMap.Name, 1, 5) == "Home_" then
+			local ownerId = string.sub(currentMap.Name, 6)
+			if _PersistenceManager and not _PersistenceManager:CheckGuestPermission(ownerId, userId, "interact") then
+				local pc = player:GetComponent("script.PlayerController")
+				if isvalid(pc) then
+					pc:ShowMineFeedback("이 영지의 상자를 이용할 수 있는 권한이 없습니다.")
+				end
+				return
+			end
+		end
+
 		local inv = player:GetComponent("script.PlayerInventory")
 		if not isvalid(inv) then return end
 
@@ -104,6 +118,20 @@ script Chest extends Component
 		end
 		local player = _UserService:GetUserEntityByUserId(userId)
 		if not isvalid(player) then return end
+		
+		-- Enforce map interact permission
+		local currentMap = self.Entity.CurrentMap
+		if isvalid(currentMap) and string.sub(currentMap.Name, 1, 5) == "Home_" then
+			local ownerId = string.sub(currentMap.Name, 6)
+			if _PersistenceManager and not _PersistenceManager:CheckGuestPermission(ownerId, userId, "interact") then
+				local pc = player:GetComponent("script.PlayerController")
+				if isvalid(pc) then
+					pc:ShowMineFeedback("이 영지의 상자를 이용할 수 있는 권한이 없습니다.")
+				end
+				return
+			end
+		end
+
 		local inv = player:GetComponent("script.PlayerInventory")
 		if not isvalid(inv) then return end
 

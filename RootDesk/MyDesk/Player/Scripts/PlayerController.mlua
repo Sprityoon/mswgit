@@ -61,6 +61,15 @@ script PlayerController extends Component
 	@Sync
 	property boolean IsDead = false
 
+	@Sync
+	property boolean CanMineOnCurrentMap = true
+
+	@Sync
+	property boolean CanPlaceOnCurrentMap = true
+
+	@Sync
+	property boolean CanInteractOnCurrentMap = true
+
 	method void OnBeginPlay()
 		-- description: Initialize key and screen touch event listeners on the client.
 		if self:IsClient() then
@@ -480,24 +489,6 @@ script PlayerController extends Component
 			if isvalid(movement) then
 				movement:Jump()
 			end
-		elseif key == KeyboardKey.I then
-			local popup = _EntityService:GetEntityByPath("/ui/PopupGroup/InventoryPopup")
-			if isvalid(popup) then
-				local controller = popup:GetComponent("script.UIInventoryController")
-				if isvalid(controller) then
-					local c = controller
-					c:Toggle()
-				end
-			end
-		elseif key == KeyboardKey.C then
-			local popup = _EntityService:GetEntityByPath("/ui/PopupGroup/CraftingPopup")
-			if isvalid(popup) then
-				local controller = popup:GetComponent("script.UICraftingController")
-				if isvalid(controller) then
-					local c = controller
-					c:Toggle()
-				end
-			end
 		elseif key == KeyboardKey.Space then
 			local popup = _EntityService:GetEntityByPath("/ui/PopupGroup/CraftingPopup")
 			if isvalid(popup) and popup.Enable then
@@ -506,18 +497,20 @@ script PlayerController extends Component
 					controller:TryCraft()
 				end
 			end
-		elseif key == KeyboardKey.P then
-			local popup = _EntityService:GetEntityByPath("/ui/PopupGroup/CharacterPopup")
-			if isvalid(popup) then
-				local controller = popup:GetComponent("script.UICharacterController")
-				if isvalid(controller) then
-					local c = controller
-					c:Toggle()
-				end
-			end
 		elseif key == KeyboardKey.F then
 			if isvalid(self.ActivePortal) then
-				self:ServerRequestWarp()
+				local curMap = self.Entity.CurrentMap
+				if isvalid(curMap) and curMap.Name == "town" then
+					local popup = _EntityService:GetEntityByPath("/ui/PopupGroup/WarpPopup")
+					if isvalid(popup) then
+						local controller = popup:GetComponent("script.UIWarpController")
+						if isvalid(controller) then
+							controller:Open()
+						end
+					end
+				else
+					self:ServerRequestWarp()
+				end
 				return
 			end
 			local nearbyFurnace = self:FindNearbyFurnace()
@@ -856,6 +849,11 @@ script PlayerController extends Component
 							end
 						end
 					end
+					if canPlace then
+						if not self.CanPlaceOnCurrentMap then
+							canPlace = false
+						end
+					end
 					
 					if canPlace then
 						local currentMap = self.Entity.CurrentMap
@@ -936,7 +934,18 @@ script PlayerController extends Component
 	method void OnInteractButton()
 		-- description: Handles interaction button press (mobile/UI).
 		if isvalid(self.ActivePortal) then
-			self:ServerRequestWarp()
+			local curMap = self.Entity.CurrentMap
+			if isvalid(curMap) and curMap.Name == "town" then
+				local popup = _EntityService:GetEntityByPath("/ui/PopupGroup/WarpPopup")
+				if isvalid(popup) then
+					local controller = popup:GetComponent("script.UIWarpController")
+					if isvalid(controller) then
+						controller:Open()
+					end
+				end
+			else
+				self:ServerRequestWarp()
+			end
 			return
 		end
 		local nearbyFurnace = self:FindNearbyFurnace()
@@ -972,17 +981,41 @@ script PlayerController extends Component
 			return
 		end
 		if not isvalid(self.ActivePortal) then return end
+		
 		local portalGate = self.ActivePortal:GetComponent("script.PortalGate")
-		if not isvalid(portalGate) then return end
+		local territoryPortal = self.ActivePortal:GetComponent("script.TerritoryPortal")
 		
-		local targetMap = portalGate.TargetMapName
-		if targetMap == "Home" then
-			targetMap = "Home_" .. playerComp.UserId
+		if isvalid(portalGate) then
+			local targetMap = portalGate.TargetMapName
+			if targetMap == "Home" then
+				targetMap = "Home_" .. playerComp.UserId
+			end
+			
+			local targetPos = portalGate.TargetPosition
+			playerComp:MoveToMapPosition(targetMap, targetPos)
+			log("PlayerController: Warped player " .. playerComp.UserId .. " to " .. targetMap .. " at " .. tostring(targetPos))
+		elseif isvalid(territoryPortal) then
+			local subIndex = territoryPortal.SubTerritoryIndex
+			local ownerId = playerComp.UserId
+			local currentMap = self.Entity.CurrentMap
+			if isvalid(currentMap) then
+				if string.sub(currentMap.Name, 1, 5) == "Home_" then
+					ownerId = string.sub(currentMap.Name, 6)
+					local p1 = string.find(ownerId, "_Sub_")
+					if p1 then
+						ownerId = string.sub(ownerId, 1, p1 - 1)
+					end
+				end
+			end
+			
+			if _PersistenceManager then
+				_PersistenceManager:LoadSubTerritoryMap(ownerId, subIndex)
+			end
+			
+			local targetMap = "Home_" .. ownerId .. "_Sub_" .. subIndex
+			playerComp:MoveToMapPosition(targetMap, Vector2(-3, 0))
+			log("PlayerController: Warped player " .. playerComp.UserId .. " to sub-territory " .. targetMap)
 		end
-		
-		local targetPos = portalGate.TargetPosition
-		playerComp:MoveToMapPosition(targetMap, targetPos)
-		log("PlayerController: Warped player " .. playerComp.UserId .. " to " .. targetMap .. " at " .. tostring(targetPos))
 	end
 
 	@ExecSpace("Client")
@@ -999,6 +1032,115 @@ script PlayerController extends Component
 			local c = ctrl
 			c:FadeOutSpawn()
 		end
+	end
+
+	@ExecSpace("Server")
+	method void ServerRequestOpenPermissionSettings()
+		local userId = senderUserId
+		if userId == nil or userId == "" then userId = self.Entity.PlayerComponent.UserId end
+		local currentMap = self.Entity.CurrentMap
+		if not isvalid(currentMap) or string.sub(currentMap.Name, 1, 5) ~= "Home_" then return end
+		local ownerId = string.sub(currentMap.Name, 6)
+		if userId ~= ownerId then return end
+
+		local mapComp = currentMap.MapComponent
+		if not isvalid(mapComp) then return end
+		
+		local users = _UserService:GetUsersByMapComponent(mapComp)
+		local guestData = {}
+		
+		if users then
+			for _, user in ipairs(users) do
+				if isvalid(user) and user.PlayerComponent then
+					local guestId = user.PlayerComponent.UserId
+					if guestId ~= ownerId then
+						local hasPerm = false
+						if _PersistenceManager then
+							hasPerm = _PersistenceManager:CheckGuestPermission(ownerId, guestId, "place")
+						end
+						table.insert(guestData, {
+							UserId = guestId,
+							Name = user.Name,
+							HasPermission = hasPerm
+						})
+					end
+				end
+			end
+		end
+
+		local jsonStr = _HttpService:JSONEncode(guestData)
+		self:ClientOpenPermissionSettings(jsonStr)
+	end
+
+	@ExecSpace("Server")
+	method void ServerRequestTogglePermission(string guestUserId)
+		local userId = senderUserId
+		if userId == nil or userId == "" then userId = self.Entity.PlayerComponent.UserId end
+		local currentMap = self.Entity.CurrentMap
+		if not isvalid(currentMap) or string.sub(currentMap.Name, 1, 5) ~= "Home_" then return end
+		local ownerId = string.sub(currentMap.Name, 6)
+		if userId ~= ownerId then return end
+
+		if _PersistenceManager then
+			_PersistenceManager:ServerRequestTogglePermission(ownerId, guestUserId)
+			-- Refresh settings panel for owner
+			self:ServerRequestOpenPermissionSettings()
+		end
+	end
+
+	@ExecSpace("Server")
+	method void ServerRequestVisitHome(string targetPlayerName)
+		local playerComp = self.Entity.PlayerComponent
+		if playerComp == nil or senderUserId ~= playerComp.UserId then
+			return
+		end
+		
+		-- Look up target player (online only)
+		local targetUserId = nil
+		for _, user in pairs(_UserService.UserEntities) do
+			if string.lower(user.Name) == string.lower(targetPlayerName) then
+				targetUserId = user.PlayerComponent.UserId
+				break
+			end
+		end
+
+		if targetUserId == nil then
+			self:ClientShowWarpFeedback("해당 유저가 오프라인이거나 존재하지 않습니다.")
+			return
+		end
+
+		local mapName = "Home_" .. targetUserId
+		local map = _EntityService:GetEntityByPath("/maps/" .. mapName)
+		if isvalid(map) then
+			playerComp:MoveToMapPosition(mapName, Vector2(-3, 0))
+			self:ClientShowWarpFeedback(targetPlayerName .. "님의 영지에 입장했습니다.")
+		else
+			self:ClientShowWarpFeedback("해당 유저가 오프라인이거나 영지가 열려있지 않습니다.")
+		end
+	end
+
+	@ExecSpace("Client")
+	method void ClientOpenPermissionSettings(string jsonStr)
+		local popup = _EntityService:GetEntityByPath("/ui/PopupGroup/PermissionPopup")
+		if isvalid(popup) then
+			local ctrl = popup:GetComponent("script.UIPermissionController")
+			if isvalid(ctrl) then
+				ctrl:UpdatePermissionUI(jsonStr)
+			end
+		end
+	end
+
+	@ExecSpace("Client")
+	method void ClientShowWarpFeedback(string message)
+		_ScreenMessageLogic:PrivateMsg(message)
+	end
+
+	@ExecSpace("Client")
+	method void ClientSetCurrentMapPermissions(boolean canMine, boolean canPlace, boolean canInteract)
+		self.CanMineOnCurrentMap = canMine
+		self.CanPlaceOnCurrentMap = canPlace
+		self.CanInteractOnCurrentMap = canInteract
+		log("Permissions synced: mine=" .. tostring(canMine) .. ", place=" .. tostring(canPlace) .. ", interact=" .. tostring(canInteract))
 	end
 
 end

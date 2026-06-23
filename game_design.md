@@ -456,6 +456,8 @@ graph TD
 - [x] **스폰 페이드 커버 (Spawn Fade Cover) 구현 (완료)**: HUDGroup에 SpawnFade 검은 스프라이트 추가, 서버 "홈 준비 완료" 신호 시 FadeOutSpawn() 및 8초 세이프티 폴백 타이머 (UIHUDController.mlua + build_ui.js).
 - [x] **단일 워프 (Single Warp Transition) 전환 (완료)**: 임시 위치(-3,0) 이중 점프 제거, LoadPlayerData에서 데이터 복원 후 단 한 번의 MoveToMapPosition 호출 (PersistenceManager.mlua).
 - [x] **자원 스폰 프레임 분할 (Chunked Resource Spawning) 최적화 (완료)**: 1,000여 개 자원의 동기 스폰 병목을 프레임당 1500셀 스캔하는 청크 분할 방식으로 전환, 가구 셀 가드 및 맵 파괴 시 중단 가드 적용 (ResourceSpawner.mlua).
+- [x] **동적 청크 로딩 및 이탈 방지 장벽 시스템 구현 (완료)**: 플레이어 위치 주변 5x5 청크 실시간 로드/언로드 및 초기 대기 시간 단축(0.01초 이하), 플레이어 설치물/가구 존재 청크 영구 로드 보존, 맵 테두리(±120) 이탈 방지 장벽(RectTileMap4) 동적 생성 및 배치 완료 (ResourceSpawner.mlua).
+- [x] **시드 기반 절차적 매크로 바이옴 생성 및 초원 자연 지형 복구 (완료)**: BiomeMapDataSet.csv 정적 의존성 제거, Jittering 고주파 좌표 흔들기 복원으로 유기적인 바이옴 경계선 연출, green_island 바이옴 내 노이즈 임계값 기반 잔디-흙 자연스러운 지형 혼합 및 오토타일링 복구 완료 (ResourceSpawner.mlua).
 - [x] **개인 맵 동적 생성 (완료)**: 유저 진입 시 `_DynamicMapService:CreateDynamicMap("map01", "Home_<UserId>")`로 map01 템플릿을 런타임 복제해 개인 홈맵 생성(별도 모델 자산화 대신 라이브 맵 템플릿 복제 방식 채택). 생성 직후 `ResourceSpawner:SpawnInitialResourcesForMap`로 자원 오버레이. (`PersistenceManager:OnUserEnter`)
 - [x] **동적 맵 매니저 (완료)**: 별도 `MapInstanceManager` Logic 대신 `PersistenceManager`(Logic)가 인스턴스 수명 관리 — 진입 시 개인 맵 생성+세이브 위치로 단일 워프, 퇴장 시 해당 맵 잔류 유저 0이면 `_DynamicMapService:DestroyDynamicMap`으로 소멸(GC). (`OnUserEnter`/`OnUserLeave`)
 - [x] **공동 마을(TownMap) 구성 & 포탈 연동 (완료 — 유저 테스트 대기)**: `map/town.map` 구성, `PortalGate` 컴포넌트(TriggerEnter 시 `PlayerController.ActivePortal` 설정) + F키/INFO 버튼 워프(`PlayerController:ServerRequestWarp` → `PlayerComponent:MoveToMapPosition`, `"Home"`→`"Home_<UserId>"` 매핑). 자원 스폰 시 포탈 엔티티(`TargetMapName="town"`) 배치, town 포탈은 철거 불가 처리(`TileDurabilityManager`), 미니맵도 home↔town 전환 대응.
