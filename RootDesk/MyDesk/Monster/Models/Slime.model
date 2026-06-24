@@ -19,7 +19,6 @@
       "Id": "slime",
       "Components": [
         "MOD.Core.TransformComponent",
-        "MOD.Core.StateAnimationComponent",
         "MOD.Core.SpriteRendererComponent",
         "MOD.Core.KinematicbodyComponent",
         "MOD.Core.MovementComponent",
@@ -61,21 +60,6 @@
           "Value": 2
         },
         {
-          "TargetType": "MOD.Core.StateAnimationComponent",
-          "Name": "ActionSheet",
-          "ValueType": {
-            "$type": "MODNativeType",
-            "type": "MOD.Core.MODSyncDictionary`2[[System.String, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089],[System.String, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089]], MOD.Core, Version=26.5.0.0, Culture=neutral, PublicKeyToken=null"
-          },
-          "Value": {
-            "$type": "MOD.Core.MODSyncDictionary`2[[System.String, mscorlib],[System.String, mscorlib]], MOD.Core",
-            "stand": "50faf654ee5d479cb2958edce9feaef0",
-            "move": "dc932872543f4a02bf41e977ab79e5ad",
-            "attack": "8b89d86b1a9c4c4288650614c6f30e67",
-            "die": "31ecb6c7cbc24599881f00cb01599f09"
-          }
-        },
-        {
           "TargetType": "MOD.Core.HitComponent",
           "Name": "IsLegacy",
           "ValueType": {
@@ -93,7 +77,7 @@
           },
           "Value": {
             "$type": "MOD.Core.MODVector2, MOD.Core",
-            "x": 1.0,
+            "x": 1,
             "y": 0.7
           }
         },
@@ -106,7 +90,7 @@
           },
           "Value": {
             "$type": "MOD.Core.MODVector2, MOD.Core",
-            "x": 0.0,
+            "x": 0,
             "y": 0.3
           }
         },
@@ -126,7 +110,7 @@
             "$type": "MODNativeType",
             "type": "System.Double, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089"
           },
-          "Value": 30.0
+          "Value": 30
         },
         {
           "TargetType": "script.Monster",
