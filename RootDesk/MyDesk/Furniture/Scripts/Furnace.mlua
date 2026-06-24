@@ -136,9 +136,7 @@ script Furnace extends Component
 	method void RequestPutItem(string slotType, string itemName, integer amount)
 		-- Processes the player request to transfer ore or fuel into the furnace slots.
 		local userId = senderUserId
-		if userId == nil or userId == "" then
-			userId = _G.senderUserId or ""
-		end
+		if userId == nil or userId == "" then return end
 		local playerEntity = _UserService:GetUserEntityByUserId(userId)
 		if not isvalid(playerEntity) then return end
 		
@@ -189,9 +187,7 @@ script Furnace extends Component
 	method void RequestTakeItem(string slotType)
 		-- Processes the player request to take items back from the furnace slots.
 		local userId = senderUserId
-		if userId == nil or userId == "" then
-			userId = _G.senderUserId or ""
-		end
+		if userId == nil or userId == "" then return end
 		local playerEntity = _UserService:GetUserEntityByUserId(userId)
 		if not isvalid(playerEntity) then return end
 		

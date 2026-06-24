@@ -176,7 +176,7 @@ script itemreact extends Component
 		log("Collecting item: " .. self.ItemName .. " for player " .. player.Name)
 		
 		---@type PlayerInventory
-		local inventory = player:GetComponent("PlayerInventory")
+		local inventory = player:GetComponent("script.PlayerInventory")
 		if isvalid(inventory) then
 			inventory:AddItem(self.ItemName, 1)
 		else

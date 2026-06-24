@@ -376,7 +376,7 @@ script TileDurabilityManager extends Logic
 				-- Register for respawn
 				local modelId = _EntryService:GetModelIdByName(sourceName)
 				if not modelId then
-					local cleanName = string.gsub(sourceName, " ", "")
+					local cleanName, _ = string.gsub(sourceName, " ", "")
 					local lookupName = string.lower(cleanName)
 					modelId = _EntryService:GetModelIdByName(lookupName)
 				end

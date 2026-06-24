@@ -27,9 +27,7 @@ script Chest extends Component
 		-- atomic transaction to transfer item from player inventory into the chest.
 		if itemKey == nil or itemKey == "" then return end
 		local userId = senderUserId
-		if userId == nil or userId == "" then
-			userId = _G.senderUserId or ""
-		end
+		if userId == nil or userId == "" then return end
 		local player = _UserService:GetUserEntityByUserId(userId)
 		if not isvalid(player) then return end
 		
@@ -113,9 +111,7 @@ script Chest extends Component
 		-- atomic transaction to transfer item from chest to player inventory.
 		if slotIndex < 1 or slotIndex > 8 then return end
 		local userId = senderUserId
-		if userId == nil or userId == "" then
-			userId = _G.senderUserId or ""
-		end
+		if userId == nil or userId == "" then return end
 		local player = _UserService:GetUserEntityByUserId(userId)
 		if not isvalid(player) then return end
 		

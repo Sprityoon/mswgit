@@ -167,15 +167,6 @@
           "Value": 1.6
         },
         {
-          "TargetType": "script.MonsterMeleeAttack",
-          "Name": "ContactDamage",
-          "ValueType": {
-            "$type": "MODNativeType",
-            "type": "System.Int32, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089"
-          },
-          "Value": 5
-        },
-        {
           "TargetType": "MOD.Core.StateComponent",
           "Name": "IsLegacy",
           "ValueType": {

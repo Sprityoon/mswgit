@@ -624,7 +624,7 @@ script UIHUDController extends Component
 				textComp.UseOutLine = true
 				textComp.OutlineColor = Color(0.0, 0.0, 0.0, 1.0)
 				textComp.OutlineWidth = 1.0
-				textComp.Alignment = 4 -- MiddleCenter
+				textComp.Alignment = TextAlignmentType.MiddleCenter
 			end
 		end
 	end

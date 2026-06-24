@@ -369,13 +369,13 @@ script PlayerController extends Component
 		local targetPos = Vector3(pp.x + dirX * dist, pp.y + dirY * dist, pp.z)
 		local finalKnockPos = pp  -- Default to no movement
 		
-		if not self:IsObstacle(Vector2(targetPos.x, targetPos.y), 0.3) then
+		if not self:IsObstacle(Vector2(targetPos.x, targetPos.y), 0.3, nil) then
 			playerComp:SetWorldPosition(targetPos)
 			finalKnockPos = targetPos
 			log("[KNOCKBACK] Server pushed player to: (" .. string.format("%.2f, %.2f", targetPos.x, targetPos.y) .. ")")
 		else
 			local halfPos = Vector3(pp.x + dirX * (dist * 0.5), pp.y + dirY * (dist * 0.5), pp.z)
-			if not self:IsObstacle(Vector2(halfPos.x, halfPos.y), 0.3) then
+			if not self:IsObstacle(Vector2(halfPos.x, halfPos.y), 0.3, nil) then
 				playerComp:SetWorldPosition(halfPos)
 				finalKnockPos = halfPos
 				log("[KNOCKBACK] Server pushed player (half-distance) to: (" .. string.format("%.2f, %.2f", halfPos.x, halfPos.y) .. ")")
@@ -1047,7 +1047,7 @@ script PlayerController extends Component
 			if isvalid(currentMap) then
 				if string.sub(currentMap.Name, 1, 5) == "Home_" then
 					ownerId = string.sub(currentMap.Name, 6)
-					local p1 = string.find(ownerId, "_Sub_")
+					local p1, _ = string.find(ownerId, "_Sub_")
 					if p1 then
 						ownerId = string.sub(ownerId, 1, p1 - 1)
 					end

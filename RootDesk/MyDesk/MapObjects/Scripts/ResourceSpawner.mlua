@@ -112,7 +112,7 @@ script ResourceSpawner extends Logic
 		for _, resName in ipairs(neededNames) do
 			local modelId = _EntryService:GetModelIdByName(resName)
 			if not modelId then
-				local cleanName = string.gsub(resName, " ", "")
+				local cleanName, _ = string.gsub(resName, " ", "")
 				local lookupName = string.lower(cleanName)
 				modelId = _EntryService:GetModelIdByName(lookupName)
 			end
@@ -279,7 +279,6 @@ script ResourceSpawner extends Logic
 	end
 
 	@ExecSpace("ServerOnly")
-	@ExecSpace("ServerOnly")
 	method void SpawnInitialResourcesForMap(Entity map)
 		if not isvalid(map) then
 			log_warning("ResourceSpawner: Map is invalid in SpawnInitialResourcesForMap.")
@@ -387,7 +386,7 @@ script ResourceSpawner extends Logic
 					if biomeResources[bid] == nil then biomeResources[bid] = {} end
 					local modelId = _EntryService:GetModelIdByName(resName)
 					if not modelId then
-						local cleanName = string.gsub(resName, " ", "")
+						local cleanName, _ = string.gsub(resName, " ", "")
 						local lookupName = string.lower(cleanName)
 						modelId = _EntryService:GetModelIdByName(lookupName)
 					end
@@ -451,12 +450,44 @@ script ResourceSpawner extends Logic
 		local chunkEntities = {}
 		local gridToEntity = self:GetGridToEntity(mapName)
 		
-		-- 1. Cache IsGrassAt values for the chunk and its 1-tile border to optimize neighbor checking
+		-- 1. Cache IsGrassAt over the chunk plus a 2-tile border (raw mask), then derive a
+		-- smoothed mask that fills diagonal pinches so 1-wide diagonal grass becomes 2-wide.
+		-- The 13-tile edge+corner grass set cannot render a 1-wide diagonal (each such cell is
+		-- orthogonally isolated and falls back to a single corner tile -> jagged border), so we
+		-- close diagonal connections into 2-wide ribbons before autotiling.
+		local rawGrassCache = {}
+		for x = xMin - 2, xMax + 2 do
+			rawGrassCache[x] = {}
+			for y = yMin - 2, yMax + 2 do
+				rawGrassCache[x][y] = self:IsGrassAt(x, y)
+			end
+		end
+
+		local function rawGrassAt(ax, ay)
+			-- Raw (unsmoothed) grass lookup from the 2-tile-border cache.
+			local col = rawGrassCache[ax]
+			return col ~= nil and col[ay] == true
+		end
+
+		local function smoothGrassAt(ax, ay)
+			-- A dirt cell is filled when it is the inner notch of a diagonal grass connection:
+			-- two perpendicular grass neighbours whose shared diagonal corner is dirt. Straight
+			-- coasts and convex corners (no perpendicular grass pair) are left untouched.
+			if rawGrassAt(ax, ay) then return true end
+			if rawGrassAt(ax + 1, ay) and rawGrassAt(ax, ay + 1) and not rawGrassAt(ax + 1, ay + 1) then return true end
+			if rawGrassAt(ax + 1, ay) and rawGrassAt(ax, ay - 1) and not rawGrassAt(ax + 1, ay - 1) then return true end
+			if rawGrassAt(ax - 1, ay) and rawGrassAt(ax, ay + 1) and not rawGrassAt(ax - 1, ay + 1) then return true end
+			if rawGrassAt(ax - 1, ay) and rawGrassAt(ax, ay - 1) and not rawGrassAt(ax - 1, ay - 1) then return true end
+			return false
+		end
+
+		-- Smoothed mask over the chunk plus a 1-tile border (enough for autotile neighbour reads).
+		-- Downstream choice/autotile code reads grassCache, so it now sees the smoothed terrain.
 		local grassCache = {}
 		for x = xMin - 1, xMax + 1 do
 			grassCache[x] = {}
 			for y = yMin - 1, yMax + 1 do
-				grassCache[x][y] = self:IsGrassAt(x, y)
+				grassCache[x][y] = smoothGrassAt(x, y)
 			end
 		end
 		
@@ -775,7 +806,7 @@ script ResourceSpawner extends Logic
 					table.insert(chunksToUnload, chunkKey)
 				end
 				for _, chunkKey in ipairs(chunksToUnload) do
-					local idx = string.find(chunkKey, "_")
+					local idx, _ = string.find(chunkKey, "_")
 					if idx then
 						local cx = tonumber(string.sub(chunkKey, 1, idx - 1))
 						local cy = tonumber(string.sub(chunkKey, idx + 1))
@@ -833,7 +864,7 @@ script ResourceSpawner extends Logic
 		
 		for chunkKey, _ in pairs(currentLoadedChunks) do
 			if desiredChunks[chunkKey] == nil then
-				local idx = string.find(chunkKey, "_")
+				local idx, _ = string.find(chunkKey, "_")
 				if idx then
 					local cx = tonumber(string.sub(chunkKey, 1, idx - 1))
 					local cy = tonumber(string.sub(chunkKey, idx + 1))

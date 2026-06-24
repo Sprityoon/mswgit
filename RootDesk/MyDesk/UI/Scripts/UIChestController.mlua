@@ -186,19 +186,19 @@ script UIChestController extends Component
 		for i = 1, 8 do
 			local slotEnt = self["slot" .. i]
 			if isvalid(slotEnt) then
-				local handler = slotEnt:ConnectEvent(ButtonClickEvent, function()
+				local slotHandler = slotEnt:ConnectEvent(ButtonClickEvent, function()
 					self:OnSlotClicked(i)
 				end)
-				self.slotHandlers[slotEnt] = handler
+				self.slotHandlers[slotEnt] = slotHandler
 			end
 		end
 	end
 
 	@ExecSpace("ClientOnly")
 	method void ClearSlotEvents()
-		for slotEnt, handler in pairs(self.slotHandlers) do
+		for slotEnt, slotHandler in pairs(self.slotHandlers) do
 			if isvalid(slotEnt) then
-				slotEnt:DisconnectEvent(ButtonClickEvent, handler)
+				slotEnt:DisconnectEvent(ButtonClickEvent, slotHandler)
 			end
 		end
 		self.slotHandlers = {}
