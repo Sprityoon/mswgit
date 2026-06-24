@@ -120,13 +120,32 @@ script PlayerController extends Component
 		end
 	end
 
-	method boolean IsObstacle(Vector2 checkPos, number radius)
+	method boolean IsObstacle(Vector2 checkPos, number radius, any currentPos)
 		local simulator = _CollisionService:GetSimulator(self.Entity)
 		local checkShape = CircleShape(checkPos, radius)
 		local overlaps = simulator:OverlapAll(CollisionGroups.TriggerBox, checkShape)
 		for _, comp in ipairs(overlaps) do
 			if isvalid(comp) and isvalid(comp.Entity) then
-				if comp.Entity ~= self.Entity and comp.Entity.Name ~= "GrownGrass" and comp.Entity.Name ~= "ItemDrop" then
+				local entity = comp.Entity
+				local isObstacleEntity = false
+				pcall(function()
+					if entity ~= self.Entity and entity.Name ~= "GrownGrass" and entity.Name ~= "ItemDrop" then
+						if currentPos ~= nil then
+							local transform = entity.TransformComponent
+							if isvalid(transform) then
+								local obstaclePos = transform.WorldPosition:ToVector2()
+								local currentDist = Vector2.Distance(currentPos, obstaclePos)
+								local testDist = Vector2.Distance(checkPos, obstaclePos)
+								if testDist <= currentDist then
+									isObstacleEntity = true
+								end
+							end
+						else
+							isObstacleEntity = true
+						end
+					end
+				end)
+				if isObstacleEntity then
 					return true
 				end
 			end
@@ -141,6 +160,9 @@ script PlayerController extends Component
 
 	@ExecSpace("ClientOnly")
 	method void OnUpdate(number delta)
+		-- Resolve any overlaps with resource colliders first
+		self:ResolveOverlaps(delta)
+
 		-- description: Monitor player movement inputs to track last facing direction and drive movement.
 		-- Handle visual IFrame flashing (translucent blinking)
 		if self.IFrameTimer > 0 then
@@ -211,7 +233,7 @@ script PlayerController extends Component
 		end
 		
 		local inputDx = dx
-			local inputDy = dy
+		local inputDy = dy
 		
 		-- Drive movement via MovementComponent
 		local movement = self.Entity.MovementComponent
@@ -232,7 +254,7 @@ script PlayerController extends Component
 				-- Test X movement
 				if dx ~= 0 then
 					local testXPos = currentPos + Vector2(dx * step, 0)
-					if self:IsObstacle(testXPos, r) then
+					if self:IsObstacle(testXPos, r, currentPos) then
 						dx = 0
 					end
 				end
@@ -240,7 +262,7 @@ script PlayerController extends Component
 				-- Test Y movement
 				if dy ~= 0 then
 					local testYPos = currentPos + Vector2(0, dy * step)
-					if self:IsObstacle(testYPos, r) then
+					if self:IsObstacle(testYPos, r, currentPos) then
 						dy = 0
 					end
 				end
@@ -495,6 +517,30 @@ script PlayerController extends Component
 				local controller = popup:GetComponent("script.UICraftingController")
 				if isvalid(controller) then
 					controller:TryCraft()
+				end
+			end
+		elseif key == KeyboardKey.I then
+			local popup = _EntityService:GetEntityByPath("/ui/PopupGroup/InventoryPopup")
+			if isvalid(popup) then
+				local controller = popup:GetComponent("script.UIInventoryController")
+				if isvalid(controller) then
+					controller:Toggle()
+				end
+			end
+		elseif key == KeyboardKey.C then
+			local popup = _EntityService:GetEntityByPath("/ui/PopupGroup/CraftingPopup")
+			if isvalid(popup) then
+				local controller = popup:GetComponent("script.UICraftingController")
+				if isvalid(controller) then
+					controller:Toggle()
+				end
+			end
+		elseif key == KeyboardKey.E then
+			local popup = _EntityService:GetEntityByPath("/ui/PopupGroup/CharacterPopup")
+			if isvalid(popup) then
+				local controller = popup:GetComponent("script.UICharacterController")
+				if isvalid(controller) then
+					controller:Toggle()
 				end
 			end
 		elseif key == KeyboardKey.F then
@@ -1141,6 +1187,72 @@ script PlayerController extends Component
 		self.CanPlaceOnCurrentMap = canPlace
 		self.CanInteractOnCurrentMap = canInteract
 		log("Permissions synced: mine=" .. tostring(canMine) .. ", place=" .. tostring(canPlace) .. ", interact=" .. tostring(canInteract))
+	end
+
+	@ExecSpace("ClientOnly")
+	method void ResolveOverlaps(number delta)
+		if self.IsDead then return end
+		
+		local body = self.Entity.KinematicbodyComponent
+		local currentPos = nil
+		if isvalid(body) then
+			currentPos = body:GetWorldGroundPosition()
+		else
+			local transform = self.Entity.TransformComponent
+			if isvalid(transform) then
+				currentPos = transform.WorldPosition:ToVector2()
+			end
+		end
+		if not currentPos then return end
+		
+		local simulator = _CollisionService:GetSimulator(self.Entity)
+		local r = 0.3
+		local checkShape = CircleShape(currentPos, r)
+		local overlaps = simulator:OverlapAll(CollisionGroups.TriggerBox, checkShape)
+		
+		local pushVector = Vector2.zero
+		local overlapCount = 0
+		
+		for _, comp in ipairs(overlaps) do
+			if isvalid(comp) and isvalid(comp.Entity) then
+				local entity = comp.Entity
+				pcall(function()
+					if entity ~= self.Entity and entity.Name ~= "GrownGrass" and entity.Name ~= "ItemDrop" then
+						local transform = entity.TransformComponent
+						if isvalid(transform) then
+							local obstaclePos = transform.WorldPosition:ToVector2()
+							local dir = currentPos - obstaclePos
+							local dist = dir:Length()
+							if dist < 0.01 then
+								dir = Vector2(math.random() - 0.5, math.random() - 0.5):Normalize()
+								dist = 0.01
+							else
+								dir = dir:Normalize()
+							end
+							
+							-- Standard obstacle radius set to 0.45.
+							local obstacleRadius = 0.45
+							local overlapDepth = (r + obstacleRadius) - dist
+							if overlapDepth > 0 then
+								pushVector = pushVector + dir * overlapDepth
+								overlapCount = overlapCount + 1
+							end
+						end
+					end
+				end)
+			end
+		end
+		
+		if overlapCount > 0 then
+			-- Smooth pushback correction: push player out by 20% of overlap depth per frame
+			local finalPush = pushVector * 0.20
+			local targetPos = currentPos + finalPush
+			
+			local transform = self.Entity.TransformComponent
+			if isvalid(transform) then
+				transform.WorldPosition = Vector3(targetPos.x, targetPos.y, transform.WorldPosition.z)
+			end
+		end
 	end
 
 end

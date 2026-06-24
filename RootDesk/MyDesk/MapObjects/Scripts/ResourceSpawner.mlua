@@ -589,6 +589,25 @@ script ResourceSpawner extends Logic
 		local spawnedEntities = self:GetSpawnedEntities(mapName)
 		local destroyedResources = self:GetDestroyedResources(mapName)
 
+		-- Prevent spawning on top of active players
+		local mapComp = map.MapComponent
+		if isvalid(mapComp) then
+			local players = _UserService:GetUsersByMapComponent(mapComp)
+			if players then
+				for _, player in ipairs(players) do
+					if isvalid(player) and player.TransformComponent then
+						local pPos = player.TransformComponent.WorldPosition
+						local dx = pPos.x - (x + 0.5)
+						local dy = pPos.y - (y + 0.5)
+						local distance = math.sqrt(dx * dx + dy * dy)
+						if distance < 1.5 then
+							return nil
+						end
+					end
+				end
+			end
+		end
+
 		if destroyedResources then
 			local isDestroyed = false
 			for _, dr in ipairs(destroyedResources) do
@@ -1174,6 +1193,46 @@ script ResourceSpawner extends Logic
 		gridToEntity[key] = nil
 		spawnedEntities[key] = nil
 		log("Removed placed furniture at (" .. x .. ", " .. y .. ") in map " .. mapName)
+	end
+
+	@ExecSpace("ServerOnly")
+	method Vector2 FindSafeSpawnPosition(string mapName, number startX, number startY)
+		local gridToEntity = self:GetGridToEntity(mapName)
+		
+		local cx = math.floor(startX)
+		local cy = math.floor(startY)
+		
+		local function isSafe(tx, ty)
+			local gKey = tx .. "_" .. ty
+			local occupant = gridToEntity[gKey]
+			if occupant ~= nil then
+				if isvalid(occupant.entity) then
+					return false
+				end
+			end
+			return true
+		end
+		
+		if isSafe(cx, cy) then
+			return Vector2(startX, startY)
+		end
+		
+		local maxRadius = 3
+		for r = 1, maxRadius do
+			for dx = -r, r do
+				for dy = -r, r do
+					if math.abs(dx) == r or math.abs(dy) == r then
+						local tx = cx + dx
+						local ty = cy + dy
+						if isSafe(tx, ty) then
+							return Vector2(tx + 0.5, ty + 0.5)
+						end
+					end
+				end
+			end
+		end
+		
+		return Vector2(startX, startY)
 	end
 
 end

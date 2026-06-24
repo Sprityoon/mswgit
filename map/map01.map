@@ -50363,6 +50363,91 @@
         }
       },
       {
+        "id": "e811bd45-5683-4a11-bba0-824249e71d6f",
+        "path": "/maps/map01/MapleMapLayer4",
+        "componentNames": "MOD.Core.MapLayerComponent",
+        "jsonString": {
+          "name": "MapleMapLayer4",
+          "path": "/maps/map01/MapleMapLayer4",
+          "nameEditable": false,
+          "enable": true,
+          "visible": true,
+          "localize": false,
+          "displayOrder": 8,
+          "pathConstraints": "///",
+          "revision": 1,
+          "origin": {
+            "type": "Model",
+            "entry_id": "maplemaplayer",
+            "sub_entity_id": null,
+            "root_entity_id": null,
+            "replaced_model_id": null
+          },
+          "modelId": "maplemaplayer",
+          "@components": [
+            {
+              "@type": "MOD.Core.MapLayerComponent",
+              "IsVisible": true,
+              "LayerSortOrder": 3,
+              "Locked": false,
+              "MapLayerName": "Layer4",
+              "Thumbnail": "",
+              "Enable": true
+            }
+          ],
+          "@version": 1
+        }
+      },
+      {
+        "id": "a90abf23-d12c-41a8-a46e-72e43d8a70de",
+        "path": "/maps/map01/RectTileMap4",
+        "componentNames": "MOD.Core.TransformComponent,MOD.Core.RectTileMapComponent",
+        "jsonString": {
+          "name": "RectTileMap4",
+          "path": "/maps/map01/RectTileMap4",
+          "nameEditable": false,
+          "enable": true,
+          "visible": true,
+          "localize": false,
+          "displayOrder": 9,
+          "pathConstraints": "///",
+          "revision": 1,
+          "origin": {
+            "type": "Model",
+            "entry_id": "recttilemap",
+            "sub_entity_id": null,
+            "root_entity_id": null,
+            "replaced_model_id": null
+          },
+          "modelId": "recttilemap",
+          "@components": [
+            {
+              "@type": "MOD.Core.TransformComponent",
+              "Position": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 1000.0
+              },
+              "QuaternionRotation": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0,
+                "w": 1.0
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.RectTileMapComponent",
+              "SortingLayer": "MapLayer2",
+              "TileSetRUID": "tileset://7e240dde-c5fe-4d2e-ad41-0a80f4b3ec7d",
+              "Enable": true,
+              "tileMap": []
+            }
+          ],
+          "@version": 1
+        }
+      },
+      {
         "id": "843d0249-2b77-4389-a076-4f7b2013da48",
         "path": "/maps/map01/SpawnLocation",
         "componentNames": "MOD.Core.TransformComponent,MOD.Core.SpriteRendererComponent,MOD.Core.SpawnLocationComponent",
@@ -50373,7 +50458,7 @@
           "enable": true,
           "visible": true,
           "localize": false,
-          "displayOrder": 8,
+          "displayOrder": 10,
           "pathConstraints": "///",
           "revision": 1,
           "origin": {

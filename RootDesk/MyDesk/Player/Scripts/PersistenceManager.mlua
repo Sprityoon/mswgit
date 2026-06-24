@@ -309,8 +309,9 @@ script PersistenceManager extends Logic
 		end
 
 		-- Single warp from the start map straight to the resolved home position (no double-jump).
-		player.PlayerComponent:MoveToMapPosition(mapName, Vector2(spawnX, spawnY))
-		log("PersistenceManager: Player warped to home " .. mapName .. " at (" .. spawnX .. ", " .. spawnY .. ")")
+		local safePos = _ResourceSpawner:FindSafeSpawnPosition(mapName, spawnX, spawnY)
+		player.PlayerComponent:MoveToMapPosition(mapName, safePos)
+		log("PersistenceManager: Player warped to home " .. mapName .. " at (" .. safePos.x .. ", " .. safePos.y .. ") (original: " .. spawnX .. ", " .. spawnY .. ")")
 
 		self.DirtyPlayers[userId] = false
 	end
