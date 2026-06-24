@@ -1,1 +1,4 @@
 {"ts":"2026-06-21T10:19:47.076Z","version":"0.8.6","command":"status","args":["--workspace","D:\\메이플월도","--json"],"cwd":"D:\\메이플월도","exitCode":0,"durationMs":31}
+{"ts":"2026-06-23T05:53:35.497Z","version":"0.8.6","command":"status","args":["--workspace","C:\\minho\\메이플월드","--json"],"cwd":"C:\\minho\\메이플월드","exitCode":0,"durationMs":38}
+{"ts":"2026-06-23T10:40:13.123Z","version":"0.8.6","command":"status","args":["--workspace","C:\\minho\\메이플월드","--json"],"cwd":"C:\\minho\\메이플월드","exitCode":0,"durationMs":38}
+{"ts":"2026-06-24T06:19:11.719Z","version":"0.8.6","command":"status","args":["--workspace","C:\\minho\\메이플월드","--json"],"cwd":"C:\\minho\\메이플월드","exitCode":0,"durationMs":45}
