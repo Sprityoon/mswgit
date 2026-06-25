@@ -21,6 +21,11 @@ script ResourceSpawner extends Logic
 	-- (game_design.md §2.2). PlayerController/PlayerInventory/MonsterSpawner read this
 	-- value, so they follow automatically.
 	property integer MapRadius = 30
+	-- Thickness (tiles) of the impassable boundary wall band on RectTileMap4 (Layer 4).
+	-- Walls occupy max(|x|,|y|) in [MapRadius-WallThickness+1, MapRadius]; the playable interior
+	-- is max(|x|,|y|) < MapRadius-WallThickness+1. Thick so knockback/clipping can't escape.
+	-- Layer 4 is the canonical impassable-wall layer (game_design.md §2.2).
+	property integer WallThickness = 3
 	property integer SpawnZoneRadius = 5
 	property integer MacroCellSize = 10
 	property integer MacroGridCount = 15
@@ -492,6 +497,7 @@ script ResourceSpawner extends Logic
 		
 		local seedVal = self:GetMapSeed(mapName)
 		local mapRadius = self.MapRadius
+		local wallInner = mapRadius - self.WallThickness + 1
 		local chunkSize = self.MacroCellSize
 		
 		local xMin = cx * chunkSize
@@ -550,8 +556,9 @@ script ResourceSpawner extends Logic
 					continue
 				end
 				
-				-- Handle boundaries
-				if math.abs(x) == mapRadius or math.abs(y) == mapRadius then
+				-- Impassable boundary wall BAND on Layer 4 (thick so clipping/knockback can't escape).
+				-- Cells in the band paint a wall tile and never receive terrain/resources.
+				if math.abs(x) >= wallInner or math.abs(y) >= wallInner then
 					tilemap4:SetTile("Rocks", x, y)
 					continue
 				end
@@ -931,8 +938,25 @@ script ResourceSpawner extends Logic
 	end
 
 	@ExecSpace("ServerOnly")
+	method boolean IsInsidePlayable(number x, number y)
+		-- True when cell (x, y) is inside the playable interior (not the boundary wall band).
+		-- Resources may only generate/respawn here; the wall band and anything beyond are excluded.
+		local wallInner = self.MapRadius - self.WallThickness + 1
+		return math.abs(x) < wallInner and math.abs(y) < wallInner
+	end
+
+	@ExecSpace("ServerOnly")
 	method void LoadDestroyedResourcesFromJson(string mapName, string json)
-		self.DestroyedResourcesMap[mapName] = (json ~= nil and json ~= "") and _HttpService:JSONDecode(json) or {}
+		local list = (json ~= nil and json ~= "") and _HttpService:JSONDecode(json) or {}
+		-- Drop any records outside the current playable area (e.g. left over from a previously
+		-- larger MapRadius) so they can never respawn a stone in/beyond the wall band.
+		local cleaned = {}
+		for _, rec in ipairs(list) do
+			if rec ~= nil and rec.x ~= nil and rec.y ~= nil and self:IsInsidePlayable(rec.x, rec.y) then
+				table.insert(cleaned, rec)
+			end
+		end
+		self.DestroyedResourcesMap[mapName] = cleaned
 	end
 
 	@ExecSpace("ServerOnly")
@@ -987,6 +1011,12 @@ script ResourceSpawner extends Logic
 		
 		for i = #destroyedResources, 1, -1 do
 			local item = destroyedResources[i]
+			-- Purge stale records outside the current playable area (e.g. left over from a larger
+			-- MapRadius); never respawn a resource in/beyond the wall band.
+			if not self:IsInsidePlayable(item.x, item.y) then
+				table.remove(destroyedResources, i)
+				continue
+			end
 			local row = ds:FindRow("SourceId", item.sourceName)
 			local duration = 300
 			if row then
