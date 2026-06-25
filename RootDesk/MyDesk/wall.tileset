@@ -1,0 +1,27 @@
+{
+  "Id": "",
+  "GameId": "",
+  "EntryKey": "tileset://2361293b-a3c2-4138-8dec-4fb4d1f9acf4",
+  "ContentType": "x-mod/tileset",
+  "Content": "",
+  "Usage": 0,
+  "UsePublish": 1,
+  "UseService": 0,
+  "CoreVersion": "26.5.0.0",
+  "StudioVersion": "0.1.0.0",
+  "DynamicLoading": 0,
+  "ContentProto": {
+    "Use": "Json",
+    "Json": {
+      "name": "wall",
+      "id": "tileset://2361293b-a3c2-4138-8dec-4fb4d1f9acf4",
+      "datas": [
+        {
+          "Id": "e8fa88200e4f4a92865c49940595db6f",
+          "Name": "Big Wall",
+          "IsCollidable": true
+        }
+      ]
+    }
+  }
+}

@@ -222,7 +222,7 @@
             {
               "@type": "MOD.Core.RectTileMapComponent",
               "SortingLayer": "MapLayer0",
-              "TileSetRUID": "tileset://7e240dde-c5fe-4d2e-ad41-0a80f4b3ec7d",
+              "TileSetRUID": "tileset://2361293b-a3c2-4138-8dec-4fb4d1f9acf4",
               "Enable": true,
               "tileMap": [
                 {
@@ -23247,7 +23247,7 @@
                     "x": 5,
                     "y": 2
                   },
-                  "tileIndex": 62
+                  "tileIndex": 0
                 },
                 {
                   "type": 0,
@@ -23815,7 +23815,7 @@
                     "x": 6,
                     "y": 2
                   },
-                  "tileIndex": 62
+                  "tileIndex": 0
                 },
                 {
                   "type": 0,
@@ -23823,7 +23823,7 @@
                     "x": 6,
                     "y": 3
                   },
-                  "tileIndex": 62
+                  "tileIndex": 0
                 },
                 {
                   "type": 0,
