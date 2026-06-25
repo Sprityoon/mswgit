@@ -1,7 +1,7 @@
 ﻿BiomeId,ResourceName,SpawnChance,RequiredTile
-green_island,Tree1,0.04,BaseGrass
-green_island,Tree2,0.04,BaseGrass
-green_island,Stone,0.03,
+green_island,Tree1,0.02,BaseGrass
+green_island,Tree2,0.02,BaseGrass
+green_island,Stone,0.015,
 earth_field,Stone,0.04,
 earth_field,Big Stone1,0.012,
 earth_field,Big Stone2,0.012,
@@ -12,7 +12,7 @@ desert,Stone,0.02,
 desert,Big Stone1,0.008,
 snowfield,Stone,0.02,
 snowfield,Big Stone2,0.008,
-green_island,GrownGrass,0.15,BaseGrass
+green_island,GrownGrass,0.06,BaseGrass
 rocky,IronNodeResource,0.02,
 desert,IronNodeResource,0.01,
 snowfield,IronNodeResource,0.01,

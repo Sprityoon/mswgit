@@ -19,6 +19,11 @@ script ResourceSpawner extends Logic
 	property integer SpawnZoneRadius = 5
 	property integer MacroCellSize = 10
 	property integer MacroGridCount = 15
+	-- When non-empty, GetBiomeAt returns this single biome for the whole map instead of the
+	-- macro-grid multi-biome selection. Personal estates use "green_island" (earth+grass) per
+	-- the 2026-06 concept shift (game_design.md §2.2 / §3.10). Set to "" to re-enable the
+	-- multi-biome macro grid (intended for future hunting-ground maps).
+	property string ForceBiomeId = "green_island"
 	property string GrownGrassModelId = ""
 
 	method table GetSpawnedEntities(string mapName)
@@ -168,6 +173,12 @@ script ResourceSpawner extends Logic
 
 	@ExecSpace("ServerOnly")
 	method string GetBiomeAt(number x, number y)
+		-- Returns the biome id at world cell (x, y). When ForceBiomeId is set (default for
+		-- personal estates), the whole map is that single biome (green_island = earth+grass mix);
+		-- the macro-grid multi-biome path below is preserved for future hunting-ground maps.
+		if self.ForceBiomeId ~= nil and self.ForceBiomeId ~= "" then
+			return self.ForceBiomeId
+		end
 		local seedVal = self.PrngSeed
 		local mapRadius = self.MapRadius
 		local macroSize = self.MacroCellSize
