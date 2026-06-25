@@ -120,7 +120,52 @@ script PlayerController extends Component
 		end
 	end
 
+	method boolean IsWallAt(Vector2 checkPos)
+		-- description: True if checkPos is an impassable wall — a Layer-4 (RectTileMap4) tile, or a
+		-- cell inside the estate boundary wall band. Cell/coordinate based, so it blocks even when
+		-- knockback teleports (SetWorldPosition) or a chunk-unloaded edge would bypass tile physics.
+		local map = self.Entity.CurrentMap
+		if not isvalid(map) then return false end
+		local mapName = map.Name
+
+		-- Resolve & cache the Layer-4 wall tilemap for the current map (re-resolve while still nil,
+		-- e.g. before chunk loading creates RectTileMap4). The map has many entity children from
+		-- resource proximity loading, so GetChildByName every frame once cached would be costly.
+		if self._T.wallLayerMapName ~= mapName or not isvalid(self._T.wallLayer) then
+			self._T.wallLayerMapName = mapName
+			local l4 = map:GetChildByName("RectTileMap4")
+			self._T.wallLayer = (isvalid(l4) and l4.RectTileMapComponent) or nil
+		end
+
+		local wallLayer = self._T.wallLayer
+		if isvalid(wallLayer) then
+			local cell = wallLayer:ToCellPosition(Vector3(checkPos.x, checkPos.y, 0))
+			if cell ~= nil and wallLayer:GetTile(cell) ~= nil then
+				return true
+			end
+		end
+
+		-- Estate hard boundary: any cell in/beyond the wall band is impassable regardless of tile
+		-- load state, so the player can never be knocked/clipped outside the estate.
+		if string.sub(mapName, 1, 5) == "Home_" then
+			local rs = _ResourceSpawner
+			if rs ~= nil then
+				local wallInner = rs.MapRadius - rs.WallThickness + 1
+				if math.abs(math.floor(checkPos.x)) >= wallInner or math.abs(math.floor(checkPos.y)) >= wallInner then
+					return true
+				end
+			end
+		end
+
+		return false
+	end
+
 	method boolean IsObstacle(Vector2 checkPos, number radius, any currentPos)
+		-- description: True if checkPos hits an obstacle — a Layer-4 wall tile / estate boundary
+		-- (IsWallAt), or a resource/furniture entity collider (TriggerBox).
+		if self:IsWallAt(checkPos) then
+			return true
+		end
 		local simulator = _CollisionService:GetSimulator(self.Entity)
 		local checkShape = CircleShape(checkPos, radius)
 		local overlaps = simulator:OverlapAll(CollisionGroups.TriggerBox, checkShape)
