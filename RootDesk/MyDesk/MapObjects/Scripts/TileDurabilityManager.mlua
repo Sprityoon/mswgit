@@ -189,7 +189,7 @@ script TileDurabilityManager extends Logic
 			else
 				-- Normal resource entity pre-roll using ItemDropLogic
 				local sourceName = resourceEntity.Name or ""
-				local biomeId = _ResourceSpawner:GetBiomeAt(gridData.pivotX, gridData.pivotY)
+				local biomeId = _ResourceSpawner:GetBiomeAt(mapName, gridData.pivotX, gridData.pivotY)
 				local drops = _ItemDropLogic:GetDrops(sourceName, biomeId)
 				for _, drop in ipairs(drops) do
 					local totalCount = math.random(drop.min, drop.max)

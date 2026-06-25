@@ -7,6 +7,11 @@ script ResourceSpawner extends Logic
 	property table PlacedTilesJsonMap = {}
 	property table PlacedFurnitureJsonMap = {}
 	property table LoadedChunksMap = {}
+	-- Per-map generation overrides keyed by map name. Estates use the singleton defaults
+	-- (PrngSeed / ForceBiomeId = green_island); hunting maps set their own seed (rotated on a
+	-- schedule) and ForceBiomeId = "" for multi-biome. See game_design.md §2.2 ③ / Phase 12-B.
+	property table MapSeedMap = {}
+	property table MapForceBiomeMap = {}
 
 	property any RespawnTimerId = nil
 	property integer LoadingTimerId = 0
@@ -172,14 +177,45 @@ script ResourceSpawner extends Logic
 	end
 
 	@ExecSpace("ServerOnly")
-	method string GetBiomeAt(number x, number y)
-		-- Returns the biome id at world cell (x, y). When ForceBiomeId is set (default for
-		-- personal estates), the whole map is that single biome (green_island = earth+grass mix);
-		-- the macro-grid multi-biome path below is preserved for future hunting-ground maps.
-		if self.ForceBiomeId ~= nil and self.ForceBiomeId ~= "" then
-			return self.ForceBiomeId
+	method integer GetMapSeed(string mapName)
+		-- Per-map generation seed; falls back to the singleton PrngSeed when not overridden.
+		-- Hunting maps rotate this on a schedule (game_design.md §2.2 ③); estates use the default.
+		local s = self.MapSeedMap[mapName]
+		if s ~= nil then return s end
+		return self.PrngSeed
+	end
+
+	@ExecSpace("ServerOnly")
+	method void SetMapSeed(string mapName, integer seed)
+		-- Sets a map's generation seed (e.g. a hunting-ground rotation window).
+		self.MapSeedMap[mapName] = seed
+	end
+
+	@ExecSpace("ServerOnly")
+	method string GetMapForceBiomeId(string mapName)
+		-- Per-map single-biome override. "" enables the macro-grid multi-biome path (hunting maps);
+		-- when not overridden, falls back to the singleton ForceBiomeId (estates = green_island).
+		local b = self.MapForceBiomeMap[mapName]
+		if b ~= nil then return b end
+		return self.ForceBiomeId
+	end
+
+	@ExecSpace("ServerOnly")
+	method void SetMapForceBiomeId(string mapName, string biomeId)
+		-- Sets a map's biome override. Pass "" for multi-biome (hunting), a biome id for single.
+		self.MapForceBiomeMap[mapName] = biomeId
+	end
+
+	@ExecSpace("ServerOnly")
+	method string GetBiomeAt(string mapName, number x, number y)
+		-- Returns the biome id at world cell (x, y) for the given map. When the map's force-biome
+		-- is set (default for personal estates = green_island = earth+grass mix), the whole map is
+		-- that single biome; "" falls through to the macro-grid multi-biome path (hunting maps).
+		local forceBiome = self:GetMapForceBiomeId(mapName)
+		if forceBiome ~= nil and forceBiome ~= "" then
+			return forceBiome
 		end
-		local seedVal = self.PrngSeed
+		local seedVal = self:GetMapSeed(mapName)
 		local mapRadius = self.MapRadius
 		local macroSize = self.MacroCellSize
 		
@@ -232,12 +268,13 @@ script ResourceSpawner extends Logic
 	end
 
 	@ExecSpace("ServerOnly")
-	method boolean IsGrassAt(number x, number y)
-		local biomeId = self:GetBiomeAt(x, y)
+	method boolean IsGrassAt(string mapName, number x, number y)
+		-- True when cell (x, y) on the given map is grass (green_island biome + 2nd-noise threshold).
+		local biomeId = self:GetBiomeAt(mapName, x, y)
 		if biomeId ~= "green_island" then
 			return false
 		end
-		local seedVal = self.PrngSeed
+		local seedVal = self:GetMapSeed(mapName)
 		local nVal = self:Noise2D(x * 0.12, y * 0.12, seedVal + 5555)
 		return nVal >= 0.40
 	end
@@ -453,7 +490,7 @@ script ResourceSpawner extends Logic
 		local tilemap3 = layer3Entity.RectTileMapComponent
 		local tilemap4 = layer4Entity.RectTileMapComponent
 		
-		local seedVal = self.PrngSeed
+		local seedVal = self:GetMapSeed(mapName)
 		local mapRadius = self.MapRadius
 		local chunkSize = self.MacroCellSize
 		
@@ -474,7 +511,7 @@ script ResourceSpawner extends Logic
 		for x = xMin - 2, xMax + 2 do
 			rawGrassCache[x] = {}
 			for y = yMin - 2, yMax + 2 do
-				rawGrassCache[x][y] = self:IsGrassAt(x, y)
+				rawGrassCache[x][y] = self:IsGrassAt(mapName, x, y)
 			end
 		end
 
@@ -519,7 +556,7 @@ script ResourceSpawner extends Logic
 					continue
 				end
 				
-				local biomeId = self:GetBiomeAt(x, y)
+				local biomeId = self:GetBiomeAt(mapName, x, y)
 				local choice = "BaseEarth"
 				
 				if biomeId == "desert" then
@@ -629,7 +666,7 @@ script ResourceSpawner extends Logic
 	@ExecSpace("ServerOnly")
 	method Entity TrySpawnResourceInChunk(Entity map, string modelId, string name, number x, number y, table chunkEntities)
 		local mapName = map.Name
-		local seedVal = self.PrngSeed
+		local seedVal = self:GetMapSeed(mapName)
 		local mapRadius = self.MapRadius
 		local gridToEntity = self:GetGridToEntity(mapName)
 		local spawnedEntities = self:GetSpawnedEntities(mapName)

@@ -67,9 +67,10 @@ script MonsterSpawner extends Logic
 		-- defense-in-depth for future hunting maps that mix a green_island sub-region.
 		local mapName = map.Name
 
-		-- Estate guard: ForceBiomeId == "green_island" marks a single-biome peaceful estate map.
+		-- Estate guard: a map whose force-biome is "green_island" is a single-biome peaceful
+		-- estate (per-map; hunting maps set it to "" for multi-biome and do spawn combat).
 		local rs = _ResourceSpawner
-		if rs ~= nil and rs.ForceBiomeId == "green_island" then
+		if rs ~= nil and rs:GetMapForceBiomeId(mapName) == "green_island" then
 			return
 		end
 
@@ -132,7 +133,7 @@ script MonsterSpawner extends Logic
 				local rx = math.random(-radius, radius)
 				local ry = math.random(-radius, radius)
 
-				local biomeId = resourceSpawner:GetBiomeAt(rx, ry)
+				local biomeId = resourceSpawner:GetBiomeAt(mapName, rx, ry)
 				
 				-- Safe Zone filtering (no spawn in green_island)
 				if biomeId ~= "green_island" and biomeConfigs[biomeId] ~= nil then
