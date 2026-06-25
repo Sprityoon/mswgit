@@ -60,7 +60,19 @@ script MonsterSpawner extends Logic
 
 	@ExecSpace("ServerOnly")
 	method void SpawnMonstersForMap(Entity map)
+		-- Spawns combat monster variants into a hunting-ground map up to the population cap.
+		-- Personal estates are peaceful (single green_island biome) per the 2026-06 concept
+		-- shift (game_design.md §2.2/§3.4): combat spawning is skipped entirely so estates only
+		-- ever host passive creatures. The per-cell green_island guard below stays as
+		-- defense-in-depth for future hunting maps that mix a green_island sub-region.
 		local mapName = map.Name
+
+		-- Estate guard: ForceBiomeId == "green_island" marks a single-biome peaceful estate map.
+		local rs = _ResourceSpawner
+		if rs ~= nil and rs.ForceBiomeId == "green_island" then
+			return
+		end
+
 		local monsters = map:GetChildComponentsByTypeName("script.Monster", true)
 		
 		-- Count active (not dead) monsters
