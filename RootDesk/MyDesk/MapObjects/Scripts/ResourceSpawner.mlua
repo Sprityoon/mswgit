@@ -11,7 +11,11 @@ script ResourceSpawner extends Logic
 	property any RespawnTimerId = nil
 	property integer LoadingTimerId = 0
 	property integer PrngSeed = 12345
-	property integer MapRadius = 120
+	-- Personal estate half-extent in tiles. 30 => 61x61 cozy Stardew-style estate
+	-- (boundary walls at +/-MapRadius). Reduced from 120 per the 2026-06 concept shift
+	-- (game_design.md §2.2). PlayerController/PlayerInventory/MonsterSpawner read this
+	-- value, so they follow automatically.
+	property integer MapRadius = 30
 	property integer SpawnZoneRadius = 5
 	property integer MacroCellSize = 10
 	property integer MacroGridCount = 15
