@@ -545,18 +545,11 @@ script PlayerController extends Component
 			end
 		elseif key == KeyboardKey.F then
 			if isvalid(self.ActivePortal) then
-				local curMap = self.Entity.CurrentMap
-				if isvalid(curMap) and curMap.Name == "town" then
-					local popup = _EntityService:GetEntityByPath("/ui/PopupGroup/WarpPopup")
-					if isvalid(popup) then
-						local controller = popup:GetComponent("script.UIWarpController")
-						if isvalid(controller) then
-							controller:Open()
-						end
-					end
-				else
-					self:ServerRequestWarp()
-				end
+				-- Interacting with any portal warps via the portal's own target. Town's
+				-- PortalToHome targets "Home" -> own estate, so this returns home directly.
+				-- (The old town branch opened WarpPopup to type another user's name; that
+				--  visit-by-name entry was removed — see game_design.md §2.2 Portal System.)
+				self:ServerRequestWarp()
 				return
 			end
 			local nearbyFurnace = self:FindNearbyFurnace()
@@ -980,18 +973,11 @@ script PlayerController extends Component
 	method void OnInteractButton()
 		-- description: Handles interaction button press (mobile/UI).
 		if isvalid(self.ActivePortal) then
-			local curMap = self.Entity.CurrentMap
-			if isvalid(curMap) and curMap.Name == "town" then
-				local popup = _EntityService:GetEntityByPath("/ui/PopupGroup/WarpPopup")
-				if isvalid(popup) then
-					local controller = popup:GetComponent("script.UIWarpController")
-					if isvalid(controller) then
-						controller:Open()
-					end
-				end
-			else
-				self:ServerRequestWarp()
-			end
+			-- Interacting with any portal warps via the portal's own target. Town's
+			-- PortalToHome targets "Home" -> own estate, so this returns home directly.
+			-- (The old town branch opened WarpPopup to type another user's name; that
+			--  visit-by-name entry was removed — see game_design.md §2.2 Portal System.)
+			self:ServerRequestWarp()
 			return
 		end
 		local nearbyFurnace = self:FindNearbyFurnace()
