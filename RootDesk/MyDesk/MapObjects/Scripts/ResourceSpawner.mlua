@@ -154,6 +154,16 @@ script ResourceSpawner extends Logic
 		
 		self.GrownGrassModelId = _EntryService:GetModelIdByName("GrownGrass")
 		log("ResourceSpawner: Spawner system components ready.")
+
+		-- Preload the wall tileset so SetTile("Big Wall") on Layer 4 resolves. A tileset that is
+		-- only referenced (no tiles placed) is not guaranteed to be loaded, and SetTile against an
+		-- unloaded tileset throws LEA-3005. Boundary walls are only drawn once this completes
+		-- (self._T.wallReady); the player can't reach the edge before then.
+		self._T.wallReady = false
+		_ResourceService:PreloadTileSetAsync(self.WallTileSetRUID, function(status)
+			self._T.wallReady = true
+			log("ResourceSpawner: Wall tileset preloaded (status: " .. tostring(status) .. ").")
+		end)
 		
 		-- Start integrated resource respawner timer
 		self.RespawnTimerId = _TimerService:SetTimerRepeat(function()
@@ -568,7 +578,11 @@ script ResourceSpawner extends Logic
 				-- Impassable boundary wall BAND on Layer 4 (thick so clipping/knockback can't escape).
 				-- Cells in the band paint a wall tile and never receive terrain/resources.
 				if math.abs(x) >= wallInner or math.abs(y) >= wallInner then
-					tilemap4:SetTile(self.WallTileName, x, y)
+					-- Draw the wall only once the wall tileset is preloaded (avoids LEA-3005 from
+					-- SetTile against an unloaded tileset). Boundary cells never get terrain/resources.
+					if self._T.wallReady == true then
+						tilemap4:SetTile(self.WallTileName, x, y)
+					end
 					continue
 				end
 				

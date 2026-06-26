@@ -222,7 +222,7 @@
             {
               "@type": "MOD.Core.RectTileMapComponent",
               "SortingLayer": "MapLayer0",
-              "TileSetRUID": "tileset://2361293b-a3c2-4138-8dec-4fb4d1f9acf4",
+              "TileSetRUID": "tileset://7e240dde-c5fe-4d2e-ad41-0a80f4b3ec7d",
               "Enable": true,
               "tileMap": [
                 {
