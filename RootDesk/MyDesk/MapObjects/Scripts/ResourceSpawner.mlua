@@ -159,6 +159,9 @@ script ResourceSpawner extends Logic
 		self.GrownGrassModelId = _EntryService:GetModelIdByName("GrownGrass")
 		log("ResourceSpawner: Spawner system components ready.")
 
+		-- Templates/datasets/models are confirmed ready here — safe to clone the shared hunting map.
+		self:EnsureHuntingGroundMaps()
+
 
 		
 		-- Start integrated resource respawner timer
@@ -543,6 +546,80 @@ script ResourceSpawner extends Logic
 		end
 
 		log("ResourceSpawner: Dynamic setup completed for map: " .. mapName)
+	end
+
+	@ExecSpace("ServerOnly")
+	method void EnsureHuntingGroundMaps()
+		-- Creates the shared, always-resident hunting-ground map (hunt01) as a dynamic instance cloned
+		-- from the map01 template, configured for procedural multi-biome terrain + combat. Estates keep
+		-- the singleton defaults (single green_island + peaceful); hunting maps override per-map here.
+		-- Idempotent. (game_design.md §2.2 ③ / Phase 12-B.) Not destroyed by OnUserLeave — its name is
+		-- not "Home_*", so PersistenceManager's empty-map cleanup skips it.
+		local huntName = "hunt01"
+		if isvalid(_EntityService:GetEntityByPath("/maps/" .. huntName)) then return end
+
+		local ec = _DynamicMapService:CreateDynamicMap("map01", huntName)
+		if ec ~= DynamicMapResultCode.Success then
+			log_error("ResourceSpawner: CreateDynamicMap failed for " .. huntName .. ": " .. tostring(ec))
+			return
+		end
+		local huntMap = _EntityService:GetEntityByPath("/maps/" .. huntName)
+		if not isvalid(huntMap) then
+			log_error("ResourceSpawner: hunt map entity missing after creation: " .. huntName)
+			return
+		end
+
+		-- Multi-biome procedural overlay + combat (vs the estate's single green_island + peaceful).
+		self:SetMapForceBiomeId(huntName, "")
+		self:SetMapProceduralTerrain(huntName, true)
+		self:SpawnInitialResourcesForMap(huntMap)
+
+		-- Hand-placed return portal back to the town hub (game_design.md §2.2 ③: 사냥터 → 마을 복귀).
+		self:SpawnFixedPortal(huntMap, "Portal", 0, -3, "town", Vector2(3, 0))
+
+		-- Hub entry portal in town -> hunt01 so the loop is reachable now (estate list portal = §12-C).
+		local townMap = _EntityService:GetEntityByPath("/maps/town")
+		if isvalid(townMap) and not isvalid(townMap:GetChildByName("PortalToHunt01")) then
+			self:SpawnFixedPortal(townMap, "PortalToHunt01", 8, 0, huntName, Vector2(-3, 0))
+		end
+
+		log("ResourceSpawner: Hunting-ground map ready: " .. huntName)
+	end
+
+	@ExecSpace("ServerOnly")
+	method void SpawnFixedPortal(Entity map, string portalName, integer px, integer py, string targetMap, Vector2 targetPos)
+		-- Spawns a fixed Furniture_Portal (which carries a TriggerComponent) at cell (px,py) that warps
+		-- to targetMap, attaches+configures script.PortalGate, and registers the cell as occupied so
+		-- procedural resources never overlap it. Used for the hunt return portal and the town hub entry.
+		local portalModelId = _EntryService:GetModelIdByName("Furniture_Portal")
+		if portalModelId == nil or portalModelId == "" then
+			log_warning("ResourceSpawner: Furniture_Portal model not found; portal '" .. portalName .. "' skipped.")
+			return
+		end
+		local portal = _SpawnService:SpawnByModelId(portalModelId, portalName, Vector3(px + 0.5, py + 0.5, 0), map)
+		if not isvalid(portal) then return end
+
+		local sprite = portal.SpriteRendererComponent
+		if isvalid(sprite) then
+			sprite.IgnoreMapLayerCheck = true
+			sprite.SortingLayer = "MapLayer2"
+			sprite.OrderInLayer = math.floor((self.MapRadius - py) * 100)
+		end
+
+		local pg = portal:GetComponent("script.PortalGate")
+		if not isvalid(pg) then
+			portal:AddComponent("script.PortalGate")
+			pg = portal:GetComponent("script.PortalGate")
+		end
+		if isvalid(pg) then
+			pg.TargetMapName = targetMap
+			pg.TargetPosition = targetPos
+		end
+
+		local gKey = px .. "_" .. py
+		self:GetGridToEntity(map.Name)[gKey] = { entity = portal, pivotX = px, pivotY = py, isFurniture = true, itemName = "Portal" }
+		self:GetSpawnedEntities(map.Name)[gKey] = portal
+		log("ResourceSpawner: Portal '" .. portalName .. "' -> " .. targetMap .. " spawned in map " .. map.Name)
 	end
 
 	@ExecSpace("ServerOnly")
