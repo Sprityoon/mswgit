@@ -567,9 +567,10 @@ graph TD
   - [x] **per-map 생성 설정 리팩터** (`22d055c`): `ResourceSpawner`에 맵별 `seed`/`forceBiomeId` 분리(`GetMapSeed`/`SetMapSeed`/`GetMapForceBiomeId`/`SetMapForceBiomeId`), `GetBiomeAt`/`IsGrassAt`에 mapName 전달, 미설정 맵은 싱글턴 기본값 폴백(영지 불변). `MonsterSpawner` 평화 가드도 per-map 교정.
   - [x] **공용 사냥터 `hunt01` 신설 — 유저 테스트 대기**. ⚙️ **구현 결정(2026-06-27)**: 정적 `.map` 신설(SectorConfig 등록 필요) 대신 **map01 템플릿의 공유 동적 인스턴스**로 구현(`ResourceSpawner:EnsureHuntingGroundMaps` → `CreateDynamicMap("map01","hunt01")` 1회, `TryStartSpawning` 준비 완료 시점). 동적 맵이라 **두 스포너 루프(`GetDynamicMapNameList`)에 자동 포함**되고, `OnUserLeave`의 `Home_*` 한정 소멸 가드로 **소멸되지 않음**(상주). per-map `SetMapForceBiomeId("")` + `SetMapProceduralTerrain(true)`로 멀티바이옴 절차 + 전투 활성(영지 평화 가드 비적용). **손배치 픽스처**: hunt01 중앙(0,-3)에 복귀 포탈→town, town(8,0)에 진입 포탈→hunt01(`SpawnFixedPortal`) → 영지→마을→hunt01→마을 루프 테스트 가능. ⚠️ MapRadius 싱글턴(30) 공유로 hunt01도 61×61 바운드 아레나(MVP). 후속: 전용 대형 hunt 템플릿 + 구리 드롭 밸런싱.
   - [ ] (후속) 3h 시드 로테이션 매니저 — 오픈 필드 변주용, 보스 아레나 제외. 구조/진행이 먼저라 MVP 이후.
-- **12-C 목적지 데이터셋 + 목록 포탈 UI (작업 단위)**:
-  - [ ] `PortalDestinationDataSet`(DestinationId/MapName/DisplayName/ArriveX/ArriveY/UnlockType/UnlockValue/RequiredItem) 신설.
-  - [ ] 기존 영지 `Portal` 가구를 목록형으로 확장 — F/상호작용 시 목적지 목록 팝업(스크롤 리스트) → 선택 시 워프(`ServerRequestWarp` 계열 재사용/확장). MVP는 해금 무시(전부 노출)·이동만. 빌드 로그 검증 후 커밋.
+- **12-C 목적지 데이터셋 + 목록 포탈 UI (유저 테스트 대기)**:
+  - [x] `PortalDestinationDataSet`(DestinationId/MapName/DisplayName/ArriveX/ArriveY) 신설 — town(마을)/hunt01(사냥터) 행. 해금 컬럼(UnlockType 등)은 후속.
+  - [x] 영지 `Portal` 가구를 목록형으로 확장 — WarpPopup(기존 비활성 방문 UI)을 6슬롯 목적지 목록으로 재구성(`UIWarpController` 데이터 주도: CSV 행 추가만으로 슬롯 자동 채움). `PlayerController:TryUsePortal` — **영지(Home_*)에서 포탈 F/상호작용 시 목록 팝업**, 그 외 맵(마을·사냥터)의 고정 포탈은 단일 타겟 직행. 선택 시 `ServerRequestWarpTo(mapName,x,y)`(PortalDestinationDataSet `FindRow` 서버 검증). MVP는 해금 무시(전부 노출)·이동만.
+  - [x] **진입은 오직 영지 포탈로** — 마을 허브 진입 포탈 제거. **사냥터·마을 등 비영지 맵의 포탈은 채집/이동 불가**(`TileDurabilityManager`: `Home_*`가 아닌 맵의 Portal은 불멸). 포탈 설치/이동은 영지에서만.
 - **후속 단위 (Phase 12 이후 — 단계적 사냥터 본 구조)**:
   - [ ] **웨이포인트 해금**: 새 구역 최초 도달 시 영지 목록에 추가(유저별 영속, §3.6 연계). `PortalDestinationDataSet`의 UnlockType=waypoint 행을 해금 상태로 게이팅.
   - [ ] **사냥터 체인**: 구역 간 연결 포탈(도보 진행) + 더 깊은 구역들 추가.

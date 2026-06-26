@@ -1,64 +1,99 @@
 @Component
 script UIWarpController extends Component
 
+	-- Estate "list portal" popup: interacting with the portal in a personal estate opens this and
+	-- lets the player pick a destination (town / hunting grounds). Destinations are data-driven via
+	-- PortalDestinationDataSet (add a CSV row to add a destination). game_design.md §2.2 / Phase 12-C.
+
 	property Entity btnClose = "23f03517-14f6-4f18-9265-ce78e9df7f71"
-	property Entity btnMyHome = "f8073c95-03e4-4bd9-9716-30404d97d66a"
-	property Entity inputName = "9ca5fe8c-af1b-4d67-ada7-61cdc5a70601"
-	property Entity btnVisit = "afda47d6-3606-48c8-aa91-9bea17dd15bc"
+	property integer SlotCount = 6
+
+	-- Runtime state (client-only).
+	property table destinations = {}   -- slotIndex -> { mapName, x, y }
+	property table slotHandlers = {}   -- slotIndex -> { entity, handler }
 
 	@ExecSpace("ClientOnly")
 	method void OnBeginPlay()
+		-- Wire close + each destination slot button; the popup starts hidden.
 		self.Entity.Enable = false
 		if isvalid(self.btnClose) then
 			self.btnClose:ConnectEvent(ButtonClickEvent, function() self:Close() end)
 		end
-		if isvalid(self.btnMyHome) then
-			self.btnMyHome:ConnectEvent(ButtonClickEvent, function() self:OnMyHomeClick() end)
+		for i = 1, self.SlotCount do
+			local slot = _EntityService:GetEntityByPath("/ui/PopupGroup/WarpPopup/Bg/Slot" .. i)
+			if isvalid(slot) then
+				local idx = i
+				local h = slot:ConnectEvent(ButtonClickEvent, function() self:OnSlotClick(idx) end)
+				self.slotHandlers[i] = { entity = slot, eventHandler = h }
+			end
 		end
-		if isvalid(self.btnVisit) then
-			self.btnVisit:ConnectEvent(ButtonClickEvent, function() self:OnVisitClick() end)
+	end
+
+	@ExecSpace("ClientOnly")
+	method void OnEndPlay()
+		-- Release slot click handlers.
+		for _, rec in pairs(self.slotHandlers) do
+			if rec ~= nil and isvalid(rec.entity) then
+				rec.entity:DisconnectEvent(ButtonClickEvent, rec.eventHandler)
+			end
 		end
 	end
 
 	@ExecSpace("ClientOnly")
 	method void Open()
+		-- Show the popup and (re)fill destination slots from the dataset.
+		self:PopulateDestinations()
 		self.Entity.Enable = true
-		if isvalid(self.inputName) and isvalid(self.inputName.TextInputComponent) then
-			self.inputName.TextInputComponent.Text = ""
-		end
 	end
 
 	@ExecSpace("ClientOnly")
 	method void Close()
+		-- Hide the popup.
 		self.Entity.Enable = false
 	end
 
 	@ExecSpace("ClientOnly")
-	method void OnMyHomeClick()
-		local localPlayer = _UserService.LocalPlayer
-		if isvalid(localPlayer) then
-			local pc = localPlayer:GetComponent("script.PlayerController")
-			if isvalid(pc) then
-				pc:ServerRequestWarp()
+	method void PopulateDestinations()
+		-- Fill the slot buttons from PortalDestinationDataSet. Each CSV row = one selectable
+		-- destination; rows beyond SlotCount are ignored, unused slots are hidden.
+		self.destinations = {}
+		local ds = _DataService:GetTable("PortalDestinationDataSet")
+		local rowCount = 0
+		if ds ~= nil then
+			rowCount = ds:GetRowCount()
+		end
+		for i = 1, self.SlotCount do
+			local slot = _EntityService:GetEntityByPath("/ui/PopupGroup/WarpPopup/Bg/Slot" .. i)
+			if isvalid(slot) then
+				if i <= rowCount then
+					local mapName = ds:GetCell(i, "MapName")
+					local displayName = ds:GetCell(i, "DisplayName")
+					local ax = tonumber(ds:GetCell(i, "ArriveX")) or 0
+					local ay = tonumber(ds:GetCell(i, "ArriveY")) or 0
+					self.destinations[i] = { mapName = mapName, x = ax, y = ay }
+					if isvalid(slot.TextComponent) then
+						slot.TextComponent.Text = displayName
+					end
+					slot.Enable = true
+				else
+					slot.Enable = false
+				end
 			end
 		end
-		self:Close()
 	end
 
 	@ExecSpace("ClientOnly")
-	method void OnVisitClick()
-		if not isvalid(self.inputName) or not isvalid(self.inputName.TextInputComponent) then return end
-		local targetName = self.inputName.TextInputComponent.Text
-		if targetName == "" then
-			_ScreenMessageLogic:PrivateMsg("방문할 유저 이름을 입력하세요.")
-			return
-		end
-
+	method void OnSlotClick(integer slotIndex)
+		-- Warp the local player to the chosen destination via the server, then close.
+		local dest = self.destinations[slotIndex]
+		if dest == nil then return end
 		local localPlayer = _UserService.LocalPlayer
 		if isvalid(localPlayer) then
 			local pc = localPlayer:GetComponent("script.PlayerController")
 			if isvalid(pc) then
-				pc:ServerRequestVisitHome(targetName)
+				---@type PlayerController
+				local controller = pc
+				controller:ServerRequestWarpTo(dest.mapName, dest.x, dest.y)
 			end
 		end
 		self:Close()

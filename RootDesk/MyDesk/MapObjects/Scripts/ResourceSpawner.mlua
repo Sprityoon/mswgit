@@ -574,14 +574,9 @@ script ResourceSpawner extends Logic
 		self:SetMapProceduralTerrain(huntName, true)
 		self:SpawnInitialResourcesForMap(huntMap)
 
-		-- Hand-placed return portal back to the town hub (game_design.md §2.2 ③: 사냥터 → 마을 복귀).
+		-- Hand-placed, immovable return portal back to the town hub (game_design.md §2.2 ③: 사냥터 →
+		-- 마을 복귀). Entry INTO the hunting ground is from the estate's list portal (§12-C), never town.
 		self:SpawnFixedPortal(huntMap, "Portal", 0, -3, "town", Vector2(3, 0))
-
-		-- Hub entry portal in town -> hunt01 so the loop is reachable now (estate list portal = §12-C).
-		local townMap = _EntityService:GetEntityByPath("/maps/town")
-		if isvalid(townMap) and not isvalid(townMap:GetChildByName("PortalToHunt01")) then
-			self:SpawnFixedPortal(townMap, "PortalToHunt01", 8, 0, huntName, Vector2(-3, 0))
-		end
 
 		log("ResourceSpawner: Hunting-ground map ready: " .. huntName)
 	end

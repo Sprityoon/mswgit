@@ -68,8 +68,10 @@ script TileDurabilityManager extends Logic
 		local isTile = gridData.isTile == true
 		local isFurniture = gridData.isFurniture == true
 		
-		if isFurniture and gridData.itemName == "Portal" and mapName == "town" then
-			log("TileDurabilityManager: Portal in town map is indestructible.")
+		-- Portals are placeable/movable ONLY in a personal estate (Home_*). In town, hunting grounds,
+		-- and every other map they are fixed fixtures and must never be mined/picked up.
+		if isFurniture and gridData.itemName == "Portal" and string.sub(mapName, 1, 5) ~= "Home_" then
+			log("TileDurabilityManager: Portal in non-estate map '" .. mapName .. "' is indestructible.")
 			return
 		end
 		

@@ -578,11 +578,9 @@ script PlayerController extends Component
 			end
 		elseif key == KeyboardKey.F then
 			if isvalid(self.ActivePortal) then
-				-- Interacting with any portal warps via the portal's own target. Town's
-				-- PortalToHome targets "Home" -> own estate, so this returns home directly.
-				-- (The old town branch opened WarpPopup to type another user's name; that
-				--  visit-by-name entry was removed — see game_design.md §2.2 Portal System.)
-				self:ServerRequestWarp()
+				-- Estate portals open the destination list (town / hunting grounds); fixed portals in
+				-- other maps warp straight to their single target. See TryUsePortal.
+				self:TryUsePortal()
 				return
 			end
 			local nearbyFurnace = self:FindNearbyFurnace()
@@ -1006,11 +1004,8 @@ script PlayerController extends Component
 	method void OnInteractButton()
 		-- description: Handles interaction button press (mobile/UI).
 		if isvalid(self.ActivePortal) then
-			-- Interacting with any portal warps via the portal's own target. Town's
-			-- PortalToHome targets "Home" -> own estate, so this returns home directly.
-			-- (The old town branch opened WarpPopup to type another user's name; that
-			--  visit-by-name entry was removed — see game_design.md §2.2 Portal System.)
-			self:ServerRequestWarp()
+			-- Estate portals open the destination list; fixed portals warp straight. See TryUsePortal.
+			self:TryUsePortal()
 			return
 		end
 		local nearbyFurnace = self:FindNearbyFurnace()
@@ -1081,6 +1076,50 @@ script PlayerController extends Component
 			playerComp:MoveToMapPosition(targetMap, Vector2(-3, 0))
 			log("PlayerController: Warped player " .. playerComp.UserId .. " to sub-territory " .. targetMap)
 		end
+	end
+
+	@ExecSpace("ClientOnly")
+	method void TryUsePortal()
+		-- Estate portals open the destination list popup (town / hunting grounds, data-driven via
+		-- PortalDestinationDataSet). Fixed portals in other maps (town's PortalToHome, a hunting
+		-- ground's return portal) warp straight to their single PortalGate target.
+		if not isvalid(self.ActivePortal) then return end
+		local currentMap = self.Entity.CurrentMap
+		if isvalid(currentMap) and string.sub(currentMap.Name, 1, 5) == "Home_" then
+			local popup = _EntityService:GetEntityByPath("/ui/PopupGroup/WarpPopup")
+			if isvalid(popup) then
+				local ctrl = popup:GetComponent("script.UIWarpController")
+				if isvalid(ctrl) then
+					---@type UIWarpController
+					local c = ctrl
+					c:Open()
+				end
+			end
+		else
+			self:ServerRequestWarp()
+		end
+	end
+
+	@ExecSpace("Server")
+	method void ServerRequestWarpTo(string mapName, number arriveX, number arriveY)
+		-- Server-validated warp to a destination chosen in the estate list portal. Only maps present
+		-- in PortalDestinationDataSet are allowed (no arbitrary map jumps from a spoofed client).
+		local playerComp = self.Entity.PlayerComponent
+		if playerComp == nil or senderUserId ~= playerComp.UserId then return end
+
+		local ds = _DataService:GetTable("PortalDestinationDataSet")
+		if ds == nil then return end
+		if ds:FindRow("MapName", mapName) == nil then
+			log_warning("PlayerController: Rejected warp to unknown destination '" .. mapName .. "'.")
+			return
+		end
+
+		local target = mapName
+		if target == "Home" then
+			target = "Home_" .. playerComp.UserId
+		end
+		playerComp:MoveToMapPosition(target, Vector2(arriveX, arriveY))
+		log("PlayerController: List-warped " .. playerComp.UserId .. " to " .. target)
 	end
 
 	@ExecSpace("Client")
