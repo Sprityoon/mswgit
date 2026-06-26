@@ -155,15 +155,7 @@ script ResourceSpawner extends Logic
 		self.GrownGrassModelId = _EntryService:GetModelIdByName("GrownGrass")
 		log("ResourceSpawner: Spawner system components ready.")
 
-		-- Preload the wall tileset so SetTile("Big Wall") on Layer 4 resolves. A tileset that is
-		-- only referenced (no tiles placed) is not guaranteed to be loaded, and SetTile against an
-		-- unloaded tileset throws LEA-3005. Boundary walls are only drawn once this completes
-		-- (self._T.wallReady); the player can't reach the edge before then.
-		self._T.wallReady = false
-		_ResourceService:PreloadTileSetAsync(self.WallTileSetRUID, function(status)
-			self._T.wallReady = true
-			log("ResourceSpawner: Wall tileset preloaded (status: " .. tostring(status) .. ").")
-		end)
+
 		
 		-- Start integrated resource respawner timer
 		self.RespawnTimerId = _TimerService:SetTimerRepeat(function()
@@ -382,11 +374,6 @@ script ResourceSpawner extends Logic
 		tilemap2:Clear()
 		tilemap3:Clear()
 		
-		-- Clear dynamic layer 4 if it exists
-		local layer4Entity = map:GetChildByName("RectTileMap4")
-		if isvalid(layer4Entity) and layer4Entity.RectTileMapComponent then
-			layer4Entity.RectTileMapComponent:Clear()
-		end
 		
 		if not map:GetComponent("PhysicsSimulatorComponent") then
 			map:AddComponent("PhysicsSimulatorComponent")
@@ -498,7 +485,7 @@ script ResourceSpawner extends Logic
 		local layer1Entity = map:GetChildByName("RectTileMap")
 		local layer2Entity = map:GetChildByName("RectTileMap2")
 		local layer3Entity = map:GetChildByName("RectTileMap3")
-		local layer4Entity = self:GetOrCreateLayer(map, "RectTileMap4")
+		local layer4Entity = map:GetChildByName("RectTileMap4")
 		
 		if not isvalid(layer1Entity) or not isvalid(layer2Entity) or not isvalid(layer3Entity) or not isvalid(layer4Entity) then
 			log_warning("ResourceSpawner: Missing layer entities for chunk loading in map: " .. mapName)
@@ -509,9 +496,8 @@ script ResourceSpawner extends Logic
 		local tilemap2 = layer2Entity.RectTileMapComponent
 		local tilemap3 = layer3Entity.RectTileMapComponent
 		-- Layer 4 = impassable walls. Its tileset (wall.tileset, "Big Wall" IsCollidable) is set in
-		-- the map template so it is loaded at map creation; SetTile("Big Wall") below resolves
-		-- against it. (A runtime TileSetRUID switch here failed with LEA-3005 — the tileset wasn't
-		-- loaded synchronously — so the assignment lives in the .map template instead.)
+		-- the map template so it is loaded at map creation. Impassable boundary walls are baked
+		-- statically into the .map file (not painted at runtime), avoiding LEA-3005.
 		local tilemap4 = layer4Entity.RectTileMapComponent
 
 		local seedVal = self:GetMapSeed(mapName)
@@ -577,12 +563,9 @@ script ResourceSpawner extends Logic
 				
 				-- Impassable boundary wall BAND on Layer 4 (thick so clipping/knockback can't escape).
 				-- Cells in the band paint a wall tile and never receive terrain/resources.
+				-- Boundary wall band: walls are STATIC (baked into Layer 4 / RectTileMap4 in the .map),
+				-- not drawn here. Just skip terrain/resource generation so nothing overlaps the walls.
 				if math.abs(x) >= wallInner or math.abs(y) >= wallInner then
-					-- Draw the wall only once the wall tileset is preloaded (avoids LEA-3005 from
-					-- SetTile against an unloaded tileset). Boundary cells never get terrain/resources.
-					if self._T.wallReady == true then
-						tilemap4:SetTile(self.WallTileName, x, y)
-					end
 					continue
 				end
 				
@@ -866,7 +849,6 @@ script ResourceSpawner extends Logic
 			for y = yMin, yMax do
 				if tilemap1 then tilemap1:RemoveTile(x, y) end
 				if tilemap2 then tilemap2:RemoveTile(x, y) end
-				if tilemap4 then tilemap4:RemoveTile(x, y) end
 			end
 		end
 		

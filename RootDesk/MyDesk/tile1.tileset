@@ -329,17 +329,17 @@
         {
           "Id": "f1da15d7aec540c283a064faf6d57325",
           "Name": "BaseEarth",
-          "IsCollidable": true
+          "IsCollidable": false
         },
         {
           "Id": "6c3edb3de5074c57b7001e4b5fd0f910",
           "Name": "Baram_64",
-          "IsCollidable": true
+          "IsCollidable": false
         },
         {
           "Id": "fed034a5293d4d09b7c4200c93b986a8",
           "Name": "Baram_65",
-          "IsCollidable": true
+          "IsCollidable": false
         },
         {
           "Id": "2b34ef70c8454dc69c1b701db2e1e8e0",
