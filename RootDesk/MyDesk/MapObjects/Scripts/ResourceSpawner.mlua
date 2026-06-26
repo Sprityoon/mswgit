@@ -12,6 +12,10 @@ script ResourceSpawner extends Logic
 	-- schedule) and ForceBiomeId = "" for multi-biome. See game_design.md §2.2 ③ / Phase 12-B.
 	property table MapSeedMap = {}
 	property table MapForceBiomeMap = {}
+	-- Per-map procedural-terrain toggle. Estates default to false: their terrain is hand-painted in
+	-- the map01 template and only grass borders are autotiled from the painted tiles. Hunting maps
+	-- set true for the multi-biome noise overlay. See game_design.md §2.2 / Phase 11-B.
+	property table MapProceduralTerrainMap = {}
 
 	property any RespawnTimerId = nil
 	property integer LoadingTimerId = 0
@@ -219,6 +223,139 @@ script ResourceSpawner extends Logic
 	end
 
 	@ExecSpace("ServerOnly")
+	method boolean GetMapProceduralTerrain(string mapName)
+		-- Whether this map paints terrain procedurally (multi-biome noise). Personal estates default
+		-- to false: terrain is hand-painted in the map01 template and only grass borders are autotiled
+		-- (game_design.md §2.2 / Phase 11-B). Hunting maps set true for the procedural overlay.
+		local v = self.MapProceduralTerrainMap[mapName]
+		if v ~= nil then return v end
+		return false
+	end
+
+	@ExecSpace("ServerOnly")
+	method void SetMapProceduralTerrain(string mapName, boolean enabled)
+		-- Per-map procedural-terrain toggle. Estates: false (hand-painted). Hunting maps: true.
+		self.MapProceduralTerrainMap[mapName] = enabled
+	end
+
+	method boolean IsGrassTileName(string name)
+		-- True for any tile in the BaseGrass autotile family (plain + edge/corner variants).
+		return name ~= nil and string.sub(name, 1, 9) == "BaseGrass"
+	end
+
+	method string ComputeGrassTileName(any grassAt, integer x, integer y)
+		-- Picks the BaseGrass autotile variant for a grass cell from its 8 neighbours.
+		-- grassAt(ax, ay) -> boolean is the grass mask lookup. Shared by the procedural noise path
+		-- and the hand-painted estate path so both wrap borders identically.
+		local t = grassAt(x, y + 1)
+		local d = grassAt(x, y - 1)
+		local l = grassAt(x - 1, y)
+		local r = grassAt(x + 1, y)
+		local tl = grassAt(x - 1, y + 1)
+		local tr = grassAt(x + 1, y + 1)
+		local dl = grassAt(x - 1, y - 1)
+		local dr = grassAt(x + 1, y - 1)
+
+		local tileName = "BaseGrass"
+		if not t and not l then
+			tileName = "BaseGrassLT2"
+		elseif not t and not r then
+			tileName = "BaseGrassRT2"
+		elseif not d and not l then
+			tileName = "BaseGrassLD2"
+		elseif not d and not r then
+			tileName = "BaseGrassRD2"
+		elseif not t then
+			tileName = "BaseGrassT"
+		elseif not d then
+			tileName = "BaseGrassD"
+		elseif not l then
+			tileName = "BaseGrassL"
+		elseif not r then
+			tileName = "BaseGrassR"
+		elseif not tl then
+			tileName = "BaseGrassLT1"
+		elseif not tr then
+			tileName = "BaseGrassRT1"
+		elseif not dl then
+			tileName = "BaseGrassLD1"
+		elseif not dr then
+			tileName = "BaseGrassRD1"
+		end
+		return tileName
+	end
+
+	@ExecSpace("ServerOnly")
+	method void AutotileGrassLayer(Entity map)
+		-- Reads hand-painted grass on Layer 2 (RectTileMap2) and rewrites each grass cell to the
+		-- correct BaseGrass edge/corner variant so borders wrap automatically. The source of truth is
+		-- the painted tiles (not noise) — used by hand-designed estates (game_design.md Phase 11-B).
+		if not isvalid(map) then return end
+		local layer2Entity = map:GetChildByName("RectTileMap2")
+		if not isvalid(layer2Entity) then return end
+		local tilemap2 = layer2Entity.RectTileMapComponent
+		if not isvalid(tilemap2) then return end
+
+		-- 1. Build the raw grass mask from the painted tiles.
+		local rawMask = {}
+		local function rawGrassAt(ax, ay)
+			local col = rawMask[ax]
+			return col ~= nil and col[ay] == true
+		end
+		local positions = tilemap2:GetAllTilePositions()
+		for _, cell in ipairs(positions:ToTable()) do
+			local info = tilemap2:GetTile(cell.x, cell.y)
+			if info ~= nil and self:IsGrassTileName(info.Name) then
+				if rawMask[cell.x] == nil then rawMask[cell.x] = {} end
+				rawMask[cell.x][cell.y] = true
+			end
+		end
+
+		-- 2. Smooth diagonal pinches (same rule as the procedural path) so 1-wide diagonal grass
+		-- connections widen to 2-wide ribbons the 13-tile set can render without jagged seams.
+		local function smoothGrassAt(ax, ay)
+			if rawGrassAt(ax, ay) then return true end
+			if rawGrassAt(ax + 1, ay) and rawGrassAt(ax, ay + 1) and not rawGrassAt(ax + 1, ay + 1) then return true end
+			if rawGrassAt(ax + 1, ay) and rawGrassAt(ax, ay - 1) and not rawGrassAt(ax + 1, ay - 1) then return true end
+			if rawGrassAt(ax - 1, ay) and rawGrassAt(ax, ay + 1) and not rawGrassAt(ax - 1, ay + 1) then return true end
+			if rawGrassAt(ax - 1, ay) and rawGrassAt(ax, ay - 1) and not rawGrassAt(ax - 1, ay - 1) then return true end
+			return false
+		end
+
+		-- 3. Materialize the smoothed mask over each painted cell plus a 1-tile border (enough for the
+		-- autotile neighbour reads).
+		local smoothMask = {}
+		local function grassAt(ax, ay)
+			local col = smoothMask[ax]
+			return col ~= nil and col[ay] == true
+		end
+		for ax, col in pairs(rawMask) do
+			for ay, _ in pairs(col) do
+				for nx = ax - 1, ax + 1 do
+					for ny = ay - 1, ay + 1 do
+						if smoothMask[nx] == nil then smoothMask[nx] = {} end
+						if smoothMask[nx][ny] == nil then
+							smoothMask[nx][ny] = smoothGrassAt(nx, ny)
+						end
+					end
+				end
+			end
+		end
+
+		-- 4. Paint the correct variant on every grass cell of the smoothed mask.
+		local count = 0
+		for ax, col in pairs(smoothMask) do
+			for ay, isGrass in pairs(col) do
+				if isGrass then
+					tilemap2:SetTile(self:ComputeGrassTileName(grassAt, ax, ay), ax, ay)
+					count = count + 1
+				end
+			end
+		end
+		log("ResourceSpawner: AutotileGrassLayer painted " .. count .. " grass cells in map " .. map.Name)
+	end
+
+	@ExecSpace("ServerOnly")
 	method string GetBiomeAt(string mapName, number x, number y)
 		-- Returns the biome id at world cell (x, y) for the given map. When the map's force-biome
 		-- is set (default for personal estates = green_island = earth+grass mix), the whole map is
@@ -370,11 +507,17 @@ script ResourceSpawner extends Logic
 			return
 		end
 		
-		tilemap1:Clear()
-		tilemap2:Clear()
+		-- Estates (procedural off) keep the hand-painted base/grass on Layers 1-2; only the procedural
+		-- (hunting) path clears them for a fresh noise repaint. Layer 3 (player floors) is always
+		-- rebuilt from persistence below.
+		local proceduralTerrain = self:GetMapProceduralTerrain(mapName)
+		if proceduralTerrain then
+			tilemap1:Clear()
+			tilemap2:Clear()
+		end
 		tilemap3:Clear()
-		
-		
+
+
 		if not map:GetComponent("PhysicsSimulatorComponent") then
 			map:AddComponent("PhysicsSimulatorComponent")
 		end
@@ -393,7 +536,12 @@ script ResourceSpawner extends Logic
 		
 		-- Reconstruct player-placed tiles and furniture
 		self:ReconstructWorldPlacementsForMap(map)
-		
+
+		-- Hand-painted estates: wrap the painted grass borders with the correct autotile variants.
+		if not proceduralTerrain then
+			self:AutotileGrassLayer(map)
+		end
+
 		log("ResourceSpawner: Dynamic setup completed for map: " .. mapName)
 	end
 
@@ -501,6 +649,7 @@ script ResourceSpawner extends Logic
 		local tilemap4 = layer4Entity.RectTileMapComponent
 
 		local seedVal = self:GetMapSeed(mapName)
+		local proceduralTerrain = self:GetMapProceduralTerrain(mapName)
 		local mapRadius = self.MapRadius
 		local wallInner = mapRadius - self.WallThickness + 1
 		local chunkSize = self.MacroCellSize
@@ -513,47 +662,53 @@ script ResourceSpawner extends Logic
 		local chunkEntities = {}
 		local gridToEntity = self:GetGridToEntity(mapName)
 		
-		-- 1. Cache IsGrassAt over the chunk plus a 2-tile border (raw mask), then derive a
-		-- smoothed mask that fills diagonal pinches so 1-wide diagonal grass becomes 2-wide.
-		-- The 13-tile edge+corner grass set cannot render a 1-wide diagonal (each such cell is
-		-- orthogonally isolated and falls back to a single corner tile -> jagged border), so we
-		-- close diagonal connections into 2-wide ribbons before autotiling.
-		local rawGrassCache = {}
-		for x = xMin - 2, xMax + 2 do
-			rawGrassCache[x] = {}
-			for y = yMin - 2, yMax + 2 do
-				rawGrassCache[x][y] = self:IsGrassAt(mapName, x, y)
-			end
-		end
-
-		local function rawGrassAt(ax, ay)
-			-- Raw (unsmoothed) grass lookup from the 2-tile-border cache.
-			local col = rawGrassCache[ax]
+		-- 1. (Procedural maps only) Cache IsGrassAt over the chunk plus a 2-tile border (raw mask),
+		-- then derive a smoothed mask that fills diagonal pinches so 1-wide diagonal grass becomes
+		-- 2-wide. The 13-tile edge+corner grass set cannot render a 1-wide diagonal (each such cell is
+		-- orthogonally isolated and falls back to a single corner tile -> jagged border), so we close
+		-- diagonal connections into 2-wide ribbons before autotiling. Estates skip this entirely —
+		-- their grass is hand-painted and autotiled once at setup (AutotileGrassLayer).
+		local grassCache = {}
+		local function grassCacheAt(ax, ay)
+			local col = grassCache[ax]
 			return col ~= nil and col[ay] == true
 		end
+		if proceduralTerrain then
+			local rawGrassCache = {}
+			for x = xMin - 2, xMax + 2 do
+				rawGrassCache[x] = {}
+				for y = yMin - 2, yMax + 2 do
+					rawGrassCache[x][y] = self:IsGrassAt(mapName, x, y)
+				end
+			end
 
-		local function smoothGrassAt(ax, ay)
-			-- A dirt cell is filled when it is the inner notch of a diagonal grass connection:
-			-- two perpendicular grass neighbours whose shared diagonal corner is dirt. Straight
-			-- coasts and convex corners (no perpendicular grass pair) are left untouched.
-			if rawGrassAt(ax, ay) then return true end
-			if rawGrassAt(ax + 1, ay) and rawGrassAt(ax, ay + 1) and not rawGrassAt(ax + 1, ay + 1) then return true end
-			if rawGrassAt(ax + 1, ay) and rawGrassAt(ax, ay - 1) and not rawGrassAt(ax + 1, ay - 1) then return true end
-			if rawGrassAt(ax - 1, ay) and rawGrassAt(ax, ay + 1) and not rawGrassAt(ax - 1, ay + 1) then return true end
-			if rawGrassAt(ax - 1, ay) and rawGrassAt(ax, ay - 1) and not rawGrassAt(ax - 1, ay - 1) then return true end
-			return false
-		end
+			local function rawGrassAt(ax, ay)
+				-- Raw (unsmoothed) grass lookup from the 2-tile-border cache.
+				local col = rawGrassCache[ax]
+				return col ~= nil and col[ay] == true
+			end
 
-		-- Smoothed mask over the chunk plus a 1-tile border (enough for autotile neighbour reads).
-		-- Downstream choice/autotile code reads grassCache, so it now sees the smoothed terrain.
-		local grassCache = {}
-		for x = xMin - 1, xMax + 1 do
-			grassCache[x] = {}
-			for y = yMin - 1, yMax + 1 do
-				grassCache[x][y] = smoothGrassAt(x, y)
+			local function smoothGrassAt(ax, ay)
+				-- A dirt cell is filled when it is the inner notch of a diagonal grass connection:
+				-- two perpendicular grass neighbours whose shared diagonal corner is dirt. Straight
+				-- coasts and convex corners (no perpendicular grass pair) are left untouched.
+				if rawGrassAt(ax, ay) then return true end
+				if rawGrassAt(ax + 1, ay) and rawGrassAt(ax, ay + 1) and not rawGrassAt(ax + 1, ay + 1) then return true end
+				if rawGrassAt(ax + 1, ay) and rawGrassAt(ax, ay - 1) and not rawGrassAt(ax + 1, ay - 1) then return true end
+				if rawGrassAt(ax - 1, ay) and rawGrassAt(ax, ay + 1) and not rawGrassAt(ax - 1, ay + 1) then return true end
+				if rawGrassAt(ax - 1, ay) and rawGrassAt(ax, ay - 1) and not rawGrassAt(ax - 1, ay - 1) then return true end
+				return false
+			end
+
+			-- Smoothed mask over the chunk plus a 1-tile border (enough for autotile neighbour reads).
+			for x = xMin - 1, xMax + 1 do
+				grassCache[x] = {}
+				for y = yMin - 1, yMax + 1 do
+					grassCache[x][y] = smoothGrassAt(x, y)
+				end
 			end
 		end
-		
+
 		-- 2. Tile painting loop
 		for x = xMin, xMax do
 			for y = yMin, yMax do
@@ -571,79 +726,50 @@ script ResourceSpawner extends Logic
 				
 				local biomeId = self:GetBiomeAt(mapName, x, y)
 				local choice = "BaseEarth"
-				
-				if biomeId == "desert" then
-					local decoRoll = self:Hash2D(x, y, seedVal + 8888)
-					if decoRoll < 0.03 then
-						local decoIndex = math.floor(self:Hash2D(x, y, seedVal + 8889) * 3) + 1
-						choice = "DessertDeco" .. decoIndex
-					else
-						choice = "Dessert"
-					end
-				elseif biomeId == "rocky" then
-					choice = "Rocks"
-				elseif biomeId == "snowfield" then
-					choice = "Snow"
-				elseif biomeId == "green_island" then
-					local isGrass = grassCache[x][y]
-					if isGrass then
-						choice = "BaseGrass"
+
+				if proceduralTerrain then
+					-- Procedural (hunting) terrain: pick the tile from biome + grass noise, then paint.
+					if biomeId == "desert" then
+						local decoRoll = self:Hash2D(x, y, seedVal + 8888)
+						if decoRoll < 0.03 then
+							local decoIndex = math.floor(self:Hash2D(x, y, seedVal + 8889) * 3) + 1
+							choice = "DessertDeco" .. decoIndex
+						else
+							choice = "Dessert"
+						end
+					elseif biomeId == "rocky" then
+						choice = "Rocks"
+					elseif biomeId == "snowfield" then
+						choice = "Snow"
+					elseif biomeId == "green_island" then
+						if grassCacheAt(x, y) then
+							choice = "BaseGrass"
+						else
+							choice = "BaseEarth"
+						end
 					else
 						choice = "BaseEarth"
 					end
-				else
-					choice = "BaseEarth"
-				end
-				
-				-- Draw base background tile on Layer 1
-				tilemap1:SetTile("BaseEarth", x, y)
-				
-				-- Paint autotiled grass or decoration tile on Layer 2
-				if choice == "BaseGrass" then
-					local t = grassCache[x][y + 1]
-					local d = grassCache[x][y - 1]
-					local l = grassCache[x - 1][y]
-					local r = grassCache[x + 1][y]
-		
-					local tl = grassCache[x - 1][y + 1]
-					local tr = grassCache[x + 1][y + 1]
-					local dl = grassCache[x - 1][y - 1]
-					local dr = grassCache[x + 1][y - 1]
-		
-					local tileName = "BaseGrass"
-					if not t and not l then
-						tileName = "BaseGrassLT2"
-					elseif not t and not r then
-						tileName = "BaseGrassRT2"
-					elseif not d and not l then
-						tileName = "BaseGrassLD2"
-					elseif not d and not r then
-						tileName = "BaseGrassRD2"
-					elseif not t then
-						tileName = "BaseGrassT"
-					elseif not d then
-						tileName = "BaseGrassD"
-					elseif not l then
-						tileName = "BaseGrassL"
-					elseif not r then
-						tileName = "BaseGrassR"
-					elseif not tl then
-						tileName = "BaseGrassLT1"
-					elseif not tr then
-						tileName = "BaseGrassRT1"
-					elseif not dl then
-						tileName = "BaseGrassLD1"
-					elseif not dr then
-						tileName = "BaseGrassRD1"
-					end
-					
-					tilemap2:SetTile(tileName, x, y)
-				else
-					if choice ~= "BaseEarth" then
+
+					-- Draw base background tile on Layer 1
+					tilemap1:SetTile("BaseEarth", x, y)
+
+					-- Paint autotiled grass or decoration tile on Layer 2
+					if choice == "BaseGrass" then
+						tilemap2:SetTile(self:ComputeGrassTileName(grassCacheAt, x, y), x, y)
+					elseif choice ~= "BaseEarth" then
 						tilemap2:SetTile(choice, x, y)
 					end
+				else
+					-- Hand-painted (estate) terrain: terrain tiles are NOT repainted here (grass was
+					-- autotiled once at setup). Read the painted Layer 2 tile so resource placement
+					-- still respects RequiredTile (e.g. trees only on grass).
+					local info = tilemap2:GetTile(x, y)
+					if info ~= nil and self:IsGrassTileName(info.Name) then
+						choice = "BaseGrass"
+					end
 				end
-				
+
 				-- 3. Resource Spawning
 				local spawnZoneRadius = self.SpawnZoneRadius
 				local inSpawnZone = (x >= -spawnZoneRadius and x <= spawnZoneRadius and y >= -spawnZoneRadius and y <= spawnZoneRadius)
