@@ -498,11 +498,11 @@ script ResourceSpawner extends Logic
 		local tilemap1 = layer1Entity.RectTileMapComponent
 		local tilemap2 = layer2Entity.RectTileMapComponent
 		local tilemap3 = layer3Entity.RectTileMapComponent
+		-- Layer 4 = impassable walls. Its tileset (wall.tileset, "Big Wall" IsCollidable) is set in
+		-- the map template so it is loaded at map creation; SetTile("Big Wall") below resolves
+		-- against it. (A runtime TileSetRUID switch here failed with LEA-3005 — the tileset wasn't
+		-- loaded synchronously — so the assignment lives in the .map template instead.)
 		local tilemap4 = layer4Entity.RectTileMapComponent
-		-- Layer 4 paints impassable walls from the wall tileset (Big Wall is IsCollidable).
-		if isvalid(tilemap4) and tilemap4.TileSetRUID ~= self.WallTileSetRUID then
-			tilemap4.TileSetRUID = self.WallTileSetRUID
-		end
 
 		local seedVal = self:GetMapSeed(mapName)
 		local mapRadius = self.MapRadius
