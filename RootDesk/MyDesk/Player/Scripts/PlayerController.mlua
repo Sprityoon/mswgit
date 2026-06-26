@@ -121,9 +121,9 @@ script PlayerController extends Component
 	end
 
 	method boolean IsWallAt(Vector2 checkPos)
-		-- description: True if checkPos is an impassable wall — a Layer-4 (RectTileMap4) tile, or a
-		-- cell inside the estate boundary wall band. Cell/coordinate based, so it blocks even when
-		-- knockback teleports (SetWorldPosition) or a chunk-unloaded edge would bypass tile physics.
+		-- description: True if checkPos sits on an impassable wall — any tile on Layer 4
+		-- (RectTileMap4 = the walls layer; Big Wall is IsCollidable). Tile-based, so it also blocks
+		-- the knockback teleport (SetWorldPosition) path, not just normal movement.
 		local map = self.Entity.CurrentMap
 		if not isvalid(map) then return false end
 		local mapName = map.Name
@@ -145,24 +145,12 @@ script PlayerController extends Component
 			end
 		end
 
-		-- Estate hard boundary: any cell in/beyond the wall band is impassable regardless of tile
-		-- load state, so the player can never be knocked/clipped outside the estate.
-		if string.sub(mapName, 1, 5) == "Home_" then
-			local rs = _ResourceSpawner
-			if rs ~= nil then
-				local wallInner = rs.MapRadius - rs.WallThickness + 1
-				if math.abs(math.floor(checkPos.x)) >= wallInner or math.abs(math.floor(checkPos.y)) >= wallInner then
-					return true
-				end
-			end
-		end
-
 		return false
 	end
 
 	method boolean IsObstacle(Vector2 checkPos, number radius, any currentPos)
-		-- description: True if checkPos hits an obstacle — a Layer-4 wall tile / estate boundary
-		-- (IsWallAt), or a resource/furniture entity collider (TriggerBox).
+		-- description: True if checkPos hits an obstacle — a Layer-4 wall tile (IsWallAt) or a
+		-- resource/furniture entity collider (TriggerBox).
 		if self:IsWallAt(checkPos) then
 			return true
 		end

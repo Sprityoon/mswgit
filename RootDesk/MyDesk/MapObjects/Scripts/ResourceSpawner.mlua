@@ -34,6 +34,11 @@ script ResourceSpawner extends Logic
 	-- the 2026-06 concept shift (game_design.md §2.2 / §3.10). Set to "" to re-enable the
 	-- multi-biome macro grid (intended for future hunting-ground maps).
 	property string ForceBiomeId = "green_island"
+	-- Impassable wall tile painted on Layer 4 (RectTileMap4). "Big Wall" is IsCollidable in
+	-- wall.tileset, so it blocks entry like a normal top-down obstacle. RectTileMap4's tileset is
+	-- switched to the wall tileset at load (Layer 4 = walls; Layer 3 = walkable player floors).
+	property string WallTileSetRUID = "tileset://2361293b-a3c2-4138-8dec-4fb4d1f9acf4"
+	property string WallTileName = "Big Wall"
 	property string GrownGrassModelId = ""
 
 	method table GetSpawnedEntities(string mapName)
@@ -494,7 +499,11 @@ script ResourceSpawner extends Logic
 		local tilemap2 = layer2Entity.RectTileMapComponent
 		local tilemap3 = layer3Entity.RectTileMapComponent
 		local tilemap4 = layer4Entity.RectTileMapComponent
-		
+		-- Layer 4 paints impassable walls from the wall tileset (Big Wall is IsCollidable).
+		if isvalid(tilemap4) and tilemap4.TileSetRUID ~= self.WallTileSetRUID then
+			tilemap4.TileSetRUID = self.WallTileSetRUID
+		end
+
 		local seedVal = self:GetMapSeed(mapName)
 		local mapRadius = self.MapRadius
 		local wallInner = mapRadius - self.WallThickness + 1
@@ -559,7 +568,7 @@ script ResourceSpawner extends Logic
 				-- Impassable boundary wall BAND on Layer 4 (thick so clipping/knockback can't escape).
 				-- Cells in the band paint a wall tile and never receive terrain/resources.
 				if math.abs(x) >= wallInner or math.abs(y) >= wallInner then
-					tilemap4:SetTile("Rocks", x, y)
+					tilemap4:SetTile(self.WallTileName, x, y)
 					continue
 				end
 				
