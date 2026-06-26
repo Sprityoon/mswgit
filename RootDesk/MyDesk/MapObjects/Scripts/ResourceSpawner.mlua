@@ -917,7 +917,8 @@ script ResourceSpawner extends Logic
 	method void UnloadChunk(Entity map, integer cx, integer cy)
 		if not isvalid(map) then return end
 		local mapName = map.Name
-		
+		local proceduralTerrain = self:GetMapProceduralTerrain(mapName)
+
 		if not self.LoadedChunksMap[mapName] then return end
 		local chunkKey = cx .. "_" .. cy
 		local chunkData = self.LoadedChunksMap[mapName][chunkKey]
@@ -957,27 +958,29 @@ script ResourceSpawner extends Logic
 			end
 		end
 		
-		local layer1Entity = map:GetChildByName("RectTileMap")
-		local layer2Entity = map:GetChildByName("RectTileMap2")
-		local layer4Entity = map:GetChildByName("RectTileMap4")
-		
-		local tilemap1 = isvalid(layer1Entity) and layer1Entity.RectTileMapComponent or nil
-		local tilemap2 = isvalid(layer2Entity) and layer2Entity.RectTileMapComponent or nil
-		local tilemap4 = isvalid(layer4Entity) and layer4Entity.RectTileMapComponent or nil
-		
-		local chunkSize = self.MacroCellSize
-		local xMin = cx * chunkSize
-		local xMax = xMin + chunkSize - 1
-		local yMin = cy * chunkSize
-		local yMax = yMin + chunkSize - 1
-		
-		for x = xMin, xMax do
-			for y = yMin, yMax do
-				if tilemap1 then tilemap1:RemoveTile(x, y) end
-				if tilemap2 then tilemap2:RemoveTile(x, y) end
+		-- Procedural maps repaint terrain on chunk reload, so stripping terrain tiles on unload is safe.
+		-- Hand-painted estates must NEVER remove terrain tiles — the painted earth/grass is permanent
+		-- and is not regenerated, so removing it on unload would erase the map (game_design.md Phase 11-B).
+		if proceduralTerrain then
+			local layer1Entity = map:GetChildByName("RectTileMap")
+			local layer2Entity = map:GetChildByName("RectTileMap2")
+			local tilemap1 = isvalid(layer1Entity) and layer1Entity.RectTileMapComponent or nil
+			local tilemap2 = isvalid(layer2Entity) and layer2Entity.RectTileMapComponent or nil
+
+			local chunkSize = self.MacroCellSize
+			local xMin = cx * chunkSize
+			local xMax = xMin + chunkSize - 1
+			local yMin = cy * chunkSize
+			local yMax = yMin + chunkSize - 1
+
+			for x = xMin, xMax do
+				for y = yMin, yMax do
+					if tilemap1 then tilemap1:RemoveTile(x, y) end
+					if tilemap2 then tilemap2:RemoveTile(x, y) end
+				end
 			end
 		end
-		
+
 		self.LoadedChunksMap[mapName][chunkKey] = nil
 		log("ResourceSpawner: Unloaded chunk " .. chunkKey .. " in map " .. mapName)
 	end
