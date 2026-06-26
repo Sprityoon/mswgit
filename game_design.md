@@ -543,6 +543,7 @@ graph TD
 
 - **11-A 개인 영지 축소 (작업 단위)**:
   - [ ] `ResourceSpawner.MapRadius` 120 → 30 (61×61). 이탈 방지 장벽(±MapRadius)·청크 로딩 범위 자동 추종 확인. 빌드 로그 검증 후 커밋.
+  - [x] **영지 외벽(이탈 방지 장벽) 세팅 완료 (유저 직접 수정)**: `ResourceSpawner.mlua` 코드 직접 정리 및 꼬여있던 `RectTileMap4`↔`Layer4` 간 잘못된 할당 재연결 완료. 외벽 생성·배치 정상 동작 확인.
 - **11-B green_island 전면화 + 느린 자원 생성 (작업 단위)**:
   - [ ] 개인 영지(Home_*)에서 `GetBiomeAt`가 green_island를 반환하도록 처리(데이터 주도 `ForceBiomeId`). 멀티바이옴 매크로 그리드 코드는 사냥터 재사용을 위해 보존.
   - [ ] green_island `BiomeResourceDataSet` SpawnChance 축소로 자원을 더 희소·점진 생성.
