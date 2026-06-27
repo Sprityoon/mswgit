@@ -19,11 +19,40 @@ script UIMinimapController extends Component
 
 	property any coordsText = nil
 
+	property any mapNameText = nil
+
 	@ExecSpace("ClientOnly")
 	method void OnBeginPlay()
 		-- Caches the tilemap layers, then repaints the player-centered window on a light timer.
 		self:CacheTileMaps()
 		
+		-- Spawn or find the Map Name UI Text entity
+		local mapNameEnt = self.Entity:GetChildByName("MapNameText")
+		if not isvalid(mapNameEnt) then
+			mapNameEnt = _SpawnService:SpawnByModelId("uitext", "MapNameText", Vector3.zero, self.Entity)
+		end
+		if isvalid(mapNameEnt) then
+			local sprite = mapNameEnt.SpriteGUIRendererComponent
+			if isvalid(sprite) then
+				sprite.Color = Color(0, 0, 0, 0)
+			end
+			local transform = mapNameEnt.UITransformComponent
+			if isvalid(transform) then
+				transform.AlignmentOption = 1
+				transform.anchoredPosition = Vector2(-110, 0)
+				transform.RectSize = Vector2(150, 30)
+			end
+			self.mapNameText = mapNameEnt.TextComponent
+			if isvalid(self.mapNameText) then
+				self.mapNameText.FontSize = 22
+				self.mapNameText.FontColor = Color(1.0, 1.0, 1.0, 1.0)
+				self.mapNameText.UseOutLine = true
+				self.mapNameText.OutlineColor = Color(0.0, 0.0, 0.0, 1.0)
+				self.mapNameText.OutlineWidth = 1.0
+				self.mapNameText.Alignment = 2 -- MiddleRight
+			end
+		end
+
 		-- Spawn or find the Coords UI Text entity
 		local coords = self.Entity:GetChildByName("Coords")
 		if not isvalid(coords) then
@@ -36,7 +65,7 @@ script UIMinimapController extends Component
 			end
 			local transform = coords.UITransformComponent
 			if isvalid(transform) then
-				transform.AlignmentOption = AlignmentType.BottomCenter
+				transform.AlignmentOption = 6
 				transform.anchoredPosition = Vector2(0, -15) -- 15 pixels below bottom edge
 				transform.RectSize = Vector2(120, 25)
 			end
@@ -152,6 +181,10 @@ script UIMinimapController extends Component
 			self.coordsText.Text = string.format("(%d, %d)", px, py)
 		end
 		
+		if isvalid(self.mapNameText) then
+			self.mapNameText.Text = self:GetMapDisplayName(self.cachedMapName)
+		end
+		
 		local gridCells = self.GridCells
 		local half = math.floor(gridCells / 2)
 		local tilesPerCell = math.floor(self.TilesPerCell)
@@ -167,6 +200,25 @@ script UIMinimapController extends Component
 				end
 			end
 		end
+	end
+
+	@ExecSpace("ClientOnly")
+	method string GetMapDisplayName(string mapName)
+		if mapName == nil or mapName == "" then return "" end
+		if string.sub(mapName, 1, 5) == "Home_" then
+			return "개인 영지"
+		end
+		
+		local ds = _DataService:GetTable("PortalDestinationDataSet")
+		if ds ~= nil then
+			local rowCount = ds:GetRowCount()
+			for i = 1, rowCount do
+				if ds:GetCell(i, "MapName") == mapName then
+					return ds:GetCell(i, "DisplayName")
+				end
+			end
+		end
+		return mapName
 	end
 
 end

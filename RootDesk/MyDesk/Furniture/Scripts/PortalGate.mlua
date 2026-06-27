@@ -5,10 +5,34 @@ script PortalGate extends Component
 
 	property Vector2 TargetPosition = Vector2(0, 0)
 
-	@ExecSpace("ServerOnly")
+	property string DestinationGroup = "town"
+
+	property string PortalColor = "white"
+
 	method void OnBeginPlay()
-		self.Entity:ConnectEvent(TriggerEnterEvent, self.OnTriggerEnter)
-		self.Entity:ConnectEvent(TriggerLeaveEvent, self.OnTriggerLeave)
+		if self:IsServer() then
+			self.Entity:ConnectEvent(TriggerEnterEvent, self.OnTriggerEnter)
+			self.Entity:ConnectEvent(TriggerLeaveEvent, self.OnTriggerLeave)
+		else
+			self:ApplyPortalColor()
+		end
+	end
+
+	@ExecSpace("ClientOnly")
+	method void ApplyPortalColor()
+		local sprite = self.Entity.SpriteRendererComponent
+		if isvalid(sprite) then
+			local c = string.lower(self.PortalColor)
+			if c == "sky" or c == "blue" then
+				sprite.Color = Color(0.3, 0.8, 1.0, 1.0)
+			elseif c == "green" then
+				sprite.Color = Color(0.3, 1.0, 0.4, 1.0)
+			elseif c == "red" then
+				sprite.Color = Color(1.0, 0.3, 0.3, 1.0)
+			else
+				sprite.Color = Color(1.0, 1.0, 1.0, 1.0)
+			end
+		end
 	end
 
 	@ExecSpace("ServerOnly")
@@ -20,7 +44,6 @@ script PortalGate extends Component
 		if isvalid(pc) then
 			pc.ActivePortal = self.Entity
 			log("PortalGate: Player entered portal zone. Set ActivePortal.")
-			-- We can trigger client UI prompt here if needed.
 		end
 	end
 

@@ -51,6 +51,9 @@ script PlayerController extends Component
 
 	property boolean HasRequestedInitialStones = false
 
+	@Sync
+	property string UnlockedWaypointsJson = "[]"
+
 	property string ReticleSpriteRUID = "662fd2de11094cf08be40d8b3fab11bc"
 
 	property number ReticleScale = 0.5
@@ -1042,6 +1045,25 @@ script PlayerController extends Component
 		end
 		if not isvalid(self.ActivePortal) then return end
 		
+		-- Automatically unlock waypoint of current hunting ground map on returning to home/warp
+		local currentMap = self.Entity.CurrentMap
+		if isvalid(currentMap) then
+			local ds = _DataService:GetTable("PortalDestinationDataSet")
+			if ds then
+				local rowCount = ds:GetRowCount()
+				for i = 1, rowCount do
+					local mapName = ds:GetCell(i, "MapName")
+					local destId = ds:GetCell(i, "DestinationId")
+					local displayName = ds:GetCell(i, "DisplayName")
+					local unlockType = ds:GetCell(i, "UnlockType")
+					if mapName == currentMap.Name and unlockType == "waypoint" then
+						self:UnlockWaypoint(destId, displayName)
+						break
+					end
+				end
+			end
+		end
+		
 		local portalGate = self.ActivePortal:GetComponent("script.PortalGate")
 		local territoryPortal = self.ActivePortal:GetComponent("script.TerritoryPortal")
 		
@@ -1080,24 +1102,72 @@ script PlayerController extends Component
 
 	@ExecSpace("ClientOnly")
 	method void TryUsePortal()
-		-- Estate portals open the destination list popup (town / hunting grounds, data-driven via
-		-- PortalDestinationDataSet). Fixed portals in other maps (town's PortalToHome, a hunting
-		-- ground's return portal) warp straight to their single PortalGate target.
 		if not isvalid(self.ActivePortal) then return end
 		local currentMap = self.Entity.CurrentMap
-		if isvalid(currentMap) and string.sub(currentMap.Name, 1, 5) == "Home_" then
-			local popup = _EntityService:GetEntityByPath("/ui/PopupGroup/WarpPopup")
-			if isvalid(popup) then
-				local ctrl = popup:GetComponent("script.UIWarpController")
-				if isvalid(ctrl) then
-					---@type UIWarpController
-					local c = ctrl
-					c:Open()
+		
+		local portalGate = self.ActivePortal:GetComponent("script.PortalGate")
+		if isvalid(portalGate) and isvalid(currentMap) and string.sub(currentMap.Name, 1, 5) == "Home_" then
+			local group = portalGate.DestinationGroup or "town"
+			if group == "town" then
+				self:ServerRequestWarp()
+			else
+				local popup = _EntityService:GetEntityByPath("/ui/PopupGroup/WarpPopup")
+				if isvalid(popup) then
+					local ctrl = popup:GetComponent("script.UIWarpController")
+					if isvalid(ctrl) then
+						ctrl:Open(group)
+					end
 				end
 			end
 		else
 			self:ServerRequestWarp()
 		end
+	end
+
+	@ExecSpace("Server")
+	method boolean UnlockWaypoint(string waypointId, string displayName)
+		if not waypointId or waypointId == "" then return false end
+		
+		local currentList = {}
+		local ok, decoded = pcall(function() return _HttpService:JSONDecode(self.UnlockedWaypointsJson) end)
+		if ok and decoded then
+			currentList = decoded
+		end
+		
+		for _, id in ipairs(currentList) do
+			if id == waypointId then
+				return false
+			end
+		end
+		
+		table.insert(currentList, waypointId)
+		self.UnlockedWaypointsJson = _HttpService:JSONEncode(currentList)
+		
+		local feedbackMsg = "[활성화] " .. (displayName or waypointId) .. " 웨이포인트를 활성화했습니다!"
+		self:ClientShowMineFeedback(feedbackMsg)
+		
+		local playerComp = self.Entity.PlayerComponent
+		if playerComp and _PersistenceManager then
+			_PersistenceManager:MarkPlayerDirty(playerComp.UserId)
+		end
+		return true
+	end
+
+	method boolean IsWaypointUnlocked(string waypointId)
+		if not waypointId or waypointId == "" then return true end
+		
+		local currentList = {}
+		local ok, decoded = pcall(function() return _HttpService:JSONDecode(self.UnlockedWaypointsJson) end)
+		if ok and decoded then
+			currentList = decoded
+		end
+		
+		for _, id in ipairs(currentList) do
+			if id == waypointId then
+				return true
+			end
+		end
+		return false
 	end
 
 	@ExecSpace("Server")
@@ -1109,9 +1179,19 @@ script PlayerController extends Component
 
 		local ds = _DataService:GetTable("PortalDestinationDataSet")
 		if ds == nil then return end
-		if ds:FindRow("MapName", mapName) == nil then
+		local row = ds:FindRow("MapName", mapName)
+		if row == nil then
 			log_warning("PlayerController: Rejected warp to unknown destination '" .. mapName .. "'.")
 			return
+		end
+
+		local unlockType = row:GetItem("UnlockType") or "always"
+		if unlockType == "waypoint" then
+			local destId = row:GetItem("DestinationId")
+			if not self:IsWaypointUnlocked(destId) then
+				log_warning("PlayerController: Rejected warp to locked waypoint destination '" .. destId .. "'.")
+				return
+			end
 		end
 
 		local target = mapName
@@ -1236,6 +1316,11 @@ script PlayerController extends Component
 
 	@ExecSpace("Client")
 	method void ClientShowWarpFeedback(string message)
+		_ScreenMessageLogic:PrivateMsg(message)
+	end
+
+	@ExecSpace("Client")
+	method void ClientShowMineFeedback(string message)
 		_ScreenMessageLogic:PrivateMsg(message)
 	end
 

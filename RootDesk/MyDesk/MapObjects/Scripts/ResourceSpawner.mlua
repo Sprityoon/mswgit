@@ -574,9 +574,36 @@ script ResourceSpawner extends Logic
 		self:SetMapProceduralTerrain(huntName, true)
 		self:SpawnInitialResourcesForMap(huntMap)
 
-		-- Hand-placed, immovable return portal back to the town hub (game_design.md §2.2 ③: 사냥터 →
-		-- 마을 복귀). Entry INTO the hunting ground is from the estate's list portal (§12-C), never town.
-		self:SpawnFixedPortal(huntMap, "Portal", 0, -3, "town", Vector2(3, 0))
+		-- Hand-placed, immovable return portal back to the player's home estate.
+		-- Changed in 2026-06: Warps directly to the home estate instead of town.
+		self:SpawnFixedPortal(huntMap, "Portal", 0, -3, "Home", Vector2(-3, 0))
+
+		-- Connection portal: hunt01 (10, 0) -> hunt02 (0, 0)
+		self:SpawnFixedPortal(huntMap, "PortalToHunt02", 10, 0, "hunt02", Vector2(0, 0))
+
+
+
+		-- Ensure hunt02 always-resident map
+		local huntName2 = "hunt02"
+		if not isvalid(_EntityService:GetEntityByPath("/maps/" .. huntName2)) then
+			local ec2 = _DynamicMapService:CreateDynamicMap("map01", huntName2)
+			if ec2 == DynamicMapResultCode.Success then
+				local huntMap2 = _EntityService:GetEntityByPath("/maps/" .. huntName2)
+				if isvalid(huntMap2) then
+					self:SetMapForceBiomeId(huntName2, "")
+					self:SetMapProceduralTerrain(huntName2, true)
+					self:SpawnInitialResourcesForMap(huntMap2)
+					
+					-- Return portal: hunt02 -> Home
+					self:SpawnFixedPortal(huntMap2, "Portal", 0, -3, "Home", Vector2(-3, 0))
+					
+					-- Connection portal: hunt02 (-10, 0) -> hunt01 (8, 0)
+					self:SpawnFixedPortal(huntMap2, "PortalToHunt01", -10, 0, "hunt01", Vector2(8, 0))
+					
+
+				end
+			end
+		end
 
 		log("ResourceSpawner: Hunting-ground map ready: " .. huntName)
 	end
@@ -615,6 +642,58 @@ script ResourceSpawner extends Logic
 		self:GetGridToEntity(map.Name)[gKey] = { entity = portal, pivotX = px, pivotY = py, isFurniture = true, itemName = "Portal" }
 		self:GetSpawnedEntities(map.Name)[gKey] = portal
 		log("ResourceSpawner: Portal '" .. portalName .. "' -> " .. targetMap .. " spawned in map " .. map.Name)
+	end
+
+	@ExecSpace("ServerOnly")
+	method void SpawnFixedWaypoint(Entity map, string name, number x, number y, string waypointId, string displayName)
+		-- Spawns a waypoint entity reusing a portal model
+		local modelId = _EntryService:GetModelIdByName("Furniture_Portal")
+		if modelId == nil or modelId == "" then
+			log_warning("ResourceSpawner: Waypoint model Furniture_Portal not found.")
+			return
+		end
+		
+		local spawnPos = Vector3(x + 0.5, y + 0.5, 0)
+		local wpEnt = _SpawnService:SpawnByModelId(modelId, name, spawnPos, map)
+		if not isvalid(wpEnt) then return end
+		
+		local sprite = wpEnt.SpriteRendererComponent
+		if isvalid(sprite) then
+			sprite.IgnoreMapLayerCheck = true
+			sprite.SortingLayer = "MapLayer2"
+			sprite.OrderInLayer = math.floor((self.MapRadius - y) * 100)
+			-- Change color slightly to distinguish from warp portal (e.g. blue/gold tint)
+			sprite.Color = Color(0.3, 0.8, 1.0, 1.0)
+		end
+		
+		local trigger = wpEnt.TriggerComponent
+		if not isvalid(trigger) then
+			wpEnt:AddComponent("MOD.Core.TriggerComponent")
+			trigger = wpEnt.TriggerComponent
+		end
+		if isvalid(trigger) then
+			trigger.BoxSize = Vector2(1.5, 1.5)
+		end
+		
+		local portalGate = wpEnt:GetComponent("script.PortalGate")
+		if isvalid(portalGate) then
+			portalGate:Destroy()
+		end
+		
+		local wp = wpEnt:GetComponent("script.Waypoint")
+		if not isvalid(wp) then
+			wpEnt:AddComponent("script.Waypoint")
+			wp = wpEnt:GetComponent("script.Waypoint")
+		end
+		if isvalid(wp) then
+			wp.WaypointId = waypointId
+			wp.DisplayName = displayName
+		end
+		
+		local gKey = x .. "_" .. y
+		self:GetGridToEntity(map.Name)[gKey] = { entity = wpEnt, pivotX = x, pivotY = y, isFurniture = true, itemName = "Waypoint" }
+		self:GetSpawnedEntities(map.Name)[gKey] = wpEnt
+		log("ResourceSpawner: Waypoint '" .. displayName .. "' spawned in map " .. map.Name)
 	end
 
 	@ExecSpace("ServerOnly")
@@ -977,11 +1056,90 @@ script ResourceSpawner extends Logic
 				gridToEntity[gKey] = { entity = resEntity, pivotX = math.floor(x), pivotY = math.floor(y) }
 			end
 		end
-		
 		local key = x .. "_" .. y
 		spawnedEntities[key] = resEntity
 		table.insert(chunkEntities, resEntity)
 	
+		-- 돌(Stone) 주변에 확률적으로 itemstone 드롭 스폰
+		if name == "Stone" and _TileDurabilityManager then
+			local dropChance = 0.3
+			if self:Hash2D(x, y, seedVal + 777) < dropChance then
+				local offsets = {
+					{x=-1, y=0}, {x=1, y=0}, {x=0, y=-1}, {x=0, y=1},
+					{x=-1, y=-1}, {x=1, y=1}, {x=-1, y=1}, {x=1, y=-1}
+				}
+				local startIdx = math.floor(self:Hash2D(x, y, seedVal + 888) * 8) + 1
+				for i = 0, 7 do
+					local idx = ((startIdx + i - 1) % 8) + 1
+					local offset = offsets[idx]
+					local targetX = x + offset.x
+					local targetY = y + offset.y
+					
+					local wallInner = mapRadius - self.WallThickness + 1
+					if math.abs(targetX) < wallInner and math.abs(targetY) < wallInner then
+						local gKey = targetX .. "_" .. targetY
+						if gridToEntity[gKey] == nil then
+							local alreadyGathered = false
+							for _, dr in ipairs(destroyedResources) do
+								if dr.x == targetX and dr.y == targetY and dr.name == "AroundItem_Stone" then
+									local duration = 1800
+									local resDs = _DataService:GetTable("ResourceDataSet")
+									if resDs then
+										local row = resDs:FindRow("SourceId", "AroundItem_Stone")
+										if row then
+											duration = tonumber(row:GetItem("RespawnDuration")) or 1800
+										end
+									end
+									if os.time() - dr.destroyedTime < duration then
+										alreadyGathered = true
+										break
+									end
+								end
+							end
+							
+							if not alreadyGathered then
+								local itemModelId = _EntryService:GetModelIdByName("Item_Stone")
+								if not itemModelId or itemModelId == "" then
+									itemModelId = "05fa541a-a48d-4f36-bf82-0c60784a4a53"
+								end
+								
+								local itemSpawnPos = Vector3(targetX + 0.5, targetY + 0.5, 0)
+								local drop = _SpawnService:SpawnByModelId(
+									itemModelId,
+									"Item_Stone",
+									itemSpawnPos,
+									map
+								)
+								
+								if isvalid(drop) then
+									local dropTransform = drop.TransformComponent
+									if isvalid(dropTransform) then
+										dropTransform.Scale = Vector3(1.5, 1.5, 1)
+									end
+									
+									local idc = drop:GetComponent("script.itemreact")
+									if not isvalid(idc) then
+										drop:AddComponent("script.itemreact")
+										idc = drop:GetComponent("script.itemreact")
+									end
+									if isvalid(idc) then
+										idc:Init("Stone")
+										idc.IsNaturalSpawn = true
+										idc.NaturalSpawnModelId = itemModelId
+									end
+									
+									table.insert(chunkEntities, drop)
+									gridToEntity[gKey] = { entity = drop, pivotX = targetX, pivotY = targetY, isItem = true }
+									log("ResourceSpawner: Spawned natural itemstone around Stone at (" .. targetX .. ", " .. targetY .. ")")
+									break
+								end
+							end
+						end
+					end
+				end
+			end
+		end
+
 		return resEntity
 	end
 
@@ -1230,6 +1388,18 @@ script ResourceSpawner extends Logic
 			end
 			
 			if now - item.destroyedTime >= duration then
+				if item.sourceName == "AroundItem_Stone" then
+					table.remove(destroyedResources, i)
+					if string.sub(mapName, 1, 5) == "Home_" then
+						local userId = string.sub(mapName, 6)
+						if _PersistenceManager then
+							_PersistenceManager:MarkPlayerDirty(userId)
+						end
+					end
+					log("ResourceSpawner: AroundItem_Stone respawn cooldown expired, removed from destroyed list for map: " .. mapName)
+					continue
+				end
+
 				local isOccupied = false
 				local key = item.x .. "_" .. item.y
 				if gridToEntity[key] ~= nil then
@@ -1417,8 +1587,13 @@ script ResourceSpawner extends Logic
 						portalGate = spawnedEntity:GetComponent("script.PortalGate")
 					end
 					if isvalid(portalGate) then
-						portalGate.TargetMapName = "town"
-						portalGate.TargetPosition = Vector2(3, 0)
+						portalGate.TargetMapName = f.targetMapName or "town"
+						portalGate.TargetPosition = Vector2(f.targetPositionX or 3, f.targetPositionY or 0)
+						portalGate.DestinationGroup = f.destinationGroup or "town"
+						portalGate.PortalColor = f.portalColor or "white"
+						if not self:IsServer() then
+							portalGate:ApplyPortalColor()
+						end
 					end
 					
 					local key = fx .. "_" .. fy
@@ -1465,7 +1640,19 @@ script ResourceSpawner extends Logic
 	method void AddPlacedFurniture(string mapName, string itemName, integer x, integer y, Entity spawnedEntity)
 		local json = self:GetPlacedFurnitureJson(mapName)
 		local furniture = (json ~= nil and json ~= "") and _HttpService:JSONDecode(json) or {}
-		table.insert(furniture, { itemName = itemName, x = x, y = y })
+		
+		local fData = { itemName = itemName, x = x, y = y }
+		if isvalid(spawnedEntity) then
+			local pg = spawnedEntity:GetComponent("script.PortalGate")
+			if isvalid(pg) then
+				fData.targetMapName = pg.TargetMapName
+				fData.targetPositionX = pg.TargetPosition.x
+				fData.targetPositionY = pg.TargetPosition.y
+				fData.destinationGroup = pg.DestinationGroup
+				fData.portalColor = pg.PortalColor
+			end
+		end
+		table.insert(furniture, fData)
 		self:SetPlacedFurnitureJson(mapName, _HttpService:JSONEncode(furniture))
 		
 		local key = x .. "_" .. y

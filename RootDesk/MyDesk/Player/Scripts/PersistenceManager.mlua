@@ -211,6 +211,7 @@ script PersistenceManager extends Logic
 				pc.Stamina = data.stamina or 100
 				pc.MaxStamina = data.maxStamina or 100
 				pc.GatheringSpeed = data.gatheringSpeed or 1.0
+				pc.UnlockedWaypointsJson = data.unlockedWaypoints or "[]"
 				log("PersistenceManager: Stats restored (Lv " .. pc.Level .. ")")
 			end
 
@@ -252,7 +253,8 @@ script PersistenceManager extends Logic
 				if ownsPortal then
 					furnRaw = "[]"
 				else
-					furnRaw = "[{\"itemName\":\"Portal\",\"x\":-5,\"y\":0}]"
+					furnRaw = "[{\"itemName\":\"Portal\",\"x\":-5,\"y\":0,\"destinationGroup\":\"town\",\"portalColor\":\"white\",\"targetMapName\":\"town\",\"targetPositionX\":3,\"targetPositionY\":0}," ..
+					          "{\"itemName\":\"Portal\",\"x\":-3,\"y\":0,\"destinationGroup\":\"rookie\",\"portalColor\":\"sky\",\"targetMapName\":\"\",\"targetPositionX\":0,\"targetPositionY\":0}]"
 				end
 			end
 
@@ -437,6 +439,7 @@ script PersistenceManager extends Logic
 			equippedTool = inv.EquippedTool,
 			quickSlots = inv.QuickSlotsJson,
 			selectedSlot = tonumber(inv.SelectedQuickSlotIndex) or 1,
+			unlockedWaypoints = pc.UnlockedWaypointsJson or "[]",
 			posX = tonumber(posX) or 0.0,
 			posY = tonumber(posY) or 0.0,
 			homeTiles = tilesJson,

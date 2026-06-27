@@ -40,9 +40,9 @@ script UIWarpController extends Component
 	end
 
 	@ExecSpace("ClientOnly")
-	method void Open()
+	method void Open(string group)
 		-- Show the popup and (re)fill destination slots from the dataset.
-		self:PopulateDestinations()
+		self:PopulateDestinations(group or "rookie")
 		self.Entity.Enable = true
 	end
 
@@ -53,31 +53,70 @@ script UIWarpController extends Component
 	end
 
 	@ExecSpace("ClientOnly")
-	method void PopulateDestinations()
-		-- Fill the slot buttons from PortalDestinationDataSet. Each CSV row = one selectable
-		-- destination; rows beyond SlotCount are ignored, unused slots are hidden.
+	method void PopulateDestinations(string group)
+		-- Fill the slot buttons from PortalDestinationDataSet filtered by group.
 		self.destinations = {}
 		local ds = _DataService:GetTable("PortalDestinationDataSet")
 		local rowCount = 0
 		if ds ~= nil then
 			rowCount = ds:GetRowCount()
 		end
-		for i = 1, self.SlotCount do
+		
+		local localPlayer = _UserService.LocalPlayer
+		local pc = isvalid(localPlayer) and localPlayer:GetComponent("script.PlayerController") or nil
+		
+		local activeSlotIndex = 0
+		for i = 1, rowCount do
+			local destGroup = ds:GetCell(i, "Group") or "rookie"
+			if destGroup == group then
+				local destId = ds:GetCell(i, "DestinationId")
+				local mapName = ds:GetCell(i, "MapName")
+				local displayName = ds:GetCell(i, "DisplayName")
+				local ax = tonumber(ds:GetCell(i, "ArriveX")) or 0
+				local ay = tonumber(ds:GetCell(i, "ArriveY")) or 0
+				local unlockType = ds:GetCell(i, "UnlockType") or "always"
+				
+				local isUnlocked = true
+				if unlockType == "waypoint" then
+					if isvalid(pc) then
+						---@type PlayerController
+						local c = pc
+						isUnlocked = c:IsWaypointUnlocked(destId)
+					else
+						isUnlocked = false
+					end
+				end
+				
+				activeSlotIndex = activeSlotIndex + 1
+				if activeSlotIndex <= self.SlotCount then
+					local slot = _EntityService:GetEntityByPath("/ui/PopupGroup/WarpPopup/Bg/Slot" .. activeSlotIndex)
+					if isvalid(slot) then
+						self.destinations[activeSlotIndex] = { destId = destId, mapName = mapName, x = ax, y = ay, isUnlocked = isUnlocked, displayName = displayName }
+						
+						if isvalid(slot.TextComponent) then
+							if isUnlocked then
+								slot.TextComponent.Text = displayName
+								if isvalid(slot.SpriteGUIRendererComponent) then
+									slot.SpriteGUIRendererComponent.Color = Color.white
+								end
+							else
+								slot.TextComponent.Text = "[잠김] " .. displayName
+								if isvalid(slot.SpriteGUIRendererComponent) then
+									slot.SpriteGUIRendererComponent.Color = Color(0.5, 0.5, 0.5, 1.0)
+								end
+							end
+						end
+						slot.Enable = true
+					end
+				end
+			end
+		end
+		
+		-- Hide remaining unused slots
+		for i = activeSlotIndex + 1, self.SlotCount do
 			local slot = _EntityService:GetEntityByPath("/ui/PopupGroup/WarpPopup/Bg/Slot" .. i)
 			if isvalid(slot) then
-				if i <= rowCount then
-					local mapName = ds:GetCell(i, "MapName")
-					local displayName = ds:GetCell(i, "DisplayName")
-					local ax = tonumber(ds:GetCell(i, "ArriveX")) or 0
-					local ay = tonumber(ds:GetCell(i, "ArriveY")) or 0
-					self.destinations[i] = { mapName = mapName, x = ax, y = ay }
-					if isvalid(slot.TextComponent) then
-						slot.TextComponent.Text = displayName
-					end
-					slot.Enable = true
-				else
-					slot.Enable = false
-				end
+				slot.Enable = false
 			end
 		end
 	end
@@ -87,6 +126,20 @@ script UIWarpController extends Component
 		-- Warp the local player to the chosen destination via the server, then close.
 		local dest = self.destinations[slotIndex]
 		if dest == nil then return end
+		
+		if not dest.isUnlocked then
+			local localPlayer = _UserService.LocalPlayer
+			if isvalid(localPlayer) then
+				local pc = localPlayer:GetComponent("script.PlayerController")
+				if isvalid(pc) then
+					---@type PlayerController
+					local c = pc
+					c:ClientShowMineFeedback("이 사냥터 구역의 웨이포인트를 먼저 활성화해야 합니다!")
+				end
+			end
+			return
+		end
+		
 		local localPlayer = _UserService.LocalPlayer
 		if isvalid(localPlayer) then
 			local pc = localPlayer:GetComponent("script.PlayerController")
