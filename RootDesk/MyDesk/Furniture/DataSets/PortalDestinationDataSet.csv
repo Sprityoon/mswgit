@@ -1,4 +1,6 @@
 DestinationId,MapName,DisplayName,ArriveX,ArriveY,UnlockType,Group
 town,town,마을,3,0,always,town
-hunt01,hunt01,사냥터,-3,0,always,rookie
+hunt01,hunt01,사냥터 1구역,-3,0,always,rookie
 hunt02,hunt02,사냥터 2구역,0,0,waypoint,rookie
+hunt03,hunt03,사냥터 3구역,0,0,waypoint,rookie
+hunt04,hunt04,보스 사냥터,0,-5,waypoint,rookie

@@ -1,5 +1,12 @@
-﻿BiomeId,MonsterModelId,SpawnWeight,HpMultiplier,AtkMultiplier
+BiomeId,MonsterModelId,SpawnWeight,HpMultiplier,AtkMultiplier
 earth_field,slime,100,1.0,1.0
-rocky,slime,100,1.8,1.4
-desert,slime,100,2.5,1.8
-snowfield,slime,100,4.0,2.5
+earth_field,boar,50,1.4,1.2
+rocky,slime,60,1.8,1.4
+rocky,boar,80,2.0,1.6
+rocky,horn_mushroom,60,1.6,1.5
+desert,slime,40,2.5,1.8
+desert,boar,70,2.8,2.0
+desert,horn_mushroom,80,2.4,2.2
+snowfield,slime,30,4.0,2.5
+snowfield,boar,60,4.2,2.8
+snowfield,horn_mushroom,90,3.8,3.0

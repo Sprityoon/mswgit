@@ -11,6 +11,19 @@ script Monster extends Component
 	@Sync property number DestroyDelay = 0.7
 	property string DamageSkinRUID = "02c22d93421b4038b3c413b3e40b57ec"
 
+	-- Boss config (data-driven via the .model). A boss drops loot to its killer and
+	-- unlocks the next-tier hunting-ground waypoint on death (game_design.md §2.2 ③).
+	@Sync property boolean IsBoss = false
+	property string BossDropItem = "copper ore"
+	property integer BossDropMin = 5
+	property integer BossDropMax = 10
+	-- Waypoint unlocked when this boss dies (matches a PortalDestinationDataSet DestinationId).
+	property string UnlockWaypointId = ""
+	property string UnlockWaypointName = ""
+
+	-- Last entity that damaged this monster (the killer credit, server-side only).
+	@HideFromInspector property any LastAttacker = nil
+
 	method void OnBeginPlay()
 		-- Initializes current HP and binds the taken-hit damage skin if present.
 		self.Hp = self.MaxHp
@@ -26,12 +39,41 @@ script Monster extends Component
 		self.IsDead = true
 		local sc = self.Entity.StateComponent
 		if isvalid(sc) then sc:ChangeState("DEAD") end
+
+		-- Boss reward: drop loot at the corpse + unlock the next-tier waypoint for the killer.
+		if self.IsBoss then
+			self:GrantBossRewards()
+		end
+
 		local delayHide = function()
 			self.Entity:SetVisible(false)
 			self.Entity:SetEnable(false)
 			if self.RespawnOn == false then self.Entity:Destroy() end
 		end
 		_TimerService:SetTimerOnce(delayHide, self.DestroyDelay)
+	end
+
+	@ExecSpace("ServerOnly")
+	method void GrantBossRewards()
+		-- Drops the boss loot at its position and unlocks the configured waypoint for the killer.
+		local map = self.Entity.CurrentMap
+		local t = self.Entity.TransformComponent
+
+		-- Loot drop (reuses the resource-drop spawner; pickupGrace 0 = immediately pickable).
+		if isvalid(map) and isvalid(t) and self.BossDropItem ~= "" and _TileDurabilityManager ~= nil then
+			local p = t.WorldPosition
+			_TileDurabilityManager:SpawnResourceDrop(map, Vector3(p.x, p.y, 0), self.BossDropItem, self.BossDropMin, self.BossDropMax, 0)
+		end
+
+		-- Next-tier waypoint unlock for the player who landed the killing blow.
+		if self.UnlockWaypointId ~= "" and isvalid(self.LastAttacker) then
+			local pc = self.LastAttacker:GetComponent("script.PlayerController")
+			if isvalid(pc) then
+				---@type PlayerController
+				local controller = pc
+				controller:UnlockWaypoint(self.UnlockWaypointId, self.UnlockWaypointName)
+			end
+		end
 	end
 
 	@ExecSpace("ServerOnly")
@@ -52,6 +94,11 @@ script Monster extends Component
 		local originalHp = self.Hp
 		if originalHp <= 0 then return end
 		self.Hp = self.Hp - event.TotalDamage
+
+		-- Remember who dealt the killing blow so a boss can credit drops/unlock to them.
+		if isvalid(event.AttackerEntity) then
+			self.LastAttacker = event.AttackerEntity
+		end
 
 		-- Hit feedback: knockback away from the attacker + brief red flash.
 		if isvalid(event.AttackerEntity) then

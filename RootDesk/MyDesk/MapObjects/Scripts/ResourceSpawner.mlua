@@ -549,63 +549,120 @@ script ResourceSpawner extends Logic
 	end
 
 	@ExecSpace("ServerOnly")
-	method void EnsureHuntingGroundMaps()
-		-- Creates the shared, always-resident hunting-ground map (hunt01) as a dynamic instance cloned
-		-- from the map01 template, configured for procedural multi-biome terrain + combat. Estates keep
-		-- the singleton defaults (single green_island + peaceful); hunting maps override per-map here.
-		-- Idempotent. (game_design.md §2.2 ③ / Phase 12-B.) Not destroyed by OnUserLeave — its name is
-		-- not "Home_*", so PersistenceManager's empty-map cleanup skips it.
-		local huntName = "hunt01"
-		if isvalid(_EntityService:GetEntityByPath("/maps/" .. huntName)) then return end
+	method Entity EnsureHuntMap(string mapName, boolean isBossArena)
+		-- Creates (idempotently) a shared, always-resident hunting-ground map cloned from the map01
+		-- template and configures its terrain. Field zones use multi-biome procedural terrain + combat;
+		-- the boss arena (hunt04) forces green_island so MonsterSpawner's per-cell green_island guard
+		-- skips auto-spawn there, leaving only the hand-spawned boss. Returns the map entity (or nil).
+		-- Not destroyed by OnUserLeave — names are not "Home_*", so the empty-map cleanup skips them.
+		local existing = _EntityService:GetEntityByPath("/maps/" .. mapName)
+		if isvalid(existing) then return existing end
 
-		local ec = _DynamicMapService:CreateDynamicMap("map01", huntName)
+		local ec = _DynamicMapService:CreateDynamicMap("map01", mapName)
 		if ec ~= DynamicMapResultCode.Success then
-			log_error("ResourceSpawner: CreateDynamicMap failed for " .. huntName .. ": " .. tostring(ec))
-			return
+			log_error("ResourceSpawner: CreateDynamicMap failed for " .. mapName .. ": " .. tostring(ec))
+			return nil
 		end
-		local huntMap = _EntityService:GetEntityByPath("/maps/" .. huntName)
+		local huntMap = _EntityService:GetEntityByPath("/maps/" .. mapName)
 		if not isvalid(huntMap) then
-			log_error("ResourceSpawner: hunt map entity missing after creation: " .. huntName)
-			return
+			log_error("ResourceSpawner: hunt map entity missing after creation: " .. mapName)
+			return nil
 		end
 
-		-- Multi-biome procedural overlay + combat (vs the estate's single green_island + peaceful).
-		self:SetMapForceBiomeId(huntName, "")
-		self:SetMapProceduralTerrain(huntName, true)
+		if isBossArena then
+			-- Boss arena: single peaceful biome (no auto monster spawn) but still a painted floor.
+			self:SetMapForceBiomeId(mapName, "green_island")
+		else
+			-- Field zone: multi-biome procedural overlay + combat.
+			self:SetMapForceBiomeId(mapName, "")
+		end
+		self:SetMapProceduralTerrain(mapName, true)
 		self:SpawnInitialResourcesForMap(huntMap)
 
-		-- Hand-placed, immovable return portal back to the player's home estate.
-		-- Changed in 2026-06: Warps directly to the home estate instead of town.
-		self:SpawnFixedPortal(huntMap, "Portal", 0, -3, "Home", Vector2(-3, 0))
+		return huntMap
+	end
 
-		-- Connection portal: hunt01 (10, 0) -> hunt02 (0, 0)
-		self:SpawnFixedPortal(huntMap, "PortalToHunt02", 10, 0, "hunt02", Vector2(0, 0))
+	@ExecSpace("ServerOnly")
+	method void EnsureHuntingGroundMaps()
+		-- Builds the 4-stage hunting-ground chain (game_design.md §2.2 ③ / Phase 12):
+		--   hunt01 (field, easy) -> hunt02 (field, copper) -> hunt03 (field, hard) -> hunt04 (boss arena).
+		-- Each zone has an immovable Home-return portal and a forward connection portal; hunt04 hosts the
+		-- King Slime boss. Idempotent — re-entry is a no-op once the maps exist.
+		local hunt01 = self:EnsureHuntMap("hunt01", false)
+		local hunt02 = self:EnsureHuntMap("hunt02", false)
+		local hunt03 = self:EnsureHuntMap("hunt03", false)
+		local hunt04 = self:EnsureHuntMap("hunt04", true)
 
+		-- hunt01: Home return + forward to hunt02.
+		if isvalid(hunt01) then
+			self:SpawnFixedPortal(hunt01, "Portal", 0, -3, "Home", Vector2(-3, 0))
+			self:SpawnFixedPortal(hunt01, "PortalToHunt02", 10, 0, "hunt02", Vector2(0, 0))
+		end
 
+		-- hunt02: Home return + back to hunt01 + forward to hunt03.
+		if isvalid(hunt02) then
+			self:SpawnFixedPortal(hunt02, "Portal", 0, -3, "Home", Vector2(-3, 0))
+			self:SpawnFixedPortal(hunt02, "PortalToHunt01", -10, 0, "hunt01", Vector2(8, 0))
+			self:SpawnFixedPortal(hunt02, "PortalToHunt03", 10, 0, "hunt03", Vector2(0, 0))
+		end
 
-		-- Ensure hunt02 always-resident map
-		local huntName2 = "hunt02"
-		if not isvalid(_EntityService:GetEntityByPath("/maps/" .. huntName2)) then
-			local ec2 = _DynamicMapService:CreateDynamicMap("map01", huntName2)
-			if ec2 == DynamicMapResultCode.Success then
-				local huntMap2 = _EntityService:GetEntityByPath("/maps/" .. huntName2)
-				if isvalid(huntMap2) then
-					self:SetMapForceBiomeId(huntName2, "")
-					self:SetMapProceduralTerrain(huntName2, true)
-					self:SpawnInitialResourcesForMap(huntMap2)
-					
-					-- Return portal: hunt02 -> Home
-					self:SpawnFixedPortal(huntMap2, "Portal", 0, -3, "Home", Vector2(-3, 0))
-					
-					-- Connection portal: hunt02 (-10, 0) -> hunt01 (8, 0)
-					self:SpawnFixedPortal(huntMap2, "PortalToHunt01", -10, 0, "hunt01", Vector2(8, 0))
-					
+		-- hunt03: Home return + back to hunt02 + forward to the boss arena hunt04.
+		if isvalid(hunt03) then
+			self:SpawnFixedPortal(hunt03, "Portal", 0, -3, "Home", Vector2(-3, 0))
+			self:SpawnFixedPortal(hunt03, "PortalToHunt02", -10, 0, "hunt02", Vector2(8, 0))
+			self:SpawnFixedPortal(hunt03, "PortalToHunt04", 10, 0, "hunt04", Vector2(0, -5))
+		end
 
-				end
+		-- hunt04 (boss arena): Home return + back to hunt03 + the King Slime boss.
+		if isvalid(hunt04) then
+			self:SpawnFixedPortal(hunt04, "Portal", 0, -8, "Home", Vector2(-3, 0))
+			self:SpawnFixedPortal(hunt04, "PortalToHunt03", 0, -7, "hunt03", Vector2(8, 0))
+			self:SpawnHuntBoss(hunt04, "slime_king", 0, 2)
+		end
+
+		log("ResourceSpawner: Hunting-ground chain ready (hunt01..hunt04).")
+	end
+
+	@ExecSpace("ServerOnly")
+	method void SpawnHuntBoss(Entity map, string bossModelId, integer bx, integer by)
+		-- Hand-spawns the tier boss at cell (bx,by) in its arena. The boss model carries RespawnOn=true,
+		-- so once killed it returns after its RespawnDelay. Skips if a live boss already exists in the map.
+		local existing = map:GetChildComponentsByTypeName("script.Monster", true)
+		if existing then
+			for _, m in ipairs(existing) do
+				---@type Monster
+				local mon = m
+				if isvalid(mon) and mon.IsBoss and not mon.IsDead then return end
 			end
 		end
 
-		log("ResourceSpawner: Hunting-ground map ready: " .. huntName)
+		local modelId = _EntryService:GetModelIdByName(bossModelId)
+		if modelId == nil or modelId == "" then modelId = bossModelId end
+
+		local spawnPos = Vector3(bx + 0.5, by + 0.5, 0)
+		local boss = _SpawnService:SpawnByModelId(modelId, "Boss_" .. bossModelId, spawnPos, map)
+		if not isvalid(boss) then
+			log_error("ResourceSpawner: failed to spawn boss " .. bossModelId .. " in " .. map.Name)
+			return
+		end
+
+		-- Anchor the AI leash to the spawn cell so the boss patrols its arena.
+		local aiComp = boss:GetComponent("script.MonsterAI")
+		if isvalid(aiComp) then
+			---@type MonsterAI
+			local ai = aiComp
+			ai.SpawnPos = Vector2(bx + 0.5, by + 0.5)
+		end
+
+		-- Render above the floor like the other hunt fixtures.
+		local sprite = boss.SpriteRendererComponent
+		if isvalid(sprite) then
+			sprite.IgnoreMapLayerCheck = true
+			sprite.SortingLayer = "MapLayer2"
+			sprite.OrderInLayer = math.floor((self.MapRadius - by) * 100)
+		end
+
+		log("ResourceSpawner: Boss " .. bossModelId .. " spawned in " .. map.Name)
 	end
 
 	@ExecSpace("ServerOnly")
