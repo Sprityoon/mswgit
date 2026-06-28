@@ -636,6 +636,11 @@ script ResourceSpawner extends Logic
 		if isvalid(pg) then
 			pg.TargetMapName = targetMap
 			pg.TargetPosition = targetPos
+			if targetMap == "Home" then
+				pg.PortalColor = "blue"
+			else
+				pg.PortalColor = "white"
+			end
 		end
 
 		local gKey = px .. "_" .. py
@@ -1582,10 +1587,6 @@ script ResourceSpawner extends Logic
 
 					-- If the spawned entity has script.PortalGate, make sure it is initialized
 					local portalGate = spawnedEntity:GetComponent("script.PortalGate")
-					if not isvalid(portalGate) and f.itemName == "Portal" then
-						spawnedEntity:AddComponent("script.PortalGate")
-						portalGate = spawnedEntity:GetComponent("script.PortalGate")
-					end
 					if isvalid(portalGate) then
 						portalGate.TargetMapName = f.targetMapName or "town"
 						portalGate.TargetPosition = Vector2(f.targetPositionX or 3, f.targetPositionY or 0)
@@ -1595,6 +1596,7 @@ script ResourceSpawner extends Logic
 							portalGate:ApplyPortalColor()
 						end
 					end
+
 					
 					local key = fx .. "_" .. fy
 					gridToEntity[key] = { entity = spawnedEntity, pivotX = fx, pivotY = fy, isFurniture = true, itemName = f.itemName }

@@ -1,12 +1,16 @@
 @Component
 script PortalGate extends Component
 
+	@Sync
 	property string TargetMapName = "town"
 
+	@Sync
 	property Vector2 TargetPosition = Vector2(0, 0)
 
+	@Sync
 	property string DestinationGroup = "town"
 
+	@Sync
 	property string PortalColor = "white"
 
 	method void OnBeginPlay()
@@ -18,13 +22,21 @@ script PortalGate extends Component
 		end
 	end
 
+	method void OnSyncProperty(string propertyName, any value)
+		if propertyName == "PortalColor" then
+			self:ApplyPortalColor()
+		end
+	end
+
 	@ExecSpace("ClientOnly")
 	method void ApplyPortalColor()
 		local sprite = self.Entity.SpriteRendererComponent
 		if isvalid(sprite) then
 			local c = string.lower(self.PortalColor)
-			if c == "sky" or c == "blue" then
+			if c == "sky" then
 				sprite.Color = Color(0.3, 0.8, 1.0, 1.0)
+			elseif c == "blue" then
+				sprite.Color = Color(0.15, 0.45, 1.0, 0.7)
 			elseif c == "green" then
 				sprite.Color = Color(0.3, 1.0, 0.4, 1.0)
 			elseif c == "red" then

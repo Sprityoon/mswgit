@@ -243,8 +243,6 @@ script PersistenceManager extends Logic
 			
 			-- Anti-softlock starter portal: only auto-place a default Portal when the home has
 			-- NO placed furniture AND the player owns NO Portal item to place themselves.
-			-- (Granting unconditionally on empty furniture re-mints a free portal every relog
-			--  while the player still holds one in their bag, accumulating duplicate portals.)
 			if furnRaw == nil or furnRaw == "" or furnRaw == "[]" then
 				local ownsPortal = false
 				if isvalid(inv) and inv.Items ~= nil and (inv.Items["Portal"] or 0) > 0 then
@@ -256,6 +254,45 @@ script PersistenceManager extends Logic
 					furnRaw = "[{\"itemName\":\"Portal\",\"x\":-5,\"y\":0,\"destinationGroup\":\"town\",\"portalColor\":\"white\",\"targetMapName\":\"town\",\"targetPositionX\":3,\"targetPositionY\":0}," ..
 					          "{\"itemName\":\"Portal\",\"x\":-3,\"y\":0,\"destinationGroup\":\"rookie\",\"portalColor\":\"sky\",\"targetMapName\":\"\",\"targetPositionX\":0,\"targetPositionY\":0}]"
 				end
+			end
+
+			-- 기존 세이브 유저용 보정 로직: 포탈 목록 중 rookie 목적지 그룹을 가진 포탈이 하나도 없는 경우 자동으로 추가
+			local furnList = {}
+			if furnRaw ~= nil and furnRaw ~= "" then
+				local ok, decoded = pcall(function() return _HttpService:JSONDecode(furnRaw) end)
+				if ok and decoded then
+					furnList = decoded
+				end
+			end
+
+			local hasRookiePortal = false
+			for _, furn in ipairs(furnList) do
+				if furn.itemName == "Portal" then
+					if furn.destinationGroup == "rookie" then
+						hasRookiePortal = true
+					elseif furn.destinationGroup == nil or furn.destinationGroup == "" then
+						-- 기존의 미설정 포탈은 town 포탈로 명시적 교정
+						furn.destinationGroup = "town"
+						furn.portalColor = "white"
+						furn.targetMapName = "town"
+						furn.targetPositionX = 3
+						furn.targetPositionY = 0
+					end
+				end
+			end
+
+			if not hasRookiePortal then
+				table.insert(furnList, {
+					itemName = "Portal",
+					x = -3,
+					y = 0,
+					destinationGroup = "rookie",
+					portalColor = "sky",
+					targetMapName = "",
+					targetPositionX = 0,
+					targetPositionY = 0
+				})
+				furnRaw = _HttpService:JSONEncode(furnList)
 			end
 
 			_ResourceSpawner:SetPlacedTilesJson(mapName, tilesRaw)
@@ -305,7 +342,8 @@ script PersistenceManager extends Logic
 			self:SetDefaultPlayerData(player)
 			
 			_ResourceSpawner:SetPlacedTilesJson(mapName, "[]")
-			_ResourceSpawner:SetPlacedFurnitureJson(mapName, "[{\"itemName\":\"Portal\",\"x\":-5,\"y\":0}]")
+			_ResourceSpawner:SetPlacedFurnitureJson(mapName, "[{\"itemName\":\"Portal\",\"x\":-5,\"y\":0,\"destinationGroup\":\"town\",\"portalColor\":\"white\",\"targetMapName\":\"town\",\"targetPositionX\":3,\"targetPositionY\":0}," ..
+			                              "{\"itemName\":\"Portal\",\"x\":-3,\"y\":0,\"destinationGroup\":\"rookie\",\"portalColor\":\"sky\",\"targetMapName\":\"\",\"targetPositionX\":0,\"targetPositionY\":0}]")
 			_ResourceSpawner:LoadDestroyedResourcesFromJson(mapName, "[]")
 			_ResourceSpawner:ReconstructWorldPlacementsForMap(map)
 		end

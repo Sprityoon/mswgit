@@ -20,7 +20,8 @@
       "Components": [
         "MOD.Core.TransformComponent",
         "MOD.Core.SpriteRendererComponent",
-        "MOD.Core.TriggerComponent"
+        "MOD.Core.TriggerComponent",
+        "script.PortalGate"
       ],
       "Properties": [
         {
