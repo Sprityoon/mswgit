@@ -361,8 +361,8 @@ graph TD
 
 > **부트스트랩(시작 자원)**: 작은 Stone은 곡괭이를, Tree는 도끼를 요구하므로(아래 표) 첫 도구를 만들 "씨앗 돌"이 필요하다:
 > **Stone → Hand Axe(Stone 2) 제작 → 나무 채집 → Stone Pickaxe(Wood 1 + Stone 3) 제작 → 본격 채광/제련.**
-> - **현재 구현**: 첫 입장 시 플레이어 주변에 Stone 5개를 드롭(`PlayerSpawnHandler:SpawnStonesForPlayer`, 유저당 1회).
-> - **개선 예정**: "5개 고정 지급" 대신 **Stone 자원 노드 주변에 씨앗 돌을 확률적으로 함께 스폰**하는 방식으로 전환 — 부트스트랩을 월드에 녹이고 "정확히 5개"에 의존하는 경직성을 제거한다. (소프트락 자체는 허용 가능한 디자인으로 본다.)
+> - **현재 구현 (월드 내장 방식으로 전환 완료)**: Stone 자원 노드 주변에 씨앗 돌(`AroundItem_Stone` / `Item_Stone`)을 **30% 확률로 함께 스폰**한다(`ResourceSpawner:TrySpawnResourceInChunk`). 부트스트랩이 월드에 녹아 있어 "정확히 5개"에 의존하는 경직성이 없다. (소프트락 자체는 허용 가능한 디자인으로 본다.)
+> - 🗑️ **레거시 제거됨 (2026-06)**: 기존의 "첫 입장 시 Stone 5개 고정 지급"(`PlayerSpawnHandler:SpawnStonesForPlayer`)은 비활성화된 사장 코드여서 `PlayerSpawnHandler` Logic 전체를 제거했다. 부트스트랩은 위 월드 내장 확률 스폰으로 일원화.
 
 현재 구현된 테크(✅)와 계획된 테크(⏳)를 함께 표기한다.
 
@@ -566,15 +566,15 @@ graph TD
 > **방향**: 시작 맵(개인 영지)을 사냥터에서 **꾸미기/농장 공간**으로 전환하고, 전투/사냥은 **사냥터 맵**으로, 상점/퀘스트/연구는 **공동 마을**로 분리한다.
 
 - **11-A 개인 영지 축소 (작업 단위)**:
-  - [ ] `ResourceSpawner.MapRadius` 120 → 30 (61×61). 이탈 방지 장벽(±MapRadius)·청크 로딩 범위 자동 추종 확인. 빌드 로그 검증 후 커밋.
+  - [x] `ResourceSpawner.MapRadius` 120 → 30 (61×61) 적용 완료(`ResourceSpawner.mlua:27`). 이탈 방지 장벽(`wallInner = MapRadius - WallThickness + 1`)·청크 로딩 범위(`CheckProximityLoading`의 `maxChunk = MapRadius/chunkSize`)가 모두 `self.MapRadius`를 참조해 자동 추종.
   - [x] **영지 외벽(이탈 방지 장벽) 세팅 완료 (유저 직접 수정)**: `ResourceSpawner.mlua` 코드 직접 정리 및 꼬여있던 `RectTileMap4`↔`Layer4` 간 잘못된 할당 재연결 완료. 외벽 생성·배치 정상 동작 확인.
 - **11-B 영지 = 손디자인 농장 템플릿 전환 (작업 단위)** — ⚖️ **2026-06-27 설계 판결로 재정의**(기존 "ForceBiomeId로 절차 유지"안 폐기). 근거: 스타듀밸리 레퍼런스는 "모두 동일한 시작 농장"을 함의하고, 영지 축소(반경 30·단일 바이옴·희소 자원·설치 우선)로 절차가 생성할 게 거의 없어졌으며, 작은 맵에서 오토타일 아티팩트가 더 두드러지고 절차 생성은 만성 버그 원천이기 때문. 시드/노이즈 엔진은 **삭제하지 않고 사냥터(hunt01, §12) 전용으로 보존**:
-  - [ ] 영지(Home_*) 진입 경로에서 **멀티바이옴 절차 오버레이 미구동** — `ResourceSpawner`의 지형/자원 노이즈 생성(`SpawnInitialResourcesForMap`)을 영지에 대해 분기 차단하고, 영지 지형은 손디자인 템플릿(map01)에 직접 박힌 green_island 농장 레이아웃을 그대로 사용.
-  - [ ] **손디자인 green_island 농장 템플릿 저작** — 흙/풀 의도 배치, 외벽을 템플릿에 직접 포함, 집·창고 자리 확보. 유저별 복제(`_DynamicMapService:CreateDynamicMap`)·델타 영속화(§3.6/§3.7)는 이미 구현되어 그대로 재사용(시드 한 줄 대신 "템플릿 ID 한 줄").
-  - [ ] 영지 자원은 **손배치 또는 매우 옅은 산포만**(green_island `BiomeResourceDataSet` SpawnChance 대폭 축소 또는 0). 본격 자원 공급은 사냥터로 이관(§4 광석 전환).
-  - [ ] 플레이어 설치 타일/가구 우선 보장(기존 `RectTileMap3`/`GridToEntity` 점유 가드 재확인). 빌드 로그 검증 후 커밋.
+  - [x] 영지(Home_*) 진입 경로에서 **멀티바이옴 절차 오버레이 미구동** — 맵별 `MapProceduralTerrainMap` 토글 도입(`GetMapProceduralTerrain`이 영지는 `false` 기본). `SpawnInitialResourcesForMap`/`LoadChunk`가 이 플래그로 분기해 영지는 손디자인 지형을 유지하고, 풀 경계만 `AutotileGrassLayer`로 보정. 절차 노이즈는 hunt 맵(`EnsureHuntMap`이 `SetMapProceduralTerrain(true)`) 전용.
+  - [ ] **손디자인 green_island 농장 템플릿 저작** — 인프라(절차 차단 분기·`AutotileGrassLayer` 손배치 풀 경계 보정)는 완료. **단, map01 템플릿 자체의 흙/풀 의도 배치·집·창고 자리 확보는 .map 에셋 저작 영역으로 미완**(코드만으로는 검증 불가). 유저별 복제·델타 영속화는 그대로 재사용.
+  - [x] 영지 자원은 **매우 옅은 산포만** — green_island `BiomeResourceDataSet` SpawnChance 대폭 축소 완료(Tree 0.009 / Stone 0.006 / GrownGrass 0.025). 본격 자원 공급은 사냥터로 이관(§4 광석 전환).
+  - [x] 플레이어 설치 타일/가구 우선 보장 — `gridToEntity`의 `isTile`/`isFurniture` 점유 가드로 자원 스폰·리스폰이 설치 셀을 덮어쓰지 않음(`TrySpawnResourceInChunk`/`ReconstructWorldPlacementsForMap`).
 - **11-C 전투 몹 분리 검증 (작업 단위)**:
-  - [ ] green_island 전면화로 `MonsterSpawner`가 영지에서 전투 몹을 스폰하지 않음을 확인(스폰 제외 분기). 빌드 로그 검증 후 커밋.
+  - [x] green_island 전면화로 `MonsterSpawner`가 영지에서 전투 몹을 스폰하지 않음 — `SpawnMonstersForMap`이 `GetMapForceBiomeId(mapName) == "green_island"`이면 즉시 `return`(`MonsterSpawner.mlua:70-75`), 추가로 per-cell green_island 가드(`MonsterSpawner.mlua:139`)도 유지.
 - **후속 단위 (이번 세션 범위 밖, 설계만 확정)**:
   - [ ] 4계절 테마(봄/여름/가을/겨울) 타일셋 리스킨 + 영지별 선택 영속화.
   - [ ] 개인 타일 편집(흙↔풀 변경) 기능.
@@ -595,7 +595,7 @@ graph TD
   - [x] 사냥터 간 포탈(하얀색) 및 사냥터 복귀 포탈(파란색) 자동 스폰 분기 완료.
 - [x] **사냥터 체인 및 웨이포인트 해금**: 사냥터 2구역(`hunt02`) 연결 완료, 포탈 이용 시점에 현재 사냥터 웨이포인트를 잠금해제하고 `UserDataStorage`에 데이터 영속화 저장/로드 구현 완료.
 - **후속 단위 (Phase 12 이후)**:
-  - [ ] **Tier 1 보스**: 구리 빌드 요구 난이도의 보스 + 격파 시 다음 티어 해금. 보스 아레나는 고정(로테이션 제외).
+  - [~] **Tier 1 보스 (골격 구현됨 — 밸런싱 미검증)**: 사냥터 체인이 hunt01→hunt04 4단계로 확장되었고, hunt04는 보스 아레나(`green_island` 강제 → 자동 몹 스폰 제외)로 구성. `SpawnHuntBoss`가 `slime_king`(`SlimeKing.model`)을 손배치하고, 보스 처치 시 `Monster.UnlockWaypointId`로 웨이포인트(다음 티어) 해금. **잔여**: "구리 빌드 요구" 난이도 밸런싱·로테이션 제외 보장 검증. (※ 12-B 설명은 hunt01/02만 언급하나 실제는 hunt01~04 구현.)
   - [ ] 사냥터 해금(레벨/퀘스트) 게이팅 — 목록 잠금 표시/차단.
   - [ ] 카우방식 특수 던전 — 전용 포탈 아이템 구매/획득 시 목록 노출·소비 입장.
   - [ ] 3h 시드 로테이션(오픈 필드 변주) + 다중 사냥터 + 영지↔마을↔사냥터 순환 정교화.

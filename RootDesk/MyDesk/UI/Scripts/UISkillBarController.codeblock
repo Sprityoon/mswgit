@@ -1,7 +1,7 @@
 {
   "Id": "",
   "GameId": "",
-  "EntryKey": "codeblock://4c63ce78-b782-4af4-89bc-9cbf1be17baf",
+  "EntryKey": "codeblock://346ba7a6-b71a-4be7-8ec0-de342dac7a25",
   "ContentType": "x-mod/codeblock",
   "Content": "",
   "Usage": 0,
@@ -22,9 +22,9 @@
         "Minor": 1
       },
       "Description": "",
-      "Id": "4c63ce78-b782-4af4-89bc-9cbf1be17baf",
+      "Id": "346ba7a6-b71a-4be7-8ec0-de342dac7a25",
       "Language": 1,
-      "Name": "PlayerController",
+      "Name": "UISkillBarController",
       "Type": 1,
       "Source": 0,
       "Target": null

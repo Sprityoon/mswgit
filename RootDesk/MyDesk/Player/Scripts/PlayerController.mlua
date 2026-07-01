@@ -73,12 +73,40 @@ script PlayerController extends Component
 	@Sync
 	property boolean CanInteractOnCurrentMap = true
 
+	-- Skill System (Phase 13). Slots 1..4 map to Q/W/E/R. The equipped list is resolved against
+	-- SkillDataSet at cast time, so a future skill-tree / quickslot UI can remap slots freely.
+	@Sync
+	property string EquippedSkillsJson = "[\"power_strike\", \"fireball\", \"dash\", \"earth_shatter\"]"
+
+	-- skillId -> last cast time (ElapsedSeconds). Non-synced ad-hoc state on each side.
+	property any CooldownMap = nil
+
 	method void OnBeginPlay()
 		-- description: Initialize key and screen touch event listeners on the client.
+		self.CooldownMap = {}
+
 		if self:IsClient() then
 			self.KeyDownHandler = _InputService:ConnectEvent(KeyDownEvent, self.OnKeyDown)
 			self.ScreenTouchHandler = _InputService:ConnectEvent(ScreenTouchEvent, self.OnScreenTouch)
-			
+
+			-- Remove ONLY the WASD movement keys from the engine PlayerControllerComponent — do NOT
+			-- disable the whole component (that also killed facing/LookDirectionX, jump, and the MOVE/IDLE
+			-- walk animation). Our custom arrow-key movement drives MovementComponent every frame, so the
+			-- controller's own locomotion is already overridden; WASD only survived as an in-place walk
+			-- animation. Dropping the WASD action keys makes WASD inert while the arrow keys keep driving
+			-- facing/jump/animation natively. (W stays usable as skill slot 2 via OnKeyDown.)
+			-- Delayed one tick so the controller has bound its default action keys first.
+			_TimerService:SetTimerOnce(function()
+				if not isvalid(self) or not isvalid(self.Entity) then return end
+				local pcc = self.Entity.PlayerControllerComponent
+				if isvalid(pcc) then
+					pcc:RemoveActionKey(KeyboardKey.W)
+					pcc:RemoveActionKey(KeyboardKey.A)
+					pcc:RemoveActionKey(KeyboardKey.S)
+					pcc:RemoveActionKey(KeyboardKey.D)
+				end
+			end, 0.2)
+
 			local movement = self.Entity.MovementComponent
 			if isvalid(movement) then
 				movement.InputSpeed = 3.6  -- Set top-down movement speed
@@ -327,6 +355,26 @@ script PlayerController extends Component
 			end
 		end
 		
+		-- Belt-and-suspenders walk animation: the engine PlayerControllerComponent normally auto-
+		-- transitions MOVE/IDLE, but our custom controller drives MovementComponent directly, so its
+		-- auto-transition may not always fire. Mirror MOVE/IDLE from our arrow-key input as a fallback.
+		-- Guarded to only swap IDLE<->MOVE (and only when already in one of those), so it is a no-op
+		-- whenever the controller already set the state and never clobbers HIT/DEAD/JUMP/ATTACK.
+		if self:IsClient() then
+			local stateComp = self.Entity.StateComponent
+			if isvalid(stateComp) then
+				local cur = stateComp.CurrentStateName
+				if cur == nil or cur == "" or cur == "IDLE" or cur == "MOVE" then
+					local moving = (inputDx ~= 0 or inputDy ~= 0)
+					if moving and cur ~= "MOVE" then
+						stateComp:ChangeState("MOVE")
+					elseif not moving and cur ~= "IDLE" then
+						stateComp:ChangeState("IDLE")
+					end
+				end
+			end
+		end
+
 		-- Update local placement preview
 		self:UpdatePlacementPreview()
 	end
@@ -571,7 +619,8 @@ script PlayerController extends Component
 					controller:Toggle()
 				end
 			end
-		elseif key == KeyboardKey.E then
+		elseif key == KeyboardKey.H then
+			-- Character info popup. Moved from E to H to free E for skill slot 3. (Phase 13 #2)
 			local popup = _EntityService:GetEntityByPath("/ui/PopupGroup/CharacterPopup")
 			if isvalid(popup) then
 				local controller = popup:GetComponent("script.UICharacterController")
@@ -579,6 +628,14 @@ script PlayerController extends Component
 					controller:Toggle()
 				end
 			end
+		elseif key == KeyboardKey.Q then
+			self:TryCastSlot(1)
+		elseif key == KeyboardKey.W then
+			self:TryCastSlot(2)
+		elseif key == KeyboardKey.E then
+			self:TryCastSlot(3)
+		elseif key == KeyboardKey.R then
+			self:TryCastSlot(4)
 		elseif key == KeyboardKey.F then
 			if isvalid(self.ActivePortal) then
 				-- Estate portals open the destination list (town / hunting grounds); fixed portals in
@@ -1365,7 +1422,7 @@ script PlayerController extends Component
 						if isvalid(transform) then
 							local obstaclePos = transform.WorldPosition:ToVector2()
 							local dir = currentPos - obstaclePos
-							local dist = dir:Length()
+							local dist = dir:Magnitude()
 							if dist < 0.01 then
 								dir = Vector2(math.random() - 0.5, math.random() - 0.5):Normalize()
 								dist = 0.01
@@ -1390,11 +1447,231 @@ script PlayerController extends Component
 			-- Smooth pushback correction: push player out by 20% of overlap depth per frame
 			local finalPush = pushVector * 0.20
 			local targetPos = currentPos + finalPush
-			
+
 			local transform = self.Entity.TransformComponent
 			if isvalid(transform) then
 				transform.WorldPosition = Vector3(targetPos.x, targetPos.y, transform.WorldPosition.z)
 			end
+		end
+	end
+
+	-- =========================================================================
+	-- SKILL SYSTEM (Phase 13) — slot-mapped active skills (Q/W/E/R)
+	-- =========================================================================
+
+	@ExecSpace("ClientOnly")
+	method void TryCastSlot(integer slotIndex)
+		-- Resolve the skill bound to slotIndex, do a client-side cooldown/stamina precheck, then RPC.
+		if self.IsDead then return end
+
+		local ok, skills = pcall(function() return _HttpService:JSONDecode(self.EquippedSkillsJson) end)
+		if not ok or not skills or slotIndex < 1 or slotIndex > #skills then return end
+
+		local skillId = skills[slotIndex]
+		if not skillId or skillId == "" then return end
+
+		local ds = _DataService:GetTable("SkillDataSet")
+		if not ds then return end
+		local row = ds:FindRow("SkillId", skillId)
+		if not row then return end
+
+		local cd = tonumber(row:GetItem("Cooldown")) or 0
+		local cost = tonumber(row:GetItem("StaminaCost")) or 0
+
+		if not self.CooldownMap then self.CooldownMap = {} end
+		local now = _UtilLogic.ElapsedSeconds
+		local lastCast = self.CooldownMap[skillId] or -999.0
+		if now - lastCast < cd then
+			log("[SKILL] Client cooldown active for " .. skillId)
+			return
+		end
+		if self.Stamina < cost then
+			log("[SKILL] Client stamina low for " .. skillId)
+			return
+		end
+
+		log("[SKILL] Requesting cast " .. skillId .. " (slot " .. slotIndex .. ") dir " .. self.LastDirectionX .. "," .. self.LastDirectionY)
+		self:ServerRequestCastSkill(skillId, self.LastDirectionX, self.LastDirectionY)
+	end
+
+	@ExecSpace("Server")
+	method void ServerRequestCastSkill(string skillId, integer dirX, integer dirY)
+		-- Authoritative validation: verify sender, cooldown, stamina; then branch by skill Type.
+		local playerComp = self.Entity.PlayerComponent
+		if playerComp == nil or senderUserId ~= playerComp.UserId then return end
+		if self.IsDead then return end
+
+		local ds = _DataService:GetTable("SkillDataSet")
+		if not ds then return end
+		local row = ds:FindRow("SkillId", skillId)
+		if not row then return end
+
+		local cd = tonumber(row:GetItem("Cooldown")) or 0
+		local cost = tonumber(row:GetItem("StaminaCost")) or 0
+		local damageMul = tonumber(row:GetItem("DamageMultiplier")) or 1.0
+		local skillType = row:GetItem("Type")
+		local effectRUID = row:GetItem("EffectRUID")
+
+		if not self.CooldownMap then self.CooldownMap = {} end
+		local now = _UtilLogic.ElapsedSeconds
+		local lastCast = self.CooldownMap[skillId] or -999.0
+		if now - lastCast < cd then return end
+		if self.Stamina < cost then return end
+
+		self.Stamina = math.max(0, self.Stamina - cost)
+		self.CooldownMap[skillId] = now
+		self:ClientSyncCooldown(skillId, now)
+
+		if skillType == "Melee" then
+			self:ExecuteAreaDamageSkill(damageMul, Vector2(dirX, dirY), 1.8, 1.2)
+		elseif skillType == "Ultimate" then
+			self:ExecuteAreaDamageSkill(damageMul, Vector2(0, 0), 5.0, 0.0)
+		elseif skillType == "Dash" then
+			self:ExecuteDashSkill(dirX, dirY)
+		elseif skillType == "Projectile" then
+			self:ExecuteProjectileSkill(skillId, damageMul, dirX, dirY)
+		end
+
+		if effectRUID ~= nil and effectRUID ~= "" then
+			self:MulticastPlayEffect(effectRUID, self.Entity.TransformComponent.WorldPosition)
+		end
+	end
+
+	@ExecSpace("Client")
+	method void ClientSyncCooldown(string skillId, number serverTime)
+		-- The server confirmed the cast; stamp the cooldown using the CLIENT clock so the local
+		-- precheck and the HUD cooldown readout (UISkillBarController) both count down on one timebase
+		-- (server/client ElapsedSeconds are not synchronized, so the raw serverTime is not used here).
+		if not self.CooldownMap then self.CooldownMap = {} end
+		self.CooldownMap[skillId] = _UtilLogic.ElapsedSeconds
+	end
+
+	@ExecSpace("ServerOnly")
+	method integer ComputeSkillDamage(number damageMul)
+		-- Base melee damage + tool-power scaling, then the skill multiplier (mirrors PlayerCombat.DoAttackAt).
+		local base = 8
+		local combat = self.Entity:GetComponent("script.PlayerCombat")
+		if isvalid(combat) then
+			---@type PlayerCombat
+			local c = combat
+			base = c.BaseDamage
+		end
+		local pi = self.Entity:GetComponent("script.PlayerInventory")
+		if isvalid(pi) then
+			---@type PlayerInventory
+			local p = pi
+			local toolInfo = p:GetEquippedToolInfo()
+			if toolInfo and toolInfo.power > 0 then
+				base = base + toolInfo.power * 4
+			end
+		end
+		return math.floor(base * damageMul)
+	end
+
+	@ExecSpace("ServerOnly")
+	method void ExecuteAreaDamageSkill(number damageMul, Vector2 dir, number boxSize, number reach)
+		-- Melee / Ultimate: emit a damage box (ahead of the player by `reach`, or centered when reach == 0)
+		-- that only hits monster HitBoxes, reusing PlayerCombat's CalcDamage / IsAttackTarget path.
+		local combat = self.Entity:GetComponent("script.PlayerCombat")
+		if not isvalid(combat) then return end
+		---@type PlayerCombat
+		local c = combat
+
+		local finalDmg = self:ComputeSkillDamage(damageMul)
+		local myPos = self.Entity.TransformComponent.WorldPosition
+		local center = Vector2(myPos.x + dir.x * reach, myPos.y + dir.y * reach)
+		local shape = BoxShape(center, Vector2(boxSize, boxSize), 0)
+
+		local prev = c.PendingDamage
+		c.PendingDamage = finalDmg
+		c:AttackFast(shape, nil, CollisionGroups.HitBox)
+		c.PendingDamage = prev
+		log("[SKILL] Area damage " .. finalDmg .. " box " .. boxSize .. " at (" .. string.format("%.1f, %.1f", center.x, center.y) .. ")")
+	end
+
+	@ExecSpace("ServerOnly")
+	method void ExecuteDashSkill(integer dirX, integer dirY)
+		-- Teleport-dash a short distance toward facing, stopping just before the first obstacle.
+		local body = self.Entity.KinematicbodyComponent
+		local transform = self.Entity.TransformComponent
+		if not isvalid(transform) then return end
+
+		local currentPos
+		if isvalid(body) then
+			currentPos = body:GetWorldGroundPosition()
+		else
+			currentPos = transform.WorldPosition:ToVector2()
+		end
+
+		local dirVec = Vector2(dirX, dirY)
+		if dirVec:Magnitude() <= 0.0001 then
+			dirVec = Vector2(self.LastDirectionX, self.LastDirectionY)
+			if dirVec:Magnitude() <= 0.0001 then dirVec = Vector2(-1, 0) end
+		end
+		dirVec = dirVec:Normalize()
+
+		local maxDist = 3.0
+		local step = 0.5
+		local finalPos = currentPos
+		for d = step, maxDist, step do
+			local checkPos = currentPos + dirVec * d
+			if self:IsObstacle(checkPos, 0.3, currentPos) then break end
+			finalPos = checkPos
+		end
+
+		if isvalid(body) then
+			body:SetWorldPosition(Vector2(finalPos.x, finalPos.y))
+		else
+			transform.WorldPosition = Vector3(finalPos.x, finalPos.y, transform.WorldPosition.z)
+		end
+		log("[SKILL] Dash to (" .. string.format("%.1f, %.1f", finalPos.x, finalPos.y) .. ")")
+	end
+
+	@ExecSpace("ServerOnly")
+	method void ExecuteProjectileSkill(string skillId, number damageMul, integer dirX, integer dirY)
+		-- Spawn a flying projectile entity carrying script.Projectile that hits the first monster.
+		local parentMap = self.Entity.CurrentMap
+		if not isvalid(parentMap) then return end
+
+		local modelId = _EntryService:GetModelIdByName("Projectile_Fireball")
+		if modelId == nil or modelId == "" then
+			log_warning("[SKILL] Projectile_Fireball model not found; fireball skipped.")
+			return
+		end
+
+		local finalDmg = self:ComputeSkillDamage(damageMul)
+		local myPos = self.Entity.TransformComponent.WorldPosition
+		local spawnPos = Vector3(myPos.x + dirX * 0.8, myPos.y + dirY * 0.8, myPos.z)
+
+		local proj = _SpawnService:SpawnByModelId(modelId, "Projectile_" .. skillId, spawnPos, parentMap)
+		if not isvalid(proj) then return end
+
+		local sprite = proj.SpriteRendererComponent
+		if isvalid(sprite) then
+			sprite.IgnoreMapLayerCheck = true
+			sprite.SortingLayer = "MapLayer2"
+			sprite.OrderInLayer = 500
+		end
+
+		local projComp = proj:GetComponent("script.Projectile")
+		if not isvalid(projComp) then
+			proj:AddComponent("script.Projectile")
+			projComp = proj:GetComponent("script.Projectile")
+		end
+		if isvalid(projComp) then
+			---@type Projectile
+			local p = projComp
+			p:Initialize(self.Entity, Vector2(dirX, dirY), finalDmg, 6.0)
+			log("[SKILL] Fireball spawned dmg " .. finalDmg)
+		end
+	end
+
+	@ExecSpace("Multicast")
+	method void MulticastPlayEffect(string effectRUID, Vector3 pos)
+		-- Play the cast VFX on every client at the cast position (no-op if no RUID configured).
+		if effectRUID ~= nil and effectRUID ~= "" then
+			-- PlayEffect(ruid, instigator, position, zRotation:float, scale:Vector3, isLoop:bool)
+			_EffectService:PlayEffect(effectRUID, nil, pos, 0.0, Vector3(1, 1, 1), false)
 		end
 	end
 

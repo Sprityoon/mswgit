@@ -1,14 +1,14 @@
 {
   "Id": "",
   "GameId": "",
-  "EntryKey": "codeblock://52b08641-c1e3-4c89-b839-c84bcbab8bc7",
+  "EntryKey": "codeblock://1effd604-74ee-404d-b4e5-a79b3554b7a6",
   "ContentType": "x-mod/codeblock",
   "Content": "",
   "Usage": 0,
   "UsePublish": 1,
   "UseService": 0,
   "CoreVersion": "26.5.0.0",
-  "StudioVersion": "",
+  "StudioVersion": "0.1.0.0",
   "DynamicLoading": 0,
   "ContentProto": {
     "Use": "Json",
@@ -19,12 +19,12 @@
       },
       "ScriptVersion": {
         "Major": 1,
-        "Minor": 1
+        "Minor": 0
       },
       "Description": "",
-      "Id": "52b08641-c1e3-4c89-b839-c84bcbab8bc7",
+      "Id": "1effd604-74ee-404d-b4e5-a79b3554b7a6",
       "Language": 1,
-      "Name": "TerritoryPortal",
+      "Name": "UIItemSlot",
       "Type": 1,
       "Source": 0,
       "Target": null

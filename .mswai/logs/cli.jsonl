@@ -20,3 +20,5 @@
 {"ts":"2026-06-27T16:13:11.679Z","version":"0.8.6","command":"status","args":["--workspace","D:\\메이플월도","--json"],"cwd":"D:\\메이플월도","exitCode":0,"durationMs":43}
 {"ts":"2026-06-28T08:55:19.308Z","version":"0.8.6","command":"status","args":["--workspace","D:\\메이플월도","--json"],"cwd":"D:\\메이플월도","exitCode":0,"durationMs":40}
 {"ts":"2026-06-28T10:47:13.465Z","version":"0.8.6","command":"status","args":["--workspace","D:\\메이플월도","--json"],"cwd":"D:\\메이플월도","exitCode":0,"durationMs":32}
+{"ts":"2026-06-30T06:34:14.876Z","version":"0.8.6","command":"status","args":["--workspace","C:\\minho\\메이플월드","--json"],"cwd":"C:\\minho\\메이플월드","exitCode":0,"durationMs":36}
+{"ts":"2026-07-01T07:48:17.048Z","version":"0.8.6","command":"status","args":["--workspace","C:\\minho\\메이플월드","--json"],"cwd":"C:\\minho\\메이플월드","exitCode":0,"durationMs":40}

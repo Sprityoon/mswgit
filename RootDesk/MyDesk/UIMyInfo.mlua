@@ -1,0 +1,85 @@
+@Component
+script UIMyInfo extends Component
+
+	property TextComponent nameText = nil
+
+	property TextComponent levelText = nil
+
+	property UITransformComponent hpBar = nil
+	property TextComponent hpText = nil
+	property number hpMaxWidth = 0
+
+	property UITransformComponent staBar = nil
+	property TextComponent staText = nil
+	property number staMaxWidth = 0
+
+	property UITransformComponent xpBar = nil
+	property TextComponent xpText = nil
+	property number xpMaxWidth = 0
+
+	@ExecSpace("ClientOnly")
+	method void OnBeginPlay()
+		-- Caches the widget's name/level texts and the Hp/Mp/Exp fill bars once at start.
+		local base = self.Entity.Path
+
+		self.nameText = _EntityService:GetEntityByPath(base .. "/info_top/text_name").TextComponent
+		self.levelText = _EntityService:GetEntityByPath(base .. "/info_top/text_level").TextComponent
+
+		self.hpBar = _EntityService:GetEntityByPath(base .. "/info_bottom/Hp/img_bar").UITransformComponent
+		self.hpText = _EntityService:GetEntityByPath(base .. "/info_bottom/Hp/text_value").TextComponent
+		self.hpMaxWidth = self.hpBar.RectSize.x
+
+		-- Mp gauge repurposed as the player's Stamina bar.
+		self.staBar = _EntityService:GetEntityByPath(base .. "/info_bottom/Mp/img_bar").UITransformComponent
+		self.staText = _EntityService:GetEntityByPath(base .. "/info_bottom/Mp/text_value").TextComponent
+		self.staMaxWidth = self.staBar.RectSize.x
+
+		self.xpBar = _EntityService:GetEntityByPath(base .. "/info_bottom/Exp/img_bar").UITransformComponent
+		self.xpText = _EntityService:GetEntityByPath(base .. "/info_bottom/Exp/text_value").TextComponent
+		self.xpMaxWidth = self.xpBar.RectSize.x
+	end
+
+	method void SetFill(UITransformComponent bar, number maxWidth, number ratio)
+		-- Scales a fill bar's width to ratio (clamped 0..1) of its authored full width.
+		if not isvalid(bar) then return end
+		if ratio < 0 then ratio = 0 elseif ratio > 1 then ratio = 1 end
+		bar.RectSize = Vector2(ratio * maxWidth, bar.RectSize.y)
+	end
+
+	@ExecSpace("ClientOnly")
+	method void OnUpdate(number delta)
+		-- Mirrors the local player's Name/Level/HP/Stamina/XP into the widget each frame.
+		local player = _UserService.LocalPlayer
+		if not isvalid(player) then return end
+
+		local pc = player.PlayerComponent
+		if isvalid(pc) then
+			if isvalid(self.nameText) then self.nameText.Text = pc.Nickname end
+			local maxHp = pc.MaxHp
+			if maxHp > 0 then
+				self:SetFill(self.hpBar, self.hpMaxWidth, pc.Hp / maxHp)
+				if isvalid(self.hpText) then self.hpText.Text = string.format("%d / %d", pc.Hp, maxHp) end
+			end
+		end
+
+		local ctrl = player:GetComponent("script.PlayerController")
+		if isvalid(ctrl) then
+			---@type PlayerController
+			local pcon = ctrl
+			if isvalid(self.levelText) then self.levelText.Text = "Lv " .. pcon.Level end
+
+			local maxSta = pcon.MaxStamina
+			if maxSta > 0 then
+				self:SetFill(self.staBar, self.staMaxWidth, pcon.Stamina / maxSta)
+				if isvalid(self.staText) then self.staText.Text = string.format("%d / %d", pcon.Stamina, maxSta) end
+			end
+
+			local maxXP = pcon.MaxXP
+			if maxXP > 0 then
+				self:SetFill(self.xpBar, self.xpMaxWidth, pcon.XP / maxXP)
+				if isvalid(self.xpText) then self.xpText.Text = string.format("%d%%", math.floor(pcon.XP / maxXP * 100)) end
+			end
+		end
+	end
+
+end

@@ -1,0 +1,106 @@
+@Component
+script UISkillBarController extends Component
+
+	-- HUD skill bar: shows the 4 equipped skills (Q/W/E/R) and their cooldown state.
+	-- The bar reads the LOCAL player's PlayerController (EquippedSkillsJson + CooldownMap) and the
+	-- SkillDataSet, so it follows the data-driven slot mapping with no per-skill hardcoding.
+
+	property integer SlotCount = 4
+	property any UpdateTimer = nil
+
+	@ExecSpace("ClientOnly")
+	method void OnBeginPlay()
+		-- Populate slots once, then poll cooldowns ~10x/sec.
+		self:UpdateSlots()
+		self.UpdateTimer = _TimerService:SetTimerRepeat(function()
+			if not isvalid(self) or not isvalid(self.Entity) then return end
+			self:UpdateSlots()
+		end, 0.1)
+	end
+
+	@ExecSpace("ClientOnly")
+	method void OnEndPlay()
+		-- description: Release the polling timer.
+		if self.UpdateTimer then
+			_TimerService:ClearTimer(self.UpdateTimer)
+			self.UpdateTimer = nil
+		end
+	end
+
+	method any GetLocalPlayerController()
+		-- description: Resolve the local player's PlayerController (client-only), or nil if not ready.
+		local lp = _UserService.LocalPlayer
+		if not isvalid(lp) then return nil end
+		local pc = lp:GetComponent("script.PlayerController")
+		if not isvalid(pc) then return nil end
+		return pc
+	end
+
+	@ExecSpace("ClientOnly")
+	method void UpdateSlots()
+		-- description: Refresh each slot's key/name labels and cooldown overlay from live player state.
+		local keys = { "Q", "W", "E", "R" }
+
+		local pc = self:GetLocalPlayerController()
+		local skills = nil
+		local cdMap = {}
+		if pc ~= nil then
+			local ok, decoded = pcall(function() return _HttpService:JSONDecode(pc.EquippedSkillsJson) end)
+			if ok and decoded then skills = decoded end
+			if pc.CooldownMap ~= nil then cdMap = pc.CooldownMap end
+		end
+
+		local ds = _DataService:GetTable("SkillDataSet")
+		local now = _UtilLogic.ElapsedSeconds
+
+		for i = 1, self.SlotCount do
+			local slot = self.Entity:GetChildByName("SkillSlot" .. i, true)
+			if isvalid(slot) then
+				local skillId = skills ~= nil and skills[i] or nil
+
+				-- Key label (Q/W/E/R)
+				local keyEnt = slot:GetChildByName("Key", true)
+				if isvalid(keyEnt) and isvalid(keyEnt.TextComponent) then
+					keyEnt.TextComponent.Text = keys[i] or ""
+				end
+
+				-- Skill name + cooldown
+				local nameEnt = slot:GetChildByName("Name", true)
+				local overlay = slot:GetChildByName("Cooldown", true)
+				local cdText = slot:GetChildByName("CdText", true)
+
+				local displayName = ""
+				local cd = 0
+				if skillId ~= nil and ds ~= nil then
+					local row = ds:FindRow("SkillId", skillId)
+					if row ~= nil then
+						displayName = row:GetItem("Name") or skillId
+						cd = tonumber(row:GetItem("Cooldown")) or 0
+					end
+				end
+
+				if isvalid(nameEnt) and isvalid(nameEnt.TextComponent) then
+					nameEnt.TextComponent.Text = displayName
+				end
+
+				local remain = 0
+				if skillId ~= nil then
+					local last = cdMap[skillId] or -999.0
+					remain = cd - (now - last)
+				end
+
+				if remain > 0.05 then
+					if isvalid(overlay) then overlay.Enable = true end
+					if isvalid(cdText) and isvalid(cdText.TextComponent) then
+						cdText.Enable = true
+						cdText.TextComponent.Text = string.format("%.1f", remain)
+					end
+				else
+					if isvalid(overlay) then overlay.Enable = false end
+					if isvalid(cdText) then cdText.Enable = false end
+				end
+			end
+		end
+	end
+
+end

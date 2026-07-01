@@ -1,16 +1,6 @@
 @Component
 script UIHUDController extends Component
 
-	property Entity levelText = "acc07745-4823-4da4-bd7f-42564bb2af25"
-
-	property SpriteGUIRendererComponent hpFill = "6cf348b4-283f-40f5-bf65-e25ef2e4ed00"
-
-	property TextComponent hpValText = "e8accb24-1b25-435b-9b4d-d71c95d36bab"
-
-	property SpriteGUIRendererComponent staFill = "921779cd-b147-4849-8426-59194da6521d"
-
-	property TextComponent staValText = "7346e45d-bd3c-4206-bc97-433bde1dee36"
-
 	-- Black spawn cover shown until the server signals the home is ready (injected by UIBuilder).
 	property SpriteGUIRendererComponent spawnFade = "2ca8de66-0bd0-4424-ad11-9649abe57bcc"
 
@@ -427,40 +417,11 @@ script UIHUDController extends Component
 
 	@ExecSpace("ClientOnly")
 	method void UpdateHUD()
-		-- description: Updates player health, level, stamina gauges, and quickslots with rarity colors.
+		-- description: Updates quick slots (icons, counts, rarity colors) and the day/night time UI.
+		-- HP / Level / Stamina now live in the UIMyInfo widget (script.UIMyInfo).
 		local player = _UserService.LocalPlayer
 		if not isvalid(player) then return end
-		
-		-- Update HP
-		local playerComp = player.PlayerComponent
-		if isvalid(playerComp) then
-			local hp = playerComp.Hp
-			local maxHp = playerComp.MaxHp
-			if isvalid(self.hpFill) then
-				self.hpFill.FillAmount = math.max(0, math.min(1, hp / maxHp))
-			end
-			if isvalid(self.hpValText) then
-				self.hpValText.Text = hp .. "/" .. maxHp
-			end
-		end
-		
-		-- Update Level & Stamina from PlayerController
-		local controller = player:GetComponent("script.PlayerController")
-		if isvalid(controller) then
-			if isvalid(self.levelText) and isvalid(self.levelText.TextComponent) then
-				self.levelText.TextComponent.Text = "LV " .. (controller.Level or 12)
-			end
-			
-			local sta = controller.Stamina or 60
-			local maxSta = controller.MaxStamina or 100
-			if isvalid(self.staFill) then
-				self.staFill.FillAmount = math.max(0, math.min(1, sta / maxSta))
-			end
-			if isvalid(self.staValText) then
-				self.staValText.Text = sta .. "/" .. maxSta
-			end
-		end
-		
+
 		local inv = player:GetComponent("script.PlayerInventory")
 		if isvalid(inv) then
 			-- Update 10 Quick Slots

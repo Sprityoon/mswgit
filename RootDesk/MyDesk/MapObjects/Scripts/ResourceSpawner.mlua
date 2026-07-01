@@ -707,58 +707,6 @@ script ResourceSpawner extends Logic
 	end
 
 	@ExecSpace("ServerOnly")
-	method void SpawnFixedWaypoint(Entity map, string name, number x, number y, string waypointId, string displayName)
-		-- Spawns a waypoint entity reusing a portal model
-		local modelId = _EntryService:GetModelIdByName("Furniture_Portal")
-		if modelId == nil or modelId == "" then
-			log_warning("ResourceSpawner: Waypoint model Furniture_Portal not found.")
-			return
-		end
-		
-		local spawnPos = Vector3(x + 0.5, y + 0.5, 0)
-		local wpEnt = _SpawnService:SpawnByModelId(modelId, name, spawnPos, map)
-		if not isvalid(wpEnt) then return end
-		
-		local sprite = wpEnt.SpriteRendererComponent
-		if isvalid(sprite) then
-			sprite.IgnoreMapLayerCheck = true
-			sprite.SortingLayer = "MapLayer2"
-			sprite.OrderInLayer = math.floor((self.MapRadius - y) * 100)
-			-- Change color slightly to distinguish from warp portal (e.g. blue/gold tint)
-			sprite.Color = Color(0.3, 0.8, 1.0, 1.0)
-		end
-		
-		local trigger = wpEnt.TriggerComponent
-		if not isvalid(trigger) then
-			wpEnt:AddComponent("MOD.Core.TriggerComponent")
-			trigger = wpEnt.TriggerComponent
-		end
-		if isvalid(trigger) then
-			trigger.BoxSize = Vector2(1.5, 1.5)
-		end
-		
-		local portalGate = wpEnt:GetComponent("script.PortalGate")
-		if isvalid(portalGate) then
-			portalGate:Destroy()
-		end
-		
-		local wp = wpEnt:GetComponent("script.Waypoint")
-		if not isvalid(wp) then
-			wpEnt:AddComponent("script.Waypoint")
-			wp = wpEnt:GetComponent("script.Waypoint")
-		end
-		if isvalid(wp) then
-			wp.WaypointId = waypointId
-			wp.DisplayName = displayName
-		end
-		
-		local gKey = x .. "_" .. y
-		self:GetGridToEntity(map.Name)[gKey] = { entity = wpEnt, pivotX = x, pivotY = y, isFurniture = true, itemName = "Waypoint" }
-		self:GetSpawnedEntities(map.Name)[gKey] = wpEnt
-		log("ResourceSpawner: Waypoint '" .. displayName .. "' spawned in map " .. map.Name)
-	end
-
-	@ExecSpace("ServerOnly")
 	method void EnsureBiomeDatasetsCached()
 		if self._T.BiomeDatasetsCached == true then
 			return

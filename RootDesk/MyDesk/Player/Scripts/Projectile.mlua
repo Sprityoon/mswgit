@@ -1,0 +1,90 @@
+@Component
+script Projectile extends Component
+
+	property Entity Owner = nil
+	property Vector2 Direction = Vector2(1, 0)
+	property integer Damage = 0
+	property number Speed = 6.0
+	property number LifeTime = 2.0
+	property number ElapsedTime = 0.0
+
+	method void Initialize(Entity owner, Vector2 dir, integer dmg, number speed)
+		self.Owner = owner
+		
+		-- Handle zero vector direction safely
+		if dir:Magnitude() <= 0.0001 then
+			self.Direction = Vector2(1, 0)
+		else
+			self.Direction = dir:Normalize()
+		end
+		
+		self.Damage = dmg
+		self.Speed = speed
+		self.ElapsedTime = 0.0
+		log("[PROJECTILE] Initialized at direction (" .. string.format("%.2f, %.2f", self.Direction.x, self.Direction.y) .. ") with dmg " .. dmg)
+	end
+
+	@ExecSpace("ServerOnly")
+	method void OnUpdate(number delta)
+		self.ElapsedTime = self.ElapsedTime + delta
+		if self.ElapsedTime >= self.LifeTime then
+			log("[PROJECTILE] Destroyed due to lifetime limit.")
+			self.Entity:Destroy()
+			return
+		end
+
+		-- Flying forward
+		local transform = self.Entity.TransformComponent
+		if not isvalid(transform) then return end
+		local pos = transform.WorldPosition
+		local nextPos = pos + Vector3(self.Direction.x * self.Speed * delta, self.Direction.y * self.Speed * delta, 0)
+		transform.WorldPosition = nextPos
+
+		-- Check collision with monsters (HitBox) via the map's collision simulator.
+		-- (_CollisionService has no OverlapBox; overlap queries go through GetSimulator():OverlapAll().)
+		local myPos2D = nextPos:ToVector2()
+		local sim = _CollisionService:GetSimulator(self.Entity)
+		if not sim then return end
+		local shape = BoxShape(myPos2D, Vector2(0.8, 0.8), 0)
+		local overlaps = sim:OverlapAll({ CollisionGroups.HitBox }, shape)
+
+		if overlaps and #overlaps > 0 then
+			for _, hitBox in ipairs(overlaps) do
+				local target = hitBox.Entity
+				if isvalid(target) and target ~= self.Owner then
+					local monster = target:GetComponent("script.Monster")
+					if isvalid(monster) then
+						-- Trigger Hit against the monster using Owner's PlayerCombat to leverage damage skin/reactions
+						self:TriggerAttackOnTarget(target)
+						
+						-- Destroy projectile on first hit
+						self.Entity:Destroy()
+						return
+					end
+				end
+			end
+		end
+	end
+
+	@ExecSpace("ServerOnly")
+	method void TriggerAttackOnTarget(Entity target)
+		if not isvalid(self.Owner) then return end
+		local combat = self.Owner:GetComponent("script.PlayerCombat")
+		if not isvalid(combat) then return end
+
+		-- Store original PendingDamage and apply skill damage
+		local originalPending = combat.PendingDamage
+		combat.PendingDamage = self.Damage
+
+		-- Attack shape directly centered on the monster's HitBox position
+		local targetPos = target.TransformComponent.WorldPosition
+		local shape = BoxShape(Vector2(targetPos.x, targetPos.y), Vector2(1.0, 1.0), 0)
+		
+		combat:AttackFast(shape, nil, CollisionGroups.HitBox)
+		
+		-- Restore original PendingDamage
+		combat.PendingDamage = originalPending
+		log("[PROJECTILE] Struck monster target " .. target.Name .. " dealing " .. self.Damage .. " damage.")
+	end
+
+end

@@ -3,7 +3,6 @@ script PersistenceManager extends Logic
 
 	property table DirtyPlayers = {}
 	property table GuestPermissions = {}
-	property table SubTerritoriesData = {}
 	property any PeriodicSaveTimerId = nil
 
 	-- 월드 밤낮 시간 영속화 관련 속성
@@ -16,7 +15,6 @@ script PersistenceManager extends Logic
 	method void OnBeginPlay()
 		self.DirtyPlayers = {}
 		self.GuestPermissions = {}
-		self.SubTerritoriesData = {}
 
 		_UserService:ConnectEvent(UserEnterEvent, self.OnUserEnter)
 		_UserService:ConnectEvent(UserLeaveEvent, self.OnUserLeave)
@@ -196,11 +194,6 @@ script PersistenceManager extends Logic
 			local permRaw = data.guestPermissions or "{}"
 			local p_ok, p_dec = pcall(function() return _HttpService:JSONDecode(permRaw) end)
 			self.GuestPermissions[userId] = p_ok and p_dec or {}
-
-			-- Restore Sub-Territories Data
-			local subRaw = data.subTerritories or "{}"
-			local sub_ok, sub_dec = pcall(function() return _HttpService:JSONDecode(subRaw) end)
-			self.SubTerritoriesData[userId] = sub_ok and sub_dec or {}
 
 			-- Restore PlayerController stats
 			local pc = player:GetComponent("script.PlayerController")
@@ -422,50 +415,6 @@ script PersistenceManager extends Logic
 		local permList = self.GuestPermissions[userId] or {}
 		local permJson = _HttpService:JSONEncode(permList)
 
-		-- Collect and serialize active sub-territories currently in memory
-		local subTerritories = self.SubTerritoriesData[userId] or {}
-		for i = 1, 5 do
-			local subMapName = "Home_" .. userId .. "_Sub_" .. i
-			local subMap = _EntityService:GetEntityByPath("/maps/" .. subMapName)
-			if isvalid(subMap) then
-				local subTiles = _ResourceSpawner:GetPlacedTilesJson(subMapName)
-				local subFurnRaw = _ResourceSpawner:GetPlacedFurnitureJson(subMapName)
-				local subFurnList = {}
-				if subFurnRaw ~= nil and subFurnRaw ~= "" then
-					local ok, decoded = pcall(function() return _HttpService:JSONDecode(subFurnRaw) end)
-					if ok and decoded then
-						subFurnList = decoded
-					end
-				end
-				
-				local subChestComps = subMap:GetChildComponentsByTypeName("script.Chest", true)
-				local subTilemap = subMap:GetFirstChildComponentByTypeName("RectTileMapComponent", true)
-				if subChestComps and isvalid(subTilemap) then
-					for _, comp in ipairs(subChestComps) do
-						local ent = comp.Entity
-						if isvalid(ent) then
-							local entCell = subTilemap:ToCellPosition(ent.TransformComponent.WorldPosition)
-							if entCell then
-								for _, furn in ipairs(subFurnList) do
-									if furn.itemName == "Wooden Chest" and furn.x == entCell.x and furn.y == entCell.y then
-										furn.chestItems = comp:GetItems()
-										break
-									end
-								end
-							end
-						end
-					end
-				end
-				
-				subTerritories[tostring(i)] = {
-					tiles = subTiles,
-					furniture = _HttpService:JSONEncode(subFurnList),
-					destroyed = _ResourceSpawner:GetDestroyedResourcesAsJson(subMapName)
-				}
-			end
-		end
-		local subJson = _HttpService:JSONEncode(subTerritories)
-
 		local data = {
 			level = tonumber(pc.Level) or 1,
 			xp = tonumber(pc.XP) or 0,
@@ -483,8 +432,7 @@ script PersistenceManager extends Logic
 			homeTiles = tilesJson,
 			homeFurniture = furnJson,
 			homeDestroyedResources = destJson,
-			guestPermissions = permJson,
-			subTerritories = subJson
+			guestPermissions = permJson
 		}
 
 		local jsonStr = _HttpService:JSONEncode(data)
@@ -706,71 +654,6 @@ script PersistenceManager extends Logic
 			local pc = guestPlayer:GetComponent("script.PlayerController")
 			if isvalid(pc) then
 				pc:ClientSetCurrentMapPermissions(newPerm, newPerm, newPerm)
-			end
-		end
-	end
-
-	@ExecSpace("ServerOnly")
-	method void LoadSubTerritoryMap(string userId, integer index)
-		local mapName = "Home_" .. userId .. "_Sub_" .. index
-		local map = _EntityService:GetEntityByPath("/maps/" .. mapName)
-		if not isvalid(map) then
-			log("PersistenceManager: Creating dynamic sub-territory map " .. mapName)
-			local ec = _DynamicMapService:CreateDynamicMap("map01", mapName)
-			if ec == DynamicMapResultCode.Success then
-				map = _EntityService:GetEntityByPath("/maps/" .. mapName)
-				if isvalid(map) then
-					log("PersistenceManager: Dynamic sub-territory map created successfully. Loading placements...")
-					
-					_ResourceSpawner:SpawnInitialResourcesForMap(map)
-					
-					local subData = self.SubTerritoriesData[userId] and self.SubTerritoriesData[userId][tostring(index)]
-					local tilesRaw = subData and subData.tiles or "[]"
-					local furnRaw = subData and subData.furniture
-					local destRaw = subData and subData.destroyed or "[]"
-					
-					if furnRaw == nil or furnRaw == "" or furnRaw == "[]" then
-						furnRaw = "[{\"itemName\":\"Portal\",\"x\":-5,\"y\":0}]"
-					end
-					
-					_ResourceSpawner:SetPlacedTilesJson(mapName, tilesRaw)
-					_ResourceSpawner:SetPlacedFurnitureJson(mapName, furnRaw)
-					_ResourceSpawner:LoadDestroyedResourcesFromJson(mapName, destRaw)
-					_ResourceSpawner:ReconstructWorldPlacementsForMap(map)
-					
-					-- Reconstruct chest items
-					local furnList = {}
-					if furnRaw ~= nil and furnRaw ~= "" then
-						local ok, decoded = pcall(function() return _HttpService:JSONDecode(furnRaw) end)
-						if ok and decoded then
-							furnList = decoded
-						end
-					end
-					local chestComps = map:GetChildComponentsByTypeName("script.Chest", true)
-					local tilemap = map:GetFirstChildComponentByTypeName("RectTileMapComponent", true)
-					if chestComps and isvalid(tilemap) then
-						for _, comp in ipairs(chestComps) do
-							local ent = comp.Entity
-							if isvalid(ent) then
-								local entCell = tilemap:ToCellPosition(ent.TransformComponent.WorldPosition)
-								if entCell then
-									for _, furn in ipairs(furnList) do
-										if furn.itemName == "Wooden Chest" and furn.x == entCell.x and furn.y == entCell.y then
-											if furn.chestItems then
-												comp:SetItems(furn.chestItems)
-											end
-											break
-										end
-									end
-								end
-							end
-						end
-					end
-				else
-					log_error("PersistenceManager: Failed to get sub map entity after creation for " .. mapName)
-				end
-			else
-				log_error("PersistenceManager: CreateDynamicMap failed for " .. mapName)
 			end
 		end
 	end

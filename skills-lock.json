@@ -1,6 +1,12 @@
 {
   "version": 1,
   "skills": {
+    "design-game": {
+      "source": "opusgamelabs/game-creator",
+      "sourceType": "github",
+      "skillPath": "skills/design-game/SKILL.md",
+      "computedHash": "81269ceaa9f5797ad4d8510d81090845be8ce703ae7e192472a7e3cd419e7cd2"
+    },
     "msw-avatar": {
       "source": "MSW-Git/msw-ai-coding-plugins-official",
       "sourceType": "github",
@@ -66,6 +72,12 @@
       "sourceType": "github",
       "skillPath": "plugins/msw-maker-base-skill/skills/msw-ui-system/SKILL.md",
       "computedHash": "37977b8cd3d9fcd57871ced4af5f564b17ff52f998e55b086ff0487d2d43d676"
+    },
+    "ponytail": {
+      "source": "dietrichgebert/ponytail",
+      "sourceType": "github",
+      "skillPath": "skills/ponytail/SKILL.md",
+      "computedHash": "491ccdc2c13a29cebabbac6bbe37f39e2e21ddff890c0b3fcf83b53b05dcc5c8"
     }
   }
 }

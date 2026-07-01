@@ -1,0 +1,5 @@
+﻿SkillId,Name,Cooldown,DamageMultiplier,StaminaCost,EffectRUID,Description,Type
+power_strike,강타,1.2,1.5,8,,"""전방 좁은 부채꼴 범위에 1.5배 피해를 입힙니다. 주력기.""",Melee
+fireball,화염구,5.0,2.2,18,,"""전방으로 비행하는 화염 구체를 발사하여 충돌 시 2.2배 폭발 피해를 입힙니다. 보조기.""",Projectile
+dash,대시,3.0,0.0,15,,"""바라보는 방향으로 짧은 거리 순간 돌진 가속합니다. 이동기.""",Dash
+earth_shatter,대지 붕괴,15.0,4.5,40,,"""플레이어 주변 5x5 범위에 4.5배 광역 데미지를 입힙니다. 궁극기.""",Ultimate
