@@ -492,9 +492,9 @@ script ResourceSpawner extends Logic
 		local mapName = map.Name
 		log("ResourceSpawner: Dynamic setup starting for map: " .. mapName)
 		
-		local layer1Entity = map:GetChildByName("RectTileMap")
-		local layer2Entity = map:GetChildByName("RectTileMap2")
-		local layer3Entity = map:GetChildByName("RectTileMap3")
+		local layer1Entity = self:GetOrCreateLayer(map, "RectTileMap")
+		local layer2Entity = self:GetOrCreateLayer(map, "RectTileMap2")
+		local layer3Entity = self:GetOrCreateLayer(map, "RectTileMap3")
 		
 		if not isvalid(layer1Entity) or not isvalid(layer2Entity) or not isvalid(layer3Entity) then
 			log_warning("ResourceSpawner: Missing one of the map layer entities in map " .. mapName)
@@ -549,8 +549,8 @@ script ResourceSpawner extends Logic
 	end
 
 	@ExecSpace("ServerOnly")
-	method Entity EnsureHuntMap(string mapName, boolean isBossArena)
-		-- Creates (idempotently) a shared, always-resident hunting-ground map cloned from the map01
+	method Entity EnsureHuntMap(string mapName, string templateMapName, boolean isBossArena)
+		-- Creates (idempotently) a shared, always-resident hunting-ground map cloned from the templateMapName
 		-- template and configures its terrain. Field zones use multi-biome procedural terrain + combat;
 		-- the boss arena (hunt04) forces green_island so MonsterSpawner's per-cell green_island guard
 		-- skips auto-spawn there, leaving only the hand-spawned boss. Returns the map entity (or nil).
@@ -558,9 +558,9 @@ script ResourceSpawner extends Logic
 		local existing = _EntityService:GetEntityByPath("/maps/" .. mapName)
 		if isvalid(existing) then return existing end
 
-		local ec = _DynamicMapService:CreateDynamicMap("map01", mapName)
+		local ec = _DynamicMapService:CreateDynamicMap(templateMapName, mapName)
 		if ec ~= DynamicMapResultCode.Success then
-			log_error("ResourceSpawner: CreateDynamicMap failed for " .. mapName .. ": " .. tostring(ec))
+			log_error("ResourceSpawner: CreateDynamicMap failed for " .. mapName .. " from template " .. templateMapName .. ": " .. tostring(ec))
 			return nil
 		end
 		local huntMap = _EntityService:GetEntityByPath("/maps/" .. mapName)
@@ -588,10 +588,30 @@ script ResourceSpawner extends Logic
 		--   hunt01 (field, easy) -> hunt02 (field, copper) -> hunt03 (field, hard) -> hunt04 (boss arena).
 		-- Each zone has an immovable Home-return portal and a forward connection portal; hunt04 hosts the
 		-- King Slime boss. Idempotent — re-entry is a no-op once the maps exist.
-		local hunt01 = self:EnsureHuntMap("hunt01", false)
-		local hunt02 = self:EnsureHuntMap("hunt02", false)
-		local hunt03 = self:EnsureHuntMap("hunt03", false)
-		local hunt04 = self:EnsureHuntMap("hunt04", true)
+		local ds = _DataService:GetTable("PortalDestinationDataSet")
+		local getTemplate = function(mapName)
+			if ds ~= nil then
+				for i = 1, ds:GetRowCount() do
+					if ds:GetCell(i, "MapName") == mapName then
+						local val = ds:GetCell(i, "TemplateMap")
+						if val ~= nil and val ~= "" then
+							return val
+						end
+					end
+				end
+			end
+			return "template_field"
+		end
+
+		local t1 = getTemplate("hunt01")
+		local t2 = getTemplate("hunt02")
+		local t3 = getTemplate("hunt03")
+		local t4 = getTemplate("hunt04")
+
+		local hunt01 = self:EnsureHuntMap("hunt01", t1, false)
+		local hunt02 = self:EnsureHuntMap("hunt02", t2, false)
+		local hunt03 = self:EnsureHuntMap("hunt03", t3, false)
+		local hunt04 = self:EnsureHuntMap("hunt04", t4, true)
 
 		-- hunt01: Home return + forward to hunt02.
 		if isvalid(hunt01) then
