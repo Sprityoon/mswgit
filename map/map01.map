@@ -33,12 +33,12 @@
               "@type": "MOD.Core.MapComponent",
               "IsInstanceMap": false,
               "LeftBottom": {
-                "x": -50.0,
-                "y": -50.0
+                "x": -50,
+                "y": -50
               },
               "RightTop": {
-                "x": 50.0,
-                "y": 50.0
+                "x": 50,
+                "y": 50
               },
               "TileMapMode": 1,
               "Enable": true
@@ -71,27 +71,27 @@
             {
               "@type": "MOD.Core.TransformComponent",
               "Rotation": {
-                "x": 0.0,
-                "y": 0.0,
-                "z": 0.0
+                "x": 0,
+                "y": 0,
+                "z": 0
               },
               "Position": {
-                "x": 0.0,
-                "y": 0.0,
-                "z": 0.0
+                "x": 0,
+                "y": 0,
+                "z": 0
               },
               "QuaternionRotation": {
-                "x": 0.0,
-                "y": 0.0,
-                "z": 0.0,
-                "w": 1.0
+                "x": 0,
+                "y": 0,
+                "z": 0,
+                "w": 1
               },
               "Scale": {
-                "x": 1.0,
-                "y": 1.0,
-                "z": 1.0
+                "x": 1,
+                "y": 1,
+                "z": 1
               },
-              "ZRotation": 0.0,
+              "ZRotation": 0,
               "Enable": true
             },
             {
@@ -103,7 +103,7 @@
               "SpriteRUID": "",
               "Color": {
                 "r": 0.2,
-                "g": 1.0,
+                "g": 1,
                 "b": 0.2,
                 "a": 0.6
               },
@@ -135,7 +135,7 @@
                 "r": 0.549019635,
                 "g": 0.34117648,
                 "b": 0.164705887,
-                "a": 1.0
+                "a": 1
               },
               "TemplateRUID": "794ad8421e2543d8a6d2c70307637450",
               "Type": 2,
@@ -207,15 +207,15 @@
             {
               "@type": "MOD.Core.TransformComponent",
               "Position": {
-                "x": 0.0,
-                "y": 0.0,
-                "z": 1000.0
+                "x": 0,
+                "y": 0,
+                "z": 1000
               },
               "QuaternionRotation": {
-                "x": 0.0,
-                "y": 0.0,
-                "z": 0.0,
-                "w": 1.0
+                "x": 0,
+                "y": 0,
+                "z": 0,
+                "w": 1
               },
               "Enable": true
             },
@@ -24493,15 +24493,15 @@
             {
               "@type": "MOD.Core.TransformComponent",
               "Position": {
-                "x": 0.0,
-                "y": 0.0,
-                "z": 1000.0
+                "x": 0,
+                "y": 0,
+                "z": 1000
               },
               "QuaternionRotation": {
-                "x": 0.0,
-                "y": 0.0,
-                "z": 0.0,
-                "w": 1.0
+                "x": 0,
+                "y": 0,
+                "z": 0,
+                "w": 1
               },
               "Enable": true
             },
@@ -26123,22 +26123,22 @@
             {
               "@type": "MOD.Core.TransformComponent",
               "Position": {
-                "x": 0.0,
-                "y": 0.0,
-                "z": 1000.0
+                "x": 0,
+                "y": 0,
+                "z": 1000
               },
               "QuaternionRotation": {
-                "x": 0.0,
-                "y": 0.0,
-                "z": 0.0,
-                "w": 1.0
+                "x": 0,
+                "y": 0,
+                "z": 0,
+                "w": 1
               },
               "Enable": true
             },
             {
               "@type": "MOD.Core.RectTileMapComponent",
               "SortingLayer": "MapLayer3",
-              "TileSetRUID": "tileset://2361293b-a3c2-4138-8dec-4fb4d1f9acf4",
+              "TileSetRUID": "tileset://7e240dde-c5fe-4d2e-ad41-0a80f4b3ec7d",
               "Enable": true,
               "tileMap": []
             }
@@ -26208,15 +26208,15 @@
             {
               "@type": "MOD.Core.TransformComponent",
               "Position": {
-                "x": 0.0,
-                "y": 0.0,
-                "z": 1000.0
+                "x": 0,
+                "y": 0,
+                "z": 1000
               },
               "QuaternionRotation": {
-                "x": 0.0,
-                "y": 0.0,
-                "z": 0.0,
-                "w": 1.0
+                "x": 0,
+                "y": 0,
+                "z": 0,
+                "w": 1
               },
               "Enable": true
             },
@@ -31862,15 +31862,15 @@
             {
               "@type": "MOD.Core.TransformComponent",
               "Position": {
-                "x": 0.0,
-                "y": 0.0,
-                "z": 1000.0
+                "x": 0,
+                "y": 0,
+                "z": 1000
               },
               "QuaternionRotation": {
-                "x": 0.0,
-                "y": 0.0,
-                "z": 0.0,
-                "w": 1.0
+                "x": 0,
+                "y": 0,
+                "z": 0,
+                "w": 1
               },
               "Enable": true
             },
@@ -31947,15 +31947,15 @@
             {
               "@type": "MOD.Core.TransformComponent",
               "Position": {
-                "x": 0.0,
-                "y": 0.0,
-                "z": 1000.0
+                "x": 0,
+                "y": 0,
+                "z": 1000
               },
               "QuaternionRotation": {
-                "x": 0.0,
-                "y": 0.0,
-                "z": 0.0,
-                "w": 1.0
+                "x": 0,
+                "y": 0,
+                "z": 0,
+                "w": 1
               },
               "Enable": true
             },

@@ -44,8 +44,12 @@ script PlayerController extends Component
 	property number LastMineTime = 0.0
 
 	property number KnockbackSpeed = 16.0
-	@HideFromInspector property number KnockTimer = 0
-	@HideFromInspector property Vector2 KnockVel = Vector2(0, 0)
+
+	@HideFromInspector
+	property number KnockTimer = 0
+
+	@HideFromInspector
+	property Vector2 KnockVel = Vector2(0, 0)
 
 	property number MineCooldown = 0.6
 
@@ -73,22 +77,30 @@ script PlayerController extends Component
 	@Sync
 	property boolean CanInteractOnCurrentMap = true
 
-	-- Skill System (Phase 13). Slots 1..4 map to Q/W/E/R. The equipped list is resolved against
-	-- SkillDataSet at cast time, so a future skill-tree / quickslot UI can remap slots freely.
 	@Sync
 	property string EquippedSkillsJson = "[\"power_strike\", \"fireball\", \"dash\", \"earth_shatter\"]"
 
-	-- skillId -> last cast time (ElapsedSeconds). Non-synced ad-hoc state on each side.
+	-- Skill Tree (S2): 보유 스킬 레벨 맵 JSON (skillId -> level). 0 또는 부재 = 미해금.
+	@Sync
+	property string SkillLevelsJson = "{}"
+
+	-- Skill Tree (S2): 투자 가능한 스킬 포인트. 레벨업 시 SPPerLevelUp만큼 지급.
+	@Sync
+	property integer SP = 0
+
+	-- 레벨업당 SP 지급량 (밸런스 튜닝값 — 인스펙터 프로퍼티로 관리)
+	property integer SPPerLevelUp = 3
+
 	property any CooldownMap = nil
 
 	method void OnBeginPlay()
 		-- description: Initialize key and screen touch event listeners on the client.
 		self.CooldownMap = {}
-
+		
 		if self:IsClient() then
 			self.KeyDownHandler = _InputService:ConnectEvent(KeyDownEvent, self.OnKeyDown)
 			self.ScreenTouchHandler = _InputService:ConnectEvent(ScreenTouchEvent, self.OnScreenTouch)
-
+		
 			-- Remove ONLY the WASD movement keys from the engine PlayerControllerComponent — do NOT
 			-- disable the whole component (that also killed facing/LookDirectionX, jump, and the MOVE/IDLE
 			-- walk animation). Our custom arrow-key movement drives MovementComponent every frame, so the
@@ -106,7 +118,7 @@ script PlayerController extends Component
 					pcc:RemoveActionKey(KeyboardKey.D)
 				end
 			end, 0.2)
-
+		
 			local movement = self.Entity.MovementComponent
 			if isvalid(movement) then
 				movement.InputSpeed = 3.6  -- Set top-down movement speed
@@ -158,7 +170,7 @@ script PlayerController extends Component
 		local map = self.Entity.CurrentMap
 		if not isvalid(map) then return false end
 		local mapName = map.Name
-
+		
 		-- Resolve & cache the Layer-4 wall tilemap for the current map (re-resolve while still nil,
 		-- e.g. before chunk loading creates RectTileMap4). The map has many entity children from
 		-- resource proximity loading, so GetChildByName every frame once cached would be costly.
@@ -167,7 +179,7 @@ script PlayerController extends Component
 			local l4 = map:GetChildByName("RectTileMap4")
 			self._T.wallLayer = (isvalid(l4) and l4.RectTileMapComponent) or nil
 		end
-
+		
 		local wallLayer = self._T.wallLayer
 		if isvalid(wallLayer) then
 			local cell = wallLayer:ToCellPosition(Vector3(checkPos.x, checkPos.y, 0))
@@ -175,7 +187,7 @@ script PlayerController extends Component
 				return true
 			end
 		end
-
+		
 		return false
 	end
 
@@ -226,7 +238,7 @@ script PlayerController extends Component
 	method void OnUpdate(number delta)
 		-- Resolve any overlaps with resource colliders first
 		self:ResolveOverlaps(delta)
-
+		
 		-- description: Monitor player movement inputs to track last facing direction and drive movement.
 		-- Handle visual IFrame flashing (translucent blinking)
 		if self.IFrameTimer > 0 then
@@ -246,13 +258,13 @@ script PlayerController extends Component
 				avatar:SetAlpha(1.0)
 			end
 		end
-
+		
 		if self.IsDead then
 			local movement = self.Entity.MovementComponent
 			if isvalid(movement) then movement:Stop() end
 			return
 		end
-
+		
 		-- Knockback: while active, interpolate player position smoothly on client (EaseOutCubic)
 		if self.KnockTimer > 0 then
 			self.KnockTimer = self.KnockTimer - delta
@@ -280,7 +292,7 @@ script PlayerController extends Component
 			end
 			return
 		end
-
+		
 		local dx = 0
 		local dy = 0
 		
@@ -374,7 +386,7 @@ script PlayerController extends Component
 				end
 			end
 		end
-
+		
 		-- Update local placement preview
 		self:UpdatePlacementPreview()
 	end
@@ -393,99 +405,15 @@ script PlayerController extends Component
 	end
 
 	@ExecSpace("ServerOnly")
-	@EventSender("Self")
-	handler HandlePlayerHit(HitEvent event)
-		if self.IsDead then return end
-		if self.IFrameTimer > 0 then return end
-		
-		local playerComp = self.Entity.PlayerComponent
-		if playerComp == nil then return end
-		if not isvalid(event.AttackerEntity) then return end
-
-		-- Check contact damage from attacker
-		local damage = event.TotalDamage
-		if damage <= 0 then
-			local monsterAttack = event.AttackerEntity:GetComponent("script.MonsterMeleeAttack")
-			if isvalid(monsterAttack) then
-				damage = math.max(1, math.floor(monsterAttack.ContactDamage - self.Defense * 0.1))
-			else
-				damage = 5
-			end
-		end
-
-		-- Apply damage to player HP and start server-side IFrame cooldown
-		playerComp.Hp = math.max(0, playerComp.Hp - damage)
-		self.IFrameTimer = 1.0  -- 1 second i-frame
-		_TimerService:SetTimerOnce(function()
-			if isvalid(self.Entity) then
-				self.IFrameTimer = 0.0
-				log("[IFRAME] Server reset player IFrameTimer to 0.0")
-			end
-		end, 1.0)
-
-		-- Trigger hit animation state and schedule IDLE restore on server
-		local sc = self.Entity.StateComponent
-		if isvalid(sc) then
-			sc:ChangeState("HIT")
-			_TimerService:SetTimerOnce(function()
-				if isvalid(self.Entity) and not self.IsDead then
-					local currentSc = self.Entity.StateComponent
-					if isvalid(currentSc) and currentSc.CurrentStateName == "HIT" then
-						currentSc:ChangeState("IDLE")
-						log("[KNOCKBACK] Server restored player state from HIT to IDLE")
-					end
-				end
-			end, 0.25)
-		end
-
-		-- Apply Knockback (Server-side teleport push with obstacle checking)
-		local pp = self.Entity.TransformComponent.WorldPosition
-		local ap = event.AttackerEntity.TransformComponent.WorldPosition
-		local kx = pp.x - ap.x
-		local ky = pp.y - ap.y
-		local len = math.sqrt(kx * kx + ky * ky)
-		if len <= 0.0001 then kx = 1 ky = 0 len = 1 end
-		
-		local dirX = kx / len
-		local dirY = ky / len
-		
-		local dist = 1.2
-		local targetPos = Vector3(pp.x + dirX * dist, pp.y + dirY * dist, pp.z)
-		local finalKnockPos = pp  -- Default to no movement
-		
-		if not self:IsObstacle(Vector2(targetPos.x, targetPos.y), 0.3, nil) then
-			playerComp:SetWorldPosition(targetPos)
-			finalKnockPos = targetPos
-			log("[KNOCKBACK] Server pushed player to: (" .. string.format("%.2f, %.2f", targetPos.x, targetPos.y) .. ")")
-		else
-			local halfPos = Vector3(pp.x + dirX * (dist * 0.5), pp.y + dirY * (dist * 0.5), pp.z)
-			if not self:IsObstacle(Vector2(halfPos.x, halfPos.y), 0.3, nil) then
-				playerComp:SetWorldPosition(halfPos)
-				finalKnockPos = halfPos
-				log("[KNOCKBACK] Server pushed player (half-distance) to: (" .. string.format("%.2f, %.2f", halfPos.x, halfPos.y) .. ")")
-			end
-		end
-
-		self:ClientApplyKnockback(pp.x, pp.y, finalKnockPos.x, finalKnockPos.y, 0.25)
-
-		log("Player " .. self.Entity.Name .. " hit for " .. damage .. " damage. HP remaining: " .. playerComp.Hp)
-
-		-- Check Death
-		if playerComp.Hp <= 0 then
-			self:ServerDie()
-		end
-	end
-
-	@ExecSpace("ServerOnly")
 	method void ServerDie()
 		if self.IsDead then return end
 		self.IsDead = true
 		log("Player " .. self.Entity.Name .. " has died.")
-
+		
 		-- Stop movement immediately
 		local movement = self.Entity.MovementComponent
 		if isvalid(movement) then movement:Stop() end
-
+		
 		-- 50% resource loss on death (only raw materials like wood, stone, copper_ore, iron_ore)
 		local inv = self.Entity:GetComponent("script.PlayerInventory")
 		if isvalid(inv) then
@@ -501,7 +429,7 @@ script PlayerController extends Component
 				end
 			end
 		end
-
+		
 		-- 3s Respawn Loop
 		_TimerService:SetTimerOnce(function()
 			self:ServerRespawn()
@@ -538,7 +466,7 @@ script PlayerController extends Component
 	method void TryMine()
 		-- description: Attempts to trigger mining or placement on client-side.
 		local now = _UtilLogic.ElapsedSeconds
-		if now - self.LastMineTime < self.MineCooldown then
+		if now - self.LastMineTime < self:GetEffectiveMineCooldown() then
 			return
 		end
 		self.LastMineTime = now
@@ -636,6 +564,17 @@ script PlayerController extends Component
 			self:TryCastSlot(3)
 		elseif key == KeyboardKey.R then
 			self:TryCastSlot(4)
+		elseif key == KeyboardKey.K then
+			-- 스킬트리 팝업 토글 (S3)
+			local popup = _EntityService:GetEntityByPath("/ui/PopupGroup/SkillTreePopup")
+			if isvalid(popup) then
+				local controller = popup:GetComponent("script.UISkillTreeController")
+				if isvalid(controller) then
+					---@type UISkillTreeController
+					local c = controller
+					c:Toggle()
+				end
+			end
 		elseif key == KeyboardKey.F then
 			if isvalid(self.ActivePortal) then
 				-- Estate portals open the destination list (town / hunting grounds); fixed portals in
@@ -780,7 +719,7 @@ script PlayerController extends Component
 		end
 		
 		local now = _UtilLogic.ServerElapsedSeconds
-		if now - self.LastMineTime < self.MineCooldown - 0.1 then
+		if now - self.LastMineTime < self:GetEffectiveMineCooldown() - 0.1 then
 			return
 		end
 		self.LastMineTime = now
@@ -809,7 +748,7 @@ script PlayerController extends Component
 		
 		-- Locate cell targeted by client
 		local targetCell = Vector2Int(targetCellX, targetCellY)
-
+		
 		-- Combat: if a monster occupies the aimed cell, attack it instead of mining.
 		local targetWorldPos = tilemap:ToWorldPosition(targetCell)
 		local monsterEntity = self:FindMonsterAt(currentMap, targetWorldPos)
@@ -823,7 +762,7 @@ script PlayerController extends Component
 			self:ClientPlayMineEffect(true, monsterEntity)
 			return
 		end
-
+		
 		-- Query the spawned resource entity occupying the target cell (entity-only mining)
 		local key = math.floor(targetCell.x) .. "_" .. math.floor(targetCell.y)
 		local resourceSpawner = _ResourceSpawner
@@ -878,6 +817,7 @@ script PlayerController extends Component
 	@ExecSpace("Server")
 	method void AddXP(integer amount)
 		self.XP = self.XP + amount
+		local leveledUp = false
 		while self.XP >= self.MaxXP do
 			self.Level = self.Level + 1
 			self.XP = self.XP - self.MaxXP
@@ -885,8 +825,16 @@ script PlayerController extends Component
 			self.MaxStamina = self.MaxStamina + 10
 			self.Stamina = self.MaxStamina
 			self.GatheringSpeed = self.GatheringSpeed + 0.2
+			self.SP = self.SP + self.SPPerLevelUp
+			leveledUp = true
 			
-			self:ShowMineFeedback("LEVEL UP! Level " .. self.Level)
+			self:ShowMineFeedback("LEVEL UP! Level " .. self.Level .. " (SP +" .. self.SPPerLevelUp .. ")")
+		end
+		if leveledUp and _PersistenceManager then
+			local playerComp = self.Entity.PlayerComponent
+			if playerComp then
+				_PersistenceManager:MarkPlayerDirty(playerComp.UserId)
+			end
 		end
 	end
 
@@ -1233,7 +1181,7 @@ script PlayerController extends Component
 		-- in PortalDestinationDataSet are allowed (no arbitrary map jumps from a spoofed client).
 		local playerComp = self.Entity.PlayerComponent
 		if playerComp == nil or senderUserId ~= playerComp.UserId then return end
-
+		
 		local ds = _DataService:GetTable("PortalDestinationDataSet")
 		if ds == nil then return end
 		local row = ds:FindRow("MapName", mapName)
@@ -1241,7 +1189,7 @@ script PlayerController extends Component
 			log_warning("PlayerController: Rejected warp to unknown destination '" .. mapName .. "'.")
 			return
 		end
-
+		
 		local unlockType = row:GetItem("UnlockType") or "always"
 		if unlockType == "waypoint" then
 			local destId = row:GetItem("DestinationId")
@@ -1250,7 +1198,7 @@ script PlayerController extends Component
 				return
 			end
 		end
-
+		
 		local target = mapName
 		if target == "Home" then
 			target = "Home_" .. playerComp.UserId
@@ -1283,7 +1231,7 @@ script PlayerController extends Component
 		if not isvalid(currentMap) or string.sub(currentMap.Name, 1, 5) ~= "Home_" then return end
 		local ownerId = string.sub(currentMap.Name, 6)
 		if userId ~= ownerId then return end
-
+		
 		local mapComp = currentMap.MapComponent
 		if not isvalid(mapComp) then return end
 		
@@ -1308,7 +1256,7 @@ script PlayerController extends Component
 				end
 			end
 		end
-
+		
 		local jsonStr = _HttpService:JSONEncode(guestData)
 		self:ClientOpenPermissionSettings(jsonStr)
 	end
@@ -1321,7 +1269,7 @@ script PlayerController extends Component
 		if not isvalid(currentMap) or string.sub(currentMap.Name, 1, 5) ~= "Home_" then return end
 		local ownerId = string.sub(currentMap.Name, 6)
 		if userId ~= ownerId then return end
-
+		
 		if _PersistenceManager then
 			_PersistenceManager:ServerRequestTogglePermission(ownerId, guestUserId)
 			-- Refresh settings panel for owner
@@ -1344,12 +1292,12 @@ script PlayerController extends Component
 				break
 			end
 		end
-
+		
 		if targetUserId == nil then
 			self:ClientShowWarpFeedback("해당 유저가 오프라인이거나 존재하지 않습니다.")
 			return
 		end
-
+		
 		local mapName = "Home_" .. targetUserId
 		local map = _EntityService:GetEntityByPath("/maps/" .. mapName)
 		if isvalid(map) then
@@ -1447,7 +1395,7 @@ script PlayerController extends Component
 			-- Smooth pushback correction: push player out by 20% of overlap depth per frame
 			local finalPush = pushVector * 0.20
 			local targetPos = currentPos + finalPush
-
+		
 			local transform = self.Entity.TransformComponent
 			if isvalid(transform) then
 				transform.WorldPosition = Vector3(targetPos.x, targetPos.y, transform.WorldPosition.z)
@@ -1455,29 +1403,32 @@ script PlayerController extends Component
 		end
 	end
 
-	-- =========================================================================
-	-- SKILL SYSTEM (Phase 13) — slot-mapped active skills (Q/W/E/R)
-	-- =========================================================================
-
 	@ExecSpace("ClientOnly")
 	method void TryCastSlot(integer slotIndex)
 		-- Resolve the skill bound to slotIndex, do a client-side cooldown/stamina precheck, then RPC.
 		if self.IsDead then return end
-
+		
 		local ok, skills = pcall(function() return _HttpService:JSONDecode(self.EquippedSkillsJson) end)
 		if not ok or not skills or slotIndex < 1 or slotIndex > #skills then return end
-
+		
 		local skillId = skills[slotIndex]
 		if not skillId or skillId == "" then return end
-
+		
 		local ds = _DataService:GetTable("SkillDataSet")
 		if not ds then return end
 		local row = ds:FindRow("SkillId", skillId)
 		if not row then return end
-
-		local cd = tonumber(row:GetItem("Cooldown")) or 0
+		
+		local level = self:GetSkillLevel(skillId)
+		if level < 1 then
+			log("[SKILL] Not unlocked: " .. skillId)
+			return
+		end
+		
+		local cd = self:GetEffectiveCooldown(skillId, level)
 		local cost = tonumber(row:GetItem("StaminaCost")) or 0
-
+		if (row:GetItem("Type") or "") == "Passive" then return end
+		
 		if not self.CooldownMap then self.CooldownMap = {} end
 		local now = _UtilLogic.ElapsedSeconds
 		local lastCast = self.CooldownMap[skillId] or -999.0
@@ -1489,7 +1440,7 @@ script PlayerController extends Component
 			log("[SKILL] Client stamina low for " .. skillId)
 			return
 		end
-
+		
 		log("[SKILL] Requesting cast " .. skillId .. " (slot " .. slotIndex .. ") dir " .. self.LastDirectionX .. "," .. self.LastDirectionY)
 		self:ServerRequestCastSkill(skillId, self.LastDirectionX, self.LastDirectionY)
 	end
@@ -1500,28 +1451,32 @@ script PlayerController extends Component
 		local playerComp = self.Entity.PlayerComponent
 		if playerComp == nil or senderUserId ~= playerComp.UserId then return end
 		if self.IsDead then return end
-
+		
 		local ds = _DataService:GetTable("SkillDataSet")
 		if not ds then return end
 		local row = ds:FindRow("SkillId", skillId)
 		if not row then return end
-
-		local cd = tonumber(row:GetItem("Cooldown")) or 0
+		
+		local level = self:GetSkillLevel(skillId)
+		if level < 1 then return end
+		
+		local cd = self:GetEffectiveCooldown(skillId, level)
 		local cost = tonumber(row:GetItem("StaminaCost")) or 0
-		local damageMul = tonumber(row:GetItem("DamageMultiplier")) or 1.0
+		local damageMul = self:GetEffectiveDamageMultiplier(skillId, level)
 		local skillType = row:GetItem("Type")
 		local effectRUID = row:GetItem("EffectRUID")
-
+		if (skillType or "") == "Passive" then return end
+		
 		if not self.CooldownMap then self.CooldownMap = {} end
 		local now = _UtilLogic.ElapsedSeconds
 		local lastCast = self.CooldownMap[skillId] or -999.0
 		if now - lastCast < cd then return end
 		if self.Stamina < cost then return end
-
+		
 		self.Stamina = math.max(0, self.Stamina - cost)
 		self.CooldownMap[skillId] = now
 		self:ClientSyncCooldown(skillId, now)
-
+		
 		if skillType == "Melee" then
 			self:ExecuteAreaDamageSkill(damageMul, Vector2(dirX, dirY), 1.8, 1.2)
 		elseif skillType == "Ultimate" then
@@ -1531,7 +1486,7 @@ script PlayerController extends Component
 		elseif skillType == "Projectile" then
 			self:ExecuteProjectileSkill(skillId, damageMul, dirX, dirY)
 		end
-
+		
 		if effectRUID ~= nil and effectRUID ~= "" then
 			self:MulticastPlayEffect(effectRUID, self.Entity.TransformComponent.WorldPosition)
 		end
@@ -1544,6 +1499,156 @@ script PlayerController extends Component
 		-- (server/client ElapsedSeconds are not synchronized, so the raw serverTime is not used here).
 		if not self.CooldownMap then self.CooldownMap = {} end
 		self.CooldownMap[skillId] = _UtilLogic.ElapsedSeconds
+	end
+
+	-- =========================================================================
+	-- SKILL TREE (S2) — 해금/레벨업 상태, SP, 서버 검증 (docs/design/skill-tree-plan.md)
+	-- =========================================================================
+
+	method integer GetSkillLevel(string skillId)
+		-- SkillLevelsJson에서 보유 레벨 조회 (0 = 미해금). @Sync 프로퍼티라 서버/클라 공용.
+		if skillId == nil or skillId == "" then return 0 end
+		local ok, levels = pcall(function() return _HttpService:JSONDecode(self.SkillLevelsJson) end)
+		if not ok or levels == nil then return 0 end
+		return tonumber(levels[skillId]) or 0
+	end
+
+	method number GetEffectiveDamageMultiplier(string skillId, integer level)
+		-- 실효 배율 = DamageMultiplier + DamagePerLevel × (level-1)
+		local ds = _DataService:GetTable("SkillDataSet")
+		if not ds then return 1.0 end
+		local row = ds:FindRow("SkillId", skillId)
+		if not row then return 1.0 end
+		local base = tonumber(row:GetItem("DamageMultiplier")) or 1.0
+		if level < 1 then return base end
+		local perLevel = tonumber(row:GetItem("DamagePerLevel")) or 0.0
+		return base + perLevel * (level - 1)
+	end
+
+	method number GetEffectiveCooldown(string skillId, integer level)
+		-- 실효 쿨다운 = Cooldown + CooldownPerLevel × (level-1), 하한 0.1초
+		local ds = _DataService:GetTable("SkillDataSet")
+		if not ds then return 0.0 end
+		local row = ds:FindRow("SkillId", skillId)
+		if not row then return 0.0 end
+		local base = tonumber(row:GetItem("Cooldown")) or 0.0
+		if level < 1 then return base end
+		local perLevel = tonumber(row:GetItem("CooldownPerLevel")) or 0.0
+		return math.max(0.1, base + perLevel * (level - 1))
+	end
+
+	method number GetPassiveBonus(string statName)
+		-- 보유 중인 패시브 스킬(PassiveStat == statName)의 효과 합산: PassiveValuePerLevel × level.
+		-- 신규 패시브는 SkillDataSet CSV 행 추가만으로 자동 반영된다 (하드코딩 금지 룰).
+		local total = 0.0
+		local ds = _DataService:GetTable("SkillDataSet")
+		if ds == nil then return total end
+		
+		local rowCount = ds:GetRowCount()
+		for i = 1, rowCount do
+			local stat = ds:GetCell(i, "PassiveStat")
+			if stat ~= nil and stat == statName then
+				local skillId = ds:GetCell(i, "SkillId")
+				local level = self:GetSkillLevel(skillId)
+				if level >= 1 then
+					local perLevel = tonumber(ds:GetCell(i, "PassiveValuePerLevel")) or 0.0
+					total = total + perLevel * level
+				end
+			end
+		end
+		return total
+	end
+
+	method number GetEffectiveMineCooldown()
+		-- 실효 채집 쿨다운 = MineCooldown + Σ패시브(MineCooldown, 음수), 하한 0.2초
+		return math.max(0.2, self.MineCooldown + self:GetPassiveBonus("MineCooldown"))
+	end
+
+	@ExecSpace("ServerOnly")
+	method boolean IsUnlockAchievementSatisfied(integer achievementId)
+		-- 패키지 업적 게이트 판정: Completed 상태이거나, 최종 스텝을 달성 가능(진행도 충족)한 경우 통과.
+		local pa = self.Entity.PlayerAchievement
+		if pa == nil then return false end
+		
+		local data = _AchievementDataSetLogic:GetData(achievementId)
+		if data == nil then return false end
+		
+		local userData = pa.UserDataTable[achievementId]
+		if userData == nil then return false end
+		
+		if userData.State == _AchievementStateEnum.Completed then return true end
+		if not userData:IsCompletable(data) then return false end
+		
+		-- 다단계 업적은 마지막 스텝에서만 게이트 통과
+		return data:GetStepData(userData.Step + 1) == nil
+	end
+
+	@ExecSpace("Server")
+	method void ServerRequestSkillLevelUp(string skillId)
+		-- 스킬트리 해금/레벨업 서버 검증: ①선행 스킬 ②캐릭터 레벨 ③업적 게이트 ④SP ⑤MaxLevel
+		local playerComp = self.Entity.PlayerComponent
+		if playerComp == nil or senderUserId ~= playerComp.UserId then return end
+		
+		local ds = _DataService:GetTable("SkillDataSet")
+		if not ds then return end
+		local row = ds:FindRow("SkillId", skillId)
+		if not row then return end
+		
+		local ok, levels = pcall(function() return _HttpService:JSONDecode(self.SkillLevelsJson) end)
+		if not ok or levels == nil then levels = {} end
+		local curLevel = tonumber(levels[skillId]) or 0
+		
+		-- ⑤ 최대 레벨
+		local maxLevel = tonumber(row:GetItem("MaxLevel")) or 1
+		if curLevel >= maxLevel then
+			self:ClientShowMineFeedback("이미 최대 레벨입니다.", playerComp.UserId)
+			return
+		end
+		
+		-- 해금(0→1) 시에만 검사하는 게이트
+		if curLevel == 0 then
+			-- ① 선행 스킬 보유
+			local parentId = row:GetItem("ParentSkillId")
+			if parentId ~= nil and parentId ~= "" and (tonumber(levels[parentId]) or 0) < 1 then
+				self:ClientShowMineFeedback("선행 스킬을 먼저 해금해야 합니다.", playerComp.UserId)
+				return
+			end
+			-- ② 캐릭터 레벨
+			local reqLevel = tonumber(row:GetItem("RequiredLevel")) or 1
+			if self.Level < reqLevel then
+				self:ClientShowMineFeedback("레벨 " .. reqLevel .. " 이상 필요합니다.", playerComp.UserId)
+				return
+			end
+			-- ③ 목표(업적) 게이트
+			local achId = tonumber(row:GetItem("UnlockAchievementId"))
+			if achId ~= nil and achId > 0 and not self:IsUnlockAchievementSatisfied(achId) then
+				self:ClientShowMineFeedback("해금 목표를 먼저 달성해야 합니다.", playerComp.UserId)
+				return
+			end
+		end
+		
+		-- ④ SP 비용
+		local spCost = tonumber(row:GetItem("SPCost")) or 1
+		if self.SP < spCost then
+			self:ClientShowMineFeedback("SP가 부족합니다. (필요: " .. spCost .. ")", playerComp.UserId)
+			return
+		end
+		
+		levels[skillId] = curLevel + 1
+		self.SP = self.SP - spCost
+		self.SkillLevelsJson = _HttpService:JSONEncode(levels)
+		
+		if _PersistenceManager then
+			_PersistenceManager:MarkPlayerDirty(playerComp.UserId)
+		end
+		
+		local skillName = row:GetItem("Name") or skillId
+		if curLevel == 0 then
+			self:ClientShowMineFeedback("[스킬 해금] " .. skillName .. " Lv.1", playerComp.UserId)
+		else
+			self:ClientShowMineFeedback("[스킬 강화] " .. skillName .. " Lv." .. (curLevel + 1), playerComp.UserId)
+		end
+		log("[SKILL-TREE] " .. playerComp.UserId .. " leveled " .. skillId .. " -> " .. (curLevel + 1) .. " (SP left: " .. self.SP .. ")")
 	end
 
 	@ExecSpace("ServerOnly")
@@ -1576,12 +1681,12 @@ script PlayerController extends Component
 		if not isvalid(combat) then return end
 		---@type PlayerCombat
 		local c = combat
-
+		
 		local finalDmg = self:ComputeSkillDamage(damageMul)
 		local myPos = self.Entity.TransformComponent.WorldPosition
 		local center = Vector2(myPos.x + dir.x * reach, myPos.y + dir.y * reach)
 		local shape = BoxShape(center, Vector2(boxSize, boxSize), 0)
-
+		
 		local prev = c.PendingDamage
 		c.PendingDamage = finalDmg
 		c:AttackFast(shape, nil, CollisionGroups.HitBox)
@@ -1595,21 +1700,21 @@ script PlayerController extends Component
 		local body = self.Entity.KinematicbodyComponent
 		local transform = self.Entity.TransformComponent
 		if not isvalid(transform) then return end
-
+		
 		local currentPos
 		if isvalid(body) then
 			currentPos = body:GetWorldGroundPosition()
 		else
 			currentPos = transform.WorldPosition:ToVector2()
 		end
-
+		
 		local dirVec = Vector2(dirX, dirY)
 		if dirVec:Magnitude() <= 0.0001 then
 			dirVec = Vector2(self.LastDirectionX, self.LastDirectionY)
 			if dirVec:Magnitude() <= 0.0001 then dirVec = Vector2(-1, 0) end
 		end
 		dirVec = dirVec:Normalize()
-
+		
 		local maxDist = 3.0
 		local step = 0.5
 		local finalPos = currentPos
@@ -1618,7 +1723,7 @@ script PlayerController extends Component
 			if self:IsObstacle(checkPos, 0.3, currentPos) then break end
 			finalPos = checkPos
 		end
-
+		
 		if isvalid(body) then
 			body:SetWorldPosition(Vector2(finalPos.x, finalPos.y))
 		else
@@ -1632,27 +1737,27 @@ script PlayerController extends Component
 		-- Spawn a flying projectile entity carrying script.Projectile that hits the first monster.
 		local parentMap = self.Entity.CurrentMap
 		if not isvalid(parentMap) then return end
-
+		
 		local modelId = _EntryService:GetModelIdByName("Projectile_Fireball")
 		if modelId == nil or modelId == "" then
 			log_warning("[SKILL] Projectile_Fireball model not found; fireball skipped.")
 			return
 		end
-
+		
 		local finalDmg = self:ComputeSkillDamage(damageMul)
 		local myPos = self.Entity.TransformComponent.WorldPosition
 		local spawnPos = Vector3(myPos.x + dirX * 0.8, myPos.y + dirY * 0.8, myPos.z)
-
+		
 		local proj = _SpawnService:SpawnByModelId(modelId, "Projectile_" .. skillId, spawnPos, parentMap)
 		if not isvalid(proj) then return end
-
+		
 		local sprite = proj.SpriteRendererComponent
 		if isvalid(sprite) then
 			sprite.IgnoreMapLayerCheck = true
-			sprite.SortingLayer = "MapLayer2"
+			sprite.SortingLayer = _RenderLayers.EntityLayer
 			sprite.OrderInLayer = 500
 		end
-
+		
 		local projComp = proj:GetComponent("script.Projectile")
 		if not isvalid(projComp) then
 			proj:AddComponent("script.Projectile")
@@ -1672,6 +1777,90 @@ script PlayerController extends Component
 		if effectRUID ~= nil and effectRUID ~= "" then
 			-- PlayEffect(ruid, instigator, position, zRotation:float, scale:Vector3, isLoop:bool)
 			_EffectService:PlayEffect(effectRUID, nil, pos, 0.0, Vector3(1, 1, 1), false)
+		end
+	end
+
+	@ExecSpace("ServerOnly")
+	@EventSender("Self")
+	handler HandlePlayerHit(HitEvent event)
+		if self.IsDead then return end
+		if self.IFrameTimer > 0 then return end
+		
+		local playerComp = self.Entity.PlayerComponent
+		if playerComp == nil then return end
+		if not isvalid(event.AttackerEntity) then return end
+		
+		-- Check contact damage from attacker
+		local damage = event.TotalDamage
+		if damage <= 0 then
+			local monsterAttack = event.AttackerEntity:GetComponent("script.MonsterMeleeAttack")
+			if isvalid(monsterAttack) then
+				damage = math.max(1, math.floor(monsterAttack.ContactDamage - self.Defense * 0.1))
+			else
+				damage = 5
+			end
+		end
+		
+		-- Apply damage to player HP and start server-side IFrame cooldown
+		playerComp.Hp = math.max(0, playerComp.Hp - damage)
+		self.IFrameTimer = 1.0  -- 1 second i-frame
+		_TimerService:SetTimerOnce(function()
+			if isvalid(self.Entity) then
+				self.IFrameTimer = 0.0
+				log("[IFRAME] Server reset player IFrameTimer to 0.0")
+			end
+		end, 1.0)
+		
+		-- Trigger hit animation state and schedule IDLE restore on server
+		local sc = self.Entity.StateComponent
+		if isvalid(sc) then
+			sc:ChangeState("HIT")
+			_TimerService:SetTimerOnce(function()
+				if isvalid(self.Entity) and not self.IsDead then
+					local currentSc = self.Entity.StateComponent
+					if isvalid(currentSc) and currentSc.CurrentStateName == "HIT" then
+						currentSc:ChangeState("IDLE")
+						log("[KNOCKBACK] Server restored player state from HIT to IDLE")
+					end
+				end
+			end, 0.25)
+		end
+		
+		-- Apply Knockback (Server-side teleport push with obstacle checking)
+		local pp = self.Entity.TransformComponent.WorldPosition
+		local ap = event.AttackerEntity.TransformComponent.WorldPosition
+		local kx = pp.x - ap.x
+		local ky = pp.y - ap.y
+		local len = math.sqrt(kx * kx + ky * ky)
+		if len <= 0.0001 then kx = 1 ky = 0 len = 1 end
+		
+		local dirX = kx / len
+		local dirY = ky / len
+		
+		local dist = 1.2
+		local targetPos = Vector3(pp.x + dirX * dist, pp.y + dirY * dist, pp.z)
+		local finalKnockPos = pp  -- Default to no movement
+		
+		if not self:IsObstacle(Vector2(targetPos.x, targetPos.y), 0.3, nil) then
+			playerComp:SetWorldPosition(targetPos)
+			finalKnockPos = targetPos
+			log("[KNOCKBACK] Server pushed player to: (" .. string.format("%.2f, %.2f", targetPos.x, targetPos.y) .. ")")
+		else
+			local halfPos = Vector3(pp.x + dirX * (dist * 0.5), pp.y + dirY * (dist * 0.5), pp.z)
+			if not self:IsObstacle(Vector2(halfPos.x, halfPos.y), 0.3, nil) then
+				playerComp:SetWorldPosition(halfPos)
+				finalKnockPos = halfPos
+				log("[KNOCKBACK] Server pushed player (half-distance) to: (" .. string.format("%.2f, %.2f", halfPos.x, halfPos.y) .. ")")
+			end
+		end
+		
+		self:ClientApplyKnockback(pp.x, pp.y, finalKnockPos.x, finalKnockPos.y, 0.25)
+		
+		log("Player " .. self.Entity.Name .. " hit for " .. damage .. " damage. HP remaining: " .. playerComp.Hp)
+		
+		-- Check Death
+		if playerComp.Hp <= 0 then
+			self:ServerDie()
 		end
 	end
 

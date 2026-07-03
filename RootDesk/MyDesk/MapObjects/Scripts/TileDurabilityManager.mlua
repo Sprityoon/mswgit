@@ -232,6 +232,16 @@ script TileDurabilityManager extends Logic
 			end
 		end
 		
+		-- 스킬트리 패시브(MinePower): 보유 레벨만큼 채집 타격 위력 가산 (자원 채집에만 적용)
+		if not isTile and not isFurniture and isvalid(attacker) then
+			local pcComp = attacker:GetComponent("script.PlayerController")
+			if isvalid(pcComp) then
+				---@type PlayerController
+				local pctrl = pcComp
+				damage = damage + math.floor(pctrl:GetPassiveBonus("MinePower"))
+			end
+		end
+		
 		if not hasCorrectTool then
 			-- Play refusal shake for normal resources
 			local reaction = resourceEntity:GetComponent("script.ResourceReaction")

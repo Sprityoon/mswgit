@@ -24,3 +24,4 @@
 {"ts":"2026-07-01T07:48:17.048Z","version":"0.8.6","command":"status","args":["--workspace","C:\\minho\\메이플월드","--json"],"cwd":"C:\\minho\\메이플월드","exitCode":0,"durationMs":40}
 {"ts":"2026-07-02T06:37:08.375Z","version":"0.8.6","command":"status","args":["--workspace","C:\\minho\\메이플월드","--json"],"cwd":"C:\\minho\\메이플월드","exitCode":0,"durationMs":54}
 {"ts":"2026-07-03T06:45:55.643Z","version":"0.8.6","command":"status","args":["--workspace","C:\\minho\\메이플월드","--json"],"cwd":"C:\\minho\\메이플월드","exitCode":0,"durationMs":51}
+{"ts":"2026-07-03T16:43:56.073Z","version":"0.8.6","command":"status","args":["--workspace","C:\\Users\\yaong\\Documents\\메이플월드","--json"],"cwd":"C:\\Users\\yaong\\Documents\\메이플월드","exitCode":0,"durationMs":45}

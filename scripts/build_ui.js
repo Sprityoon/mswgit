@@ -224,6 +224,43 @@ function patchPopups() {
     });
   }
 
+  // 7) SkillTreePopup Panel (hidden by default) — 스킬트리 (docs/design/skill-tree-plan.md §2 UI)
+  //    노드 슬롯은 범용 Node_<row>_<col> 그리드(4x3)로 깔아두고, 어떤 스킬이 어느 슬롯에 앉을지는
+  //    SkillDataSet의 TreeRow/TreeCol이 결정한다 (UI에 스킬 하드코딩 없음).
+  const ST = "SkillTreePopup";
+  const ST_ROWS = 4;
+  const ST_COLS = 3;
+  const ST_COL_X = [-180, 0, 180];
+  const ST_ROW_Y = [160, 40, -80, -200];
+  if (!b.getId(`/ui/PopupGroup/${ST}`)) {
+    b.panel(ST, { anchor: "middle-center", pos: [0, 0], rect_size: [800, 700], enable: false });
+    b.addComponent(ST, "script.UISkillTreeController");
+    b.patch(ST, { display_order: 44 });
+
+    b.sprite(`${ST}/Bg`, { anchor: "middle-center", pos: [0, 0], rect_size: [560, 620], color: "#2B2B33", alpha: 1.0, raycast: true });
+    b.text(`${ST}/Bg/Title`, "스킬트리", { anchor: "middle-center", pos: [0, 275], rect_size: [280, 40], size: 26, color: "#FFE9A8", alignment: 4 });
+    b.button(`${ST}/Bg/BtnClose`, "X", { anchor: "middle-center", pos: [245, 275], rect_size: [40, 40], font_size: 22, color: "#FFFFFF" });
+    b.patchComponent(`${ST}/Bg/BtnClose`, "MOD.Core.SpriteGUIRendererComponent", { Color: { r: 0.55, g: 0.18, b: 0.16, a: 1.0 } });
+    b.text(`${ST}/Bg/SPText`, "SP 0  |  Lv 1", { anchor: "middle-center", pos: [0, 235], rect_size: [340, 30], size: 18, color: "#FFE9A8", alignment: 4 });
+
+    for (let r = 1; r <= ST_ROWS; r++) {
+      for (let c = 1; c <= ST_COLS; c++) {
+        const nodeName = `${ST}/Bg/Node_${r}_${c}`;
+        b.button(nodeName, "", { anchor: "middle-center", pos: [ST_COL_X[c - 1], ST_ROW_Y[r - 1]], rect_size: [164, 100], enable: false });
+        b.patchComponent(nodeName, "MOD.Core.SpriteGUIRendererComponent", { Color: { r: 0.22, g: 0.22, b: 0.26, a: 1.0 } });
+        b.text(`${nodeName}/NameText`, "", { anchor: "middle-center", pos: [0, 30], rect_size: [156, 28], size: 20, color: "#FFFFFF", alignment: 4 });
+        b.text(`${nodeName}/LvText`, "", { anchor: "middle-center", pos: [0, 2], rect_size: [156, 24], size: 16, color: "#FFE9A8", alignment: 4 });
+        b.text(`${nodeName}/SubText`, "", { anchor: "middle-center", pos: [0, -28], rect_size: [156, 22], size: 14, color: "#CCCCCC", alignment: 4 });
+      }
+    }
+
+    b.text(`${ST}/Bg/Hint`, "노드 클릭 = 해금/강화  ·  K키로 열고 닫기", { anchor: "middle-center", pos: [0, -285], rect_size: [520, 26], size: 14, color: "#999999", alignment: 4 });
+  } else {
+    if (!b.hasComponent(ST, "script.UISkillTreeController")) {
+      b.addComponent(ST, "script.UISkillTreeController");
+    }
+  }
+
   b.write(file, {
     bind: {
       mlua: path.join(rootUIDir, "UIInventoryController.mlua"),
@@ -268,12 +305,16 @@ function patchPopups() {
   }
   b.injectBindings(path.join(rootUIDir, "UIPermissionController.mlua"), permissionProps);
 
-  // Inject Warp bindings
+  // Inject Warp bindings — WarpPopup은 Maker/후속 패스에서 슬롯 기반(Slot1~6)으로 재작업됨.
+  // 현재 컨트롤러가 바인딩으로 받는 것은 btnClose뿐 (slots은 GetChildByName 런타임 조회).
   b.injectBindings(path.join(rootUIDir, "UIWarpController.mlua"), {
-    btnClose: `${WP}/Bg/BtnClose`,
-    btnMyHome: `${WP}/Bg/BtnMyHome`,
-    inputName: `${WP}/Bg/InputName`,
-    btnVisit: `${WP}/Bg/BtnVisit`
+    btnClose: `${WP}/Bg/BtnClose`
+  });
+
+  // Inject SkillTree bindings
+  b.injectBindings(path.join(rootUIDir, "UISkillTreeController.mlua"), {
+    btnClose: `${ST}/Bg/BtnClose`,
+    spText: `${ST}/Bg/SPText`
   });
 
   const after = b.listEntities().length;

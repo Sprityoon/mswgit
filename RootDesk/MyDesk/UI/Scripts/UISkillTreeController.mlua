@@ -1,0 +1,270 @@
+@Component
+script UISkillTreeController extends Component
+
+	-- SkillTreePopup: SkillDataSet의 TreeRow/TreeCol 좌표로 노드를 배치하고 노드 4상태
+	-- (잠김 / 목표 진행 중 / 해금 가능 / 보유)를 렌더링한다. (docs/design/skill-tree-plan.md §2 UI)
+	-- 노드 슬롯은 .ui에 Node_<row>_<col> 범용 슬롯으로 깔려 있고, 어떤 스킬이 어느 슬롯에
+	-- 앉을지는 전적으로 CSV(TreeRow/TreeCol)가 결정한다 — UI에 스킬 하드코딩 없음.
+
+	property Entity btnClose = "da9d3a55-39ec-42c3-8e38-14c714c3cf71"
+
+	property Entity spText = "4e3d8f52-1eec-4615-8d8d-2b68360f4b6b"
+
+	property integer MaxRows = 4
+
+	property integer MaxCols = 3
+
+	property any closeHandler = nil
+
+	property table nodeHandlers = {}
+
+	-- "row_col" -> skillId (Refresh 시 CSV 기준으로 재구성)
+	property table nodeSkillMap = {}
+
+	property number RefreshAccum = 0.0
+
+	@ExecSpace("ClientOnly")
+	method void OnBeginPlay()
+		self.Entity.Enable = false
+
+		if isvalid(self.btnClose) then
+			self.closeHandler = self.btnClose:ConnectEvent(ButtonClickEvent, self.OnCloseClicked)
+		end
+
+		self:SetupNodeEvents()
+	end
+
+	@ExecSpace("ClientOnly")
+	method void OnEndPlay()
+		if self.closeHandler and isvalid(self.btnClose) then
+			self.btnClose:DisconnectEvent(ButtonClickEvent, self.closeHandler)
+		end
+		for ent, clickHandler in pairs(self.nodeHandlers) do
+			if isvalid(ent) then
+				ent:DisconnectEvent(ButtonClickEvent, clickHandler)
+			end
+		end
+		self.nodeHandlers = {}
+	end
+
+	@ExecSpace("ClientOnly")
+	method void Toggle()
+		if self.Entity.Enable then
+			self:Close()
+		else
+			self:Open()
+		end
+	end
+
+	@ExecSpace("ClientOnly")
+	method void Open()
+		self.Entity.Enable = true
+		self:Refresh()
+	end
+
+	@ExecSpace("ClientOnly")
+	method void Close()
+		self.Entity.Enable = false
+	end
+
+	@ExecSpace("ClientOnly")
+	method void OnUpdate(number delta)
+		-- 열려 있는 동안 0.25초 주기로 갱신 (SP/업적 진행도 실시간 반영)
+		if not self.Entity.Enable then return end
+		self.RefreshAccum = self.RefreshAccum + delta
+		if self.RefreshAccum < 0.25 then return end
+		self.RefreshAccum = 0.0
+		self:Refresh()
+	end
+
+	method any GetLocalPlayerController()
+		local lp = _UserService.LocalPlayer
+		if not isvalid(lp) then return nil end
+		local pc = lp:GetComponent("script.PlayerController")
+		if not isvalid(pc) then return nil end
+		return pc
+	end
+
+	@ExecSpace("ClientOnly")
+	method void SetupNodeEvents()
+		for r = 1, self.MaxRows do
+			for c = 1, self.MaxCols do
+				local node = self.Entity:GetChildByName("Node_" .. r .. "_" .. c, true)
+				if isvalid(node) then
+					local key = r .. "_" .. c
+					local clickHandler = node:ConnectEvent(ButtonClickEvent, function()
+						self:OnNodeClicked(key)
+					end)
+					self.nodeHandlers[node] = clickHandler
+				end
+			end
+		end
+	end
+
+	@ExecSpace("ClientOnly")
+	method void OnNodeClicked(string key)
+		-- 노드 클릭 = 해금/레벨업 요청. 검증은 전부 서버(ServerRequestSkillLevelUp)가 수행한다.
+		local skillId = self.nodeSkillMap[key]
+		if skillId == nil or skillId == "" then return end
+
+		local pc = self:GetLocalPlayerController()
+		if pc == nil then return end
+		---@type PlayerController
+		local controller = pc
+		controller:ServerRequestSkillLevelUp(skillId)
+	end
+
+	@ExecSpace("ClientOnly")
+	method boolean IsAchievementDoneClient(integer achId)
+		-- 서버 IsUnlockAchievementSatisfied의 표시용 클라 미러 (UserDataTable은 @Sync로 내려옴)
+		local lp = _UserService.LocalPlayer
+		if not isvalid(lp) then return false end
+		local pa = lp.PlayerAchievement
+		if pa == nil then return false end
+
+		local data = _AchievementDataSetLogic:GetData(achId)
+		if data == nil then return false end
+
+		local userData = pa.UserDataTable[achId]
+		if userData == nil then return false end
+
+		if userData.State == _AchievementStateEnum.Completed then return true end
+		if not userData:IsCompletable(data) then return false end
+		return data:GetStepData(userData.Step + 1) == nil
+	end
+
+	@ExecSpace("ClientOnly")
+	method number GetAchievementPctClient(integer achId)
+		-- 현재 스텝 진행률 0.0~1.0 (표시용)
+		local lp = _UserService.LocalPlayer
+		if not isvalid(lp) then return 0.0 end
+		local pa = lp.PlayerAchievement
+		if pa == nil then return 0.0 end
+
+		local data = _AchievementDataSetLogic:GetData(achId)
+		if data == nil then return 0.0 end
+
+		local userData = pa.UserDataTable[achId]
+		if userData == nil then return 0.0 end
+
+		local stepData = data.StepDatas[userData.Step]
+		if stepData == nil or stepData.Value <= 0 then return 1.0 end
+
+		return math.min(1.0, userData.Value / stepData.Value)
+	end
+
+	@ExecSpace("ClientOnly")
+	method void SetNodeVisual(Entity node, Color bgColor, string nameStr, string lvStr, string subStr)
+		if isvalid(node.SpriteGUIRendererComponent) then
+			node.SpriteGUIRendererComponent.Color = bgColor
+		end
+		local nameEnt = node:GetChildByName("NameText")
+		if isvalid(nameEnt) and isvalid(nameEnt.TextComponent) then
+			nameEnt.TextComponent.Text = nameStr
+		end
+		local lvEnt = node:GetChildByName("LvText")
+		if isvalid(lvEnt) and isvalid(lvEnt.TextComponent) then
+			lvEnt.TextComponent.Text = lvStr
+		end
+		local subEnt = node:GetChildByName("SubText")
+		if isvalid(subEnt) and isvalid(subEnt.TextComponent) then
+			subEnt.TextComponent.Text = subStr
+		end
+	end
+
+	@ExecSpace("ClientOnly")
+	method void Refresh()
+		local pc = self:GetLocalPlayerController()
+		if pc == nil then return end
+		---@type PlayerController
+		local controller = pc
+
+		if isvalid(self.spText) and isvalid(self.spText.TextComponent) then
+			self.spText.TextComponent.Text = "SP " .. controller.SP .. "  |  Lv " .. controller.Level
+		end
+
+		-- 모든 노드 슬롯을 일단 숨김 — CSV에 좌표가 있는 스킬만 다시 켠다
+		self.nodeSkillMap = {}
+		for r = 1, self.MaxRows do
+			for c = 1, self.MaxCols do
+				local node = self.Entity:GetChildByName("Node_" .. r .. "_" .. c, true)
+				if isvalid(node) then
+					node.Enable = false
+				end
+			end
+		end
+
+		local ds = _DataService:GetTable("SkillDataSet")
+		if ds == nil then return end
+
+		local rowCount = ds:GetRowCount()
+		for i = 1, rowCount do
+			local skillId = ds:GetCell(i, "SkillId")
+			local treeRow = tonumber(ds:GetCell(i, "TreeRow")) or 0
+			local treeCol = tonumber(ds:GetCell(i, "TreeCol")) or 0
+
+			if skillId ~= nil and skillId ~= "" and treeRow >= 1 and treeRow <= self.MaxRows
+				and treeCol >= 1 and treeCol <= self.MaxCols then
+				local node = self.Entity:GetChildByName("Node_" .. treeRow .. "_" .. treeCol, true)
+				if isvalid(node) then
+					node.Enable = true
+					self.nodeSkillMap[treeRow .. "_" .. treeCol] = skillId
+					self:RefreshNode(node, ds, i, skillId, controller)
+				end
+			end
+		end
+	end
+
+	@ExecSpace("ClientOnly")
+	method void RefreshNode(Entity node, any ds, integer rowIndex, string skillId, any pc)
+		---@type PlayerController
+		local controller = pc
+
+		local skillName = ds:GetCell(rowIndex, "Name") or skillId
+		local maxLevel = tonumber(ds:GetCell(rowIndex, "MaxLevel")) or 1
+		local spCost = tonumber(ds:GetCell(rowIndex, "SPCost")) or 1
+		local parentId = ds:GetCell(rowIndex, "ParentSkillId")
+		local reqLevel = tonumber(ds:GetCell(rowIndex, "RequiredLevel")) or 1
+		local achId = tonumber(ds:GetCell(rowIndex, "UnlockAchievementId"))
+
+		local level = controller:GetSkillLevel(skillId)
+
+		if level >= 1 then
+			-- 보유: 파랑. 강화 가능 여부를 서브텍스트로.
+			local sub = "MAX"
+			if level < maxLevel then
+				sub = "강화: SP " .. spCost
+			end
+			self:SetNodeVisual(node, Color(0.16, 0.32, 0.55, 1.0), skillName, "Lv." .. level .. "/" .. maxLevel, sub)
+			return
+		end
+
+		local parentOk = (parentId == nil or parentId == "" or controller:GetSkillLevel(parentId) >= 1)
+		local levelOk = (controller.Level >= reqLevel)
+		local achOk = (achId == nil or achId <= 0 or self:IsAchievementDoneClient(achId))
+
+		if parentOk and levelOk and achOk then
+			-- 해금 가능: 초록
+			self:SetNodeVisual(node, Color(0.15, 0.45, 0.22, 1.0), skillName, "해금 가능", "해금: SP " .. spCost)
+		elseif parentOk and levelOk and not achOk then
+			-- 목표(업적) 진행 중: 주황 + 진행도 %
+			local pct = math.floor(self:GetAchievementPctClient(achId) * 100)
+			self:SetNodeVisual(node, Color(0.55, 0.38, 0.12, 1.0), skillName, "목표 진행 중", "진행도 " .. pct .. "%")
+		else
+			-- 잠김: 회색 + 사유
+			local reason = ""
+			if not parentOk then
+				reason = "선행 스킬 필요"
+			elseif not levelOk then
+				reason = "Lv." .. reqLevel .. " 필요"
+			end
+			self:SetNodeVisual(node, Color(0.22, 0.22, 0.26, 1.0), skillName, "잠김", reason)
+		end
+	end
+
+	@ExecSpace("ClientOnly")
+	method void OnCloseClicked(ButtonClickEvent event)
+		self:Close()
+	end
+
+end

@@ -1,14 +1,14 @@
 {
   "Id": "",
   "GameId": "",
-  "EntryKey": "codeblock://4c63ce78-b782-4af4-89bc-9cbf1be17baf",
+  "EntryKey": "codeblock://de6168b0-504d-469f-bcc6-7f87e8ad64f7",
   "ContentType": "x-mod/codeblock",
   "Content": "",
   "Usage": 0,
   "UsePublish": 1,
   "UseService": 0,
   "CoreVersion": "26.5.0.0",
-  "StudioVersion": "0.1.0.0",
+  "StudioVersion": "",
   "DynamicLoading": 0,
   "ContentProto": {
     "Use": "Json",
@@ -22,10 +22,10 @@
         "Minor": 1
       },
       "Description": "",
-      "Id": "4c63ce78-b782-4af4-89bc-9cbf1be17baf",
+      "Id": "de6168b0-504d-469f-bcc6-7f87e8ad64f7",
       "Language": 1,
-      "Name": "PlayerController",
-      "Type": 1,
+      "Name": "RenderLayers",
+      "Type": 5,
       "Source": 0,
       "Target": null
     }

@@ -785,8 +785,8 @@ script PlayerInventory extends Component
 				local sprite = spawnedEntity.SpriteRendererComponent
 				if isvalid(sprite) then
 					sprite.IgnoreMapLayerCheck = true
-					sprite.SortingLayer = "MapLayer2"
-					sprite.OrderInLayer = math.floor((resourceSpawner.MapRadius - cellPos.y) * 100)
+					sprite.SortingLayer = _RenderLayers.EntityLayer
+					sprite.OrderInLayer = math.max(_RenderLayers.MinEntityOrder, math.floor((resourceSpawner.MapRadius - cellPos.y) * 100))
 				end
 				log("[PLACE] Spawned furniture " .. itemName .. " at cell " .. tostring(cellPos))
 				

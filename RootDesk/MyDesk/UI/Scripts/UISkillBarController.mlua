@@ -71,20 +71,38 @@ script UISkillBarController extends Component
 
 				local displayName = ""
 				local cd = 0
+				local locked = false
 				if skillId ~= nil and ds ~= nil then
 					local row = ds:FindRow("SkillId", skillId)
 					if row ~= nil then
 						displayName = row:GetItem("Name") or skillId
 						cd = tonumber(row:GetItem("Cooldown")) or 0
+						-- 스킬트리 연동(S3): 미해금 스킬은 잠금 표시, 보유 스킬은 실효 쿨다운 반영
+						if pc ~= nil then
+							---@type PlayerController
+							local controller = pc
+							local level = controller:GetSkillLevel(skillId)
+							if level < 1 then
+								locked = true
+								displayName = "[잠김] " .. displayName
+							else
+								cd = controller:GetEffectiveCooldown(skillId, level)
+							end
+						end
 					end
 				end
 
 				if isvalid(nameEnt) and isvalid(nameEnt.TextComponent) then
 					nameEnt.TextComponent.Text = displayName
+					if locked then
+						nameEnt.TextComponent.FontColor = Color(0.55, 0.55, 0.55, 1.0)
+					else
+						nameEnt.TextComponent.FontColor = Color(1.0, 1.0, 1.0, 1.0)
+					end
 				end
 
 				local remain = 0
-				if skillId ~= nil then
+				if skillId ~= nil and not locked then
 					local last = cdMap[skillId] or -999.0
 					remain = cd - (now - last)
 				end

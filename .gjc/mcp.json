@@ -1,0 +1,21 @@
+{
+  "$schema": "https://raw.githubusercontent.com/can1357/gajae-code/main/packages/coding-agent/src/config/mcp-schema.json",
+  "mcpServers": {
+    "msw-maker-mcp": {
+      "type": "stdio",
+      "command": "cmd.exe",
+      "args": [
+        "/c",
+        "call",
+        "C:\\Nexon\\MapleStory Worlds\\MakerMCP\\msw-maker-mcp.bat"
+      ]
+    },
+    "msw-mcp": {
+      "type": "http",
+      "url": "https://msw-mcp.nexon.com/mcp",
+      "headers": {
+        "Authorization": "Bearer b519882db9be4829875e5d315c457b5e"
+      }
+    }
+  }
+}

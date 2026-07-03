@@ -205,6 +205,8 @@ script PersistenceManager extends Logic
 				pc.MaxStamina = data.maxStamina or 100
 				pc.GatheringSpeed = data.gatheringSpeed or 1.0
 				pc.UnlockedWaypointsJson = data.unlockedWaypoints or "[]"
+				pc.SkillLevelsJson = data.skillLevels or "{}"
+				pc.SP = data.sp or 0
 				log("PersistenceManager: Stats restored (Lv " .. pc.Level .. ")")
 			end
 
@@ -361,6 +363,8 @@ script PersistenceManager extends Logic
 			pc.Stamina = 100
 			pc.MaxStamina = 100
 			pc.GatheringSpeed = 1.0
+			pc.SkillLevelsJson = "{}"
+			pc.SP = 0
 		end
 	end
 
@@ -427,6 +431,8 @@ script PersistenceManager extends Logic
 			quickSlots = inv.QuickSlotsJson,
 			selectedSlot = tonumber(inv.SelectedQuickSlotIndex) or 1,
 			unlockedWaypoints = pc.UnlockedWaypointsJson or "[]",
+			skillLevels = pc.SkillLevelsJson or "{}",
+			sp = tonumber(pc.SP) or 0,
 			posX = tonumber(posX) or 0.0,
 			posY = tonumber(posY) or 0.0,
 			homeTiles = tilesJson,

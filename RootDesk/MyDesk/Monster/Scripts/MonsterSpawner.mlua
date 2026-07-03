@@ -216,8 +216,8 @@ script MonsterSpawner extends Logic
 									local sprite = spawnedMonster.SpriteRendererComponent
 									if isvalid(sprite) then
 										sprite.IgnoreMapLayerCheck = true
-										sprite.SortingLayer = "MapLayer2"
-										sprite.OrderInLayer = math.floor((radius - ry) * 100)
+										sprite.SortingLayer = _RenderLayers.EntityLayer
+										sprite.OrderInLayer = math.max(_RenderLayers.MinEntityOrder, math.floor((radius - ry) * 100))
 
 										if biomeId == "desert" then
 											sprite.Color = Color(1.0, 0.9, 0.6, 1.0) -- Yellowish Desert tint

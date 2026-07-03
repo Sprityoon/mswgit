@@ -680,8 +680,8 @@ script ResourceSpawner extends Logic
 		local sprite = boss.SpriteRendererComponent
 		if isvalid(sprite) then
 			sprite.IgnoreMapLayerCheck = true
-			sprite.SortingLayer = "MapLayer2"
-			sprite.OrderInLayer = math.floor((self.MapRadius - by) * 100)
+			sprite.SortingLayer = _RenderLayers.EntityLayer
+			sprite.OrderInLayer = math.max(_RenderLayers.MinEntityOrder, math.floor((self.MapRadius - by) * 100))
 		end
 
 		log("ResourceSpawner: Boss " .. bossModelId .. " spawned in " .. map.Name)
@@ -703,8 +703,8 @@ script ResourceSpawner extends Logic
 		local sprite = portal.SpriteRendererComponent
 		if isvalid(sprite) then
 			sprite.IgnoreMapLayerCheck = true
-			sprite.SortingLayer = "MapLayer2"
-			sprite.OrderInLayer = math.floor((self.MapRadius - py) * 100)
+			sprite.SortingLayer = _RenderLayers.EntityLayer
+			sprite.OrderInLayer = math.max(_RenderLayers.MinEntityOrder, math.floor((self.MapRadius - py) * 100))
 		end
 
 		local pg = portal:GetComponent("script.PortalGate")
@@ -1058,8 +1058,8 @@ script ResourceSpawner extends Logic
 		local sprite = resEntity.SpriteRendererComponent
 		if isvalid(sprite) then
 			sprite.IgnoreMapLayerCheck = true
-			sprite.SortingLayer = "MapLayer2"
-			sprite.OrderInLayer = math.floor((mapRadius - y) * 100)
+			sprite.SortingLayer = _RenderLayers.EntityLayer
+			sprite.OrderInLayer = math.max(_RenderLayers.MinEntityOrder, math.floor((mapRadius - y) * 100))
 		end
 	
 		for nx = xMin, xMax do
@@ -1466,8 +1466,8 @@ script ResourceSpawner extends Logic
 		local sprite = resEntity.SpriteRendererComponent
 		if isvalid(sprite) then
 			sprite.IgnoreMapLayerCheck = true
-			sprite.SortingLayer = "MapLayer2"
-			sprite.OrderInLayer = math.floor((self.MapRadius - y) * 100)
+			sprite.SortingLayer = _RenderLayers.EntityLayer
+			sprite.OrderInLayer = math.max(_RenderLayers.MinEntityOrder, math.floor((self.MapRadius - y) * 100))
 		end
 		
 		local xMin, xMax, yMin, yMax = x, x, y, y
@@ -1581,8 +1581,8 @@ script ResourceSpawner extends Logic
 					local sprite = spawnedEntity.SpriteRendererComponent
 					if isvalid(sprite) then
 						sprite.IgnoreMapLayerCheck = true
-						sprite.SortingLayer = "MapLayer2"
-						sprite.OrderInLayer = math.floor((self.MapRadius - fy) * 100)
+						sprite.SortingLayer = _RenderLayers.EntityLayer
+						sprite.OrderInLayer = math.max(_RenderLayers.MinEntityOrder, math.floor((self.MapRadius - fy) * 100))
 					end
 					
 					-- If the spawned entity is a Wooden Chest, attach script.Chest
