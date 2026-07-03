@@ -1,0 +1,23 @@
+{
+  "Id": "",
+  "GameId": "",
+  "EntryKey": "userdataset://ab2eda2c-83be-47ba-a3bb-1f845fbdb93c",
+  "ContentType": "x-mod/userdataset",
+  "Content": "",
+  "Usage": 0,
+  "UsePublish": 1,
+  "UseService": 0,
+  "CoreVersion": "26.5.0.0",
+  "StudioVersion": "0.1.0.0",
+  "DynamicLoading": 0,
+  "ContentProto": {
+    "Use": "Json",
+    "Json": {
+      "name": "AchievementStepDataSet",
+      "id": "ab2eda2c-83be-47ba-a3bb-1f845fbdb93c",
+      "serveronly": false,
+      "syncDataSetWebUrl": "",
+      "dynamicloading": 0
+    }
+  }
+}

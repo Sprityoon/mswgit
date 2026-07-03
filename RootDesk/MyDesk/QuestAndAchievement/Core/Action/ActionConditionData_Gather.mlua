@@ -1,0 +1,31 @@
+@Struct
+script ActionConditionData_Gather extends ActionConditionData
+
+	-- CondArg = 아이템 Name (item_dataset의 Name 컬럼, 빈 값 = 아무 아이템). ActionEvent.Args = { itemName, count }
+	property string Target = ""
+
+	method any Clone()
+		return ActionConditionData_Gather()
+	end
+
+	method boolean LoadArg(string str)
+		self.Target = str or ""
+		return true
+	end
+
+	method table GetActionEnumList()
+		return { _ActionEnum.Gather }
+	end
+
+	method boolean Check(Entity userEntity, ActionEvent evt, integer userValue, integer condValue)
+		if _Util:IsNilorEmptyString(self.Target) then
+			return true
+		end
+		return evt.Args[1] == self.Target
+	end
+
+	method integer GetNextUserValue(Entity userEntity, ActionEvent evt, integer userValue, integer condValue)
+		return userValue + (evt.Args[2] or 1)
+	end
+
+end

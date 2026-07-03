@@ -425,8 +425,13 @@ script PlayerInventory extends Component
 				self:RemoveItem(ing.itemName, ing.required)
 			end
 			local craftedKey = self:AddItem(recipeName, 1)
-		
+
 			log("[CRAFT] Player " .. self.Entity.Name .. " crafted " .. recipeName)
+
+			-- 업적/퀘스트 진행: 제작 액션 발행
+			if _ActionSignals ~= nil then
+				_ActionSignals:EmitToPlayer(self.Entity, _ActionEnum.Craft, recipeName, 1)
+			end
 			self:ClientOnCraftCompleted(recipeName, true, playerComp.UserId)
 		
 			-- Auto-Equip Logic

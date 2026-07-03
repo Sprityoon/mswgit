@@ -1,0 +1,33 @@
+{
+  "Id": "",
+  "GameId": "",
+  "EntryKey": "codeblock://de03a3ba-ba4e-4f3c-99ae-5d241fb39f98",
+  "ContentType": "x-mod/codeblock",
+  "Content": "",
+  "Usage": 0,
+  "UsePublish": 1,
+  "UseService": 0,
+  "CoreVersion": "26.5.0.0",
+  "StudioVersion": "",
+  "DynamicLoading": 0,
+  "ContentProto": {
+    "Use": "Json",
+    "Json": {
+      "CoreVersion": {
+        "Major": 0,
+        "Minor": 2
+      },
+      "ScriptVersion": {
+        "Major": 1,
+        "Minor": 1
+      },
+      "Description": "",
+      "Id": "de03a3ba-ba4e-4f3c-99ae-5d241fb39f98",
+      "Language": 1,
+      "Name": "GMAchievementToolLogic",
+      "Type": 5,
+      "Source": 0,
+      "Target": null
+    }
+  }
+}

@@ -1,0 +1,22 @@
+@Logic
+script AdminLogic extends Logic
+
+	-- [적응] 업스트림 플레이스홀더(무조건 true) 대신 화이트리스트 방식.
+	-- GM 도구를 쓸 계정의 UserId를 키로 추가한다: { ["12345678"] = true }
+	property table AdminUserIds = {}
+
+	@ExecSpace("ServerOnly")
+	method boolean IsAdmin(string userId)
+		return self.AdminUserIds[userId] == true
+	end
+
+	@ExecSpace("ClientOnly")
+	method boolean IsAdminLocalPlayer()
+		local player = _UserService.LocalPlayer
+		if not isvalid(player) or not isvalid(player.PlayerComponent) then
+			return false
+		end
+		return self.AdminUserIds[player.PlayerComponent.UserId] == true
+	end
+
+end

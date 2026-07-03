@@ -185,7 +185,12 @@ script itemreact extends Component
 		local inventory = player:GetComponent("script.PlayerInventory")
 		if isvalid(inventory) then
 			inventory:AddItem(self.ItemName, 1)
-			
+
+			-- 업적/퀘스트 진행: 아이템 획득 액션 발행
+			if _ActionSignals ~= nil then
+				_ActionSignals:EmitToPlayer(player, _ActionEnum.Gather, self.ItemName, 1)
+			end
+
 			-- 자연 생성된 돌 주변 아이템인 경우, 획득 완료 상태를 ResourceSpawner에 등록해 무한 파밍 방지
 			if self.IsNaturalSpawn and _ResourceSpawner then
 				local mapName = self.Entity.CurrentMap.Name

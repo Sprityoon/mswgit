@@ -1,0 +1,23 @@
+{
+  "Id": "",
+  "GameId": "",
+  "EntryKey": "userdataset://49f194eb-f405-41ce-8c32-95221e9d283c",
+  "ContentType": "x-mod/userdataset",
+  "Content": "",
+  "Usage": 0,
+  "UsePublish": 1,
+  "UseService": 0,
+  "CoreVersion": "26.5.0.0",
+  "StudioVersion": "0.1.0.0",
+  "DynamicLoading": 0,
+  "ContentProto": {
+    "Use": "Json",
+    "Json": {
+      "name": "QuestConditionDataSet",
+      "id": "49f194eb-f405-41ce-8c32-95221e9d283c",
+      "serveronly": false,
+      "syncDataSetWebUrl": "",
+      "dynamicloading": 0
+    }
+  }
+}

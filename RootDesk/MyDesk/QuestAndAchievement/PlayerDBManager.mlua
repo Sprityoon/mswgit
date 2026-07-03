@@ -1,0 +1,160 @@
+@Component
+script PlayerDBManager extends Component
+
+	-- [적응] 업스트림 Sample/PlayerDBManager에서 PlayerAccount 오케스트레이션을 제거한 버전.
+	-- 스탯/인벤토리 저장은 기존 PersistenceManager("SaveData" 키)가 담당하고,
+	-- 이 매니저는 업적("Achievement")/퀘스트("Quest") 키만 소유한다 — 저장 소유권 분리.
+
+	property integer TimerId = 0
+
+	property boolean IsLoadAttempted = false
+
+	@TargetUserSync
+	property boolean IsLoadSuccess = false
+
+	@ExecSpace("ServerOnly")
+	method void SaveToDB(boolean isLeaving)
+		-- 업적/퀘스트 유저 데이터를 배치로 저장한다 (300초 주기 + 퇴장 시 동기 저장).
+		if not self.IsLoadSuccess then
+			return
+		end
+
+		local saveData = {}
+		-------------------------------------------------------------------
+		local playerEntity = self.Entity
+		playerEntity.PlayerAchievement:SaveToDB(saveData)
+		playerEntity.PlayerQuest:SaveToDB(saveData)
+		-------------------------------------------------------------------
+
+		local userID = self.Entity.PlayerComponent.UserId
+		local ds = _DataStorageService:GetUserDataStorage(userID)
+		if isLeaving == true then
+			ds:BatchSetAndWait(saveData)
+		else
+			local callback = function(errorCode, values)
+				if errorCode == 0 then
+					return
+				end
+
+				log_error("PlayerDBManager: BatchSetAsync failed. errorCode=" .. tostring(errorCode))
+			end
+			ds:BatchSetAsync(saveData, callback)
+		end
+	end
+
+	@ExecSpace("ServerOnly")
+	method boolean LoadFromDB()
+		-- 업적/퀘스트 유저 데이터를 배치로 로드하고 각 컴포넌트에 전달한다.
+		local playerEntity = self.Entity
+		local userID = playerEntity.PlayerComponent.UserId
+		local ds = _DataStorageService:GetUserDataStorage(userID)
+		local loadKey = {}
+		local loadedData = {}
+
+		-------------------------------------------------------------------
+		playerEntity.PlayerAchievement:LoadFromDB(loadKey)
+		playerEntity.PlayerQuest:LoadFromDB(loadKey)
+		-------------------------------------------------------------------
+
+		local returnCode, itemPages = ds:BatchGetAndWait(loadKey)
+		if returnCode ~= 0 then
+			return false
+		end
+
+		while true do
+			local datas = itemPages:GetCurrentPageDatas()
+			if datas == nil then
+				break
+			end
+
+			for i=1, #datas do
+				loadedData[datas[i].KeyInfo.Key] = datas[i]
+			end
+
+			if itemPages.IsLastPage == true then
+				break
+			end
+			itemPages:MoveToNextPageAndWait()
+		end
+
+		if not self:OnLoadedDataFromDB(loadedData) then
+			return false
+		end
+
+		if not self:PostOnLoadedDataFromDB() then
+			return false
+		end
+
+		return true
+	end
+
+	@ExecSpace("ServerOnly")
+	method boolean OnLoadedDataFromDB(table datas)
+		local playerEntity = self.Entity
+
+		if not playerEntity.PlayerAchievement:OnLoadedDataFromDB(datas) then
+			return false
+		end
+
+		if not playerEntity.PlayerQuest:OnLoadedDataFromDB(datas) then
+			return false
+		end
+
+		return true
+	end
+
+	@ExecSpace("ServerOnly")
+	method boolean PostOnLoadedDataFromDB()
+		local playerEntity = self.Entity
+
+		if not playerEntity.PlayerAchievement:PostOnLoadedDataFromDB() then
+			return false
+		end
+
+		if not playerEntity.PlayerQuest:PostOnLoadedDataFromDB() then
+			return false
+		end
+
+		return true
+	end
+
+	@ExecSpace("Server")
+	method void NotifyWorldDataLoadCompleted()
+		-- 클라이언트의 DataLoadLogic이 월드 데이터셋 로드 완료를 알리면 유저 데이터를 로드한다.
+		if self.IsLoadAttempted then
+			return
+		end
+		self.IsLoadAttempted = true
+
+		if not _DataLoadLogic:IsLoadSuccessAndWait(self) then
+			return
+		end
+
+		if not self:LoadFromDB() then
+			return
+		end
+
+		self.IsLoadSuccess = true
+
+		-- Database save interval
+		local period = 300
+
+		local dbfunction = function()
+			self:SaveToDB(false)
+		end
+
+		self.TimerId = _TimerService:SetTimerRepeat(dbfunction, period, period)
+	end
+
+	@ExecSpace("ServerOnly")
+	@EventSender("Service", "UserService")
+	handler HandleUserLeaveEvent(UserLeaveEvent event)
+		local UserId = event.UserId
+
+		if UserId == self.Entity.PlayerComponent.UserId then
+			_TimerService:ClearTimer(self.TimerId)
+			self:SaveToDB(true)
+		end
+	end
+
+end

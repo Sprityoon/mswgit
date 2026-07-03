@@ -31799,6 +31799,176 @@
           ],
           "@version": 1
         }
+      },
+      {
+        "id": "107e3dd1-2299-477a-879e-538278c41dd5",
+        "path": "/maps/map01/MapleMapLayer_1",
+        "componentNames": "MOD.Core.MapLayerComponent",
+        "jsonString": {
+          "name": "MapleMapLayer_1",
+          "path": "/maps/map01/MapleMapLayer_1",
+          "nameEditable": false,
+          "enable": true,
+          "visible": true,
+          "localize": false,
+          "displayOrder": 10,
+          "pathConstraints": "///",
+          "revision": 1,
+          "origin": {
+            "type": "Model",
+            "entry_id": "maplemaplayer",
+            "sub_entity_id": null,
+            "root_entity_id": null,
+            "replaced_model_id": null
+          },
+          "modelId": "maplemaplayer",
+          "@components": [
+            {
+              "@type": "MOD.Core.MapLayerComponent",
+              "IsVisible": true,
+              "LayerSortOrder": 4,
+              "Locked": false,
+              "MapLayerName": "Layer5",
+              "Thumbnail": "",
+              "Enable": true
+            }
+          ],
+          "@version": 1
+        }
+      },
+      {
+        "id": "77321b58-da45-4a13-89ff-b95d0cb93143",
+        "path": "/maps/map01/RectTileMap_1",
+        "componentNames": "MOD.Core.TransformComponent,MOD.Core.RectTileMapComponent",
+        "jsonString": {
+          "name": "RectTileMap_1",
+          "path": "/maps/map01/RectTileMap_1",
+          "nameEditable": false,
+          "enable": true,
+          "visible": true,
+          "localize": false,
+          "displayOrder": 11,
+          "pathConstraints": "///",
+          "revision": 1,
+          "origin": {
+            "type": "Model",
+            "entry_id": "recttilemap",
+            "sub_entity_id": null,
+            "root_entity_id": null,
+            "replaced_model_id": null
+          },
+          "modelId": "recttilemap",
+          "@components": [
+            {
+              "@type": "MOD.Core.TransformComponent",
+              "Position": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 1000.0
+              },
+              "QuaternionRotation": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0,
+                "w": 1.0
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.RectTileMapComponent",
+              "SortingLayer": "MapLayer4",
+              "TileSetRUID": "",
+              "Enable": true,
+              "tileMap": []
+            }
+          ],
+          "@version": 1
+        }
+      },
+      {
+        "id": "a95fe6f4-2967-4e3e-ba79-88a3b2d12a30",
+        "path": "/maps/map01/MapleMapLayer_2",
+        "componentNames": "MOD.Core.MapLayerComponent",
+        "jsonString": {
+          "name": "MapleMapLayer_2",
+          "path": "/maps/map01/MapleMapLayer_2",
+          "nameEditable": false,
+          "enable": true,
+          "visible": true,
+          "localize": false,
+          "displayOrder": 12,
+          "pathConstraints": "///",
+          "revision": 1,
+          "origin": {
+            "type": "Model",
+            "entry_id": "maplemaplayer",
+            "sub_entity_id": null,
+            "root_entity_id": null,
+            "replaced_model_id": null
+          },
+          "modelId": "maplemaplayer",
+          "@components": [
+            {
+              "@type": "MOD.Core.MapLayerComponent",
+              "IsVisible": true,
+              "LayerSortOrder": 5,
+              "Locked": false,
+              "MapLayerName": "Layer6",
+              "Thumbnail": "",
+              "Enable": true
+            }
+          ],
+          "@version": 1
+        }
+      },
+      {
+        "id": "3b267940-ac46-4142-b777-5f3c6191aa5a",
+        "path": "/maps/map01/RectTileMap_2",
+        "componentNames": "MOD.Core.TransformComponent,MOD.Core.RectTileMapComponent",
+        "jsonString": {
+          "name": "RectTileMap_2",
+          "path": "/maps/map01/RectTileMap_2",
+          "nameEditable": false,
+          "enable": true,
+          "visible": true,
+          "localize": false,
+          "displayOrder": 13,
+          "pathConstraints": "///",
+          "revision": 1,
+          "origin": {
+            "type": "Model",
+            "entry_id": "recttilemap",
+            "sub_entity_id": null,
+            "root_entity_id": null,
+            "replaced_model_id": null
+          },
+          "modelId": "recttilemap",
+          "@components": [
+            {
+              "@type": "MOD.Core.TransformComponent",
+              "Position": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 1000.0
+              },
+              "QuaternionRotation": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0,
+                "w": 1.0
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.RectTileMapComponent",
+              "SortingLayer": "MapLayer5",
+              "TileSetRUID": "tileset://2361293b-a3c2-4138-8dec-4fb4d1f9acf4",
+              "Enable": true,
+              "tileMap": []
+            }
+          ],
+          "@version": 1
+        }
       }
     ]
   }

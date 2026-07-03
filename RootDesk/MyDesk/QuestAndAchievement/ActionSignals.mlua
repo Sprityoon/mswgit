@@ -1,0 +1,19 @@
+@Logic
+script ActionSignals extends Logic
+
+	@ExecSpace("ServerOnly")
+	method void EmitToPlayer(Entity playerEntity, integer actionEnum, string targetName, integer count)
+		-- 게임 로직(처치/채집/제작/제련 훅)에서 업적/퀘스트 진행용 ActionEvent를 플레이어 엔티티로 발행한다.
+		if not isvalid(playerEntity) then
+			return
+		end
+
+		local evt = ActionEvent()
+		evt.ActionEnum = actionEnum
+		evt.Args = { targetName, count }
+		playerEntity:SendEvent(evt)
+
+		log(string.format("[ActionSignals] %s <- action=%d target=%s x%d", playerEntity.Name, actionEnum, targetName, count))
+	end
+
+end

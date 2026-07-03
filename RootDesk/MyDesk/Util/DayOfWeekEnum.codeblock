@@ -1,0 +1,33 @@
+{
+  "Id": "",
+  "GameId": "",
+  "EntryKey": "codeblock://deac5a6d-8247-4f1a-a086-9ff0d59d7167",
+  "ContentType": "x-mod/codeblock",
+  "Content": "",
+  "Usage": 0,
+  "UsePublish": 1,
+  "UseService": 0,
+  "CoreVersion": "26.5.0.0",
+  "StudioVersion": "",
+  "DynamicLoading": 0,
+  "ContentProto": {
+    "Use": "Json",
+    "Json": {
+      "CoreVersion": {
+        "Major": 0,
+        "Minor": 2
+      },
+      "ScriptVersion": {
+        "Major": 1,
+        "Minor": 1
+      },
+      "Description": "",
+      "Id": "deac5a6d-8247-4f1a-a086-9ff0d59d7167",
+      "Language": 1,
+      "Name": "DayOfWeekEnum",
+      "Type": 5,
+      "Source": 0,
+      "Target": null
+    }
+  }
+}

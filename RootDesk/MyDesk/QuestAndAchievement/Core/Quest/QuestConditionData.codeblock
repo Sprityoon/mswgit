@@ -1,0 +1,33 @@
+{
+  "Id": "",
+  "GameId": "",
+  "EntryKey": "codeblock://b812aad0-f23d-4ea6-9db3-9d6a5ea341c8",
+  "ContentType": "x-mod/codeblock",
+  "Content": "",
+  "Usage": 0,
+  "UsePublish": 1,
+  "UseService": 0,
+  "CoreVersion": "26.5.0.0",
+  "StudioVersion": "",
+  "DynamicLoading": 0,
+  "ContentProto": {
+    "Use": "Json",
+    "Json": {
+      "CoreVersion": {
+        "Major": 0,
+        "Minor": 2
+      },
+      "ScriptVersion": {
+        "Major": 1,
+        "Minor": 1
+      },
+      "Description": "",
+      "Id": "b812aad0-f23d-4ea6-9db3-9d6a5ea341c8",
+      "Language": 1,
+      "Name": "QuestConditionData",
+      "Type": 9,
+      "Source": 0,
+      "Target": null
+    }
+  }
+}

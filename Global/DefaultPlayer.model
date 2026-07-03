@@ -21,7 +21,10 @@
         "script.PlayerController",
         "script.PlayerInventory",
         "MOD.Core.DamageSkinComponent",
-        "script.PlayerCombat"
+        "script.PlayerCombat",
+        "script.PlayerDBManager",
+        "script.PlayerAchievement",
+        "script.PlayerQuest"
       ],
       "Properties": [],
       "Values": [

@@ -45,6 +45,11 @@ script Monster extends Component
 			self:GrantBossRewards()
 		end
 
+		-- 업적/퀘스트 진행: 막타 플레이어에게 처치 액션 발행
+		if _ActionSignals ~= nil and isvalid(self.LastAttacker) then
+			_ActionSignals:EmitToPlayer(self.LastAttacker, _ActionEnum.Kill, self.Entity.Name, 1)
+		end
+
 		local delayHide = function()
 			self.Entity:SetVisible(false)
 			self.Entity:SetEnable(false)

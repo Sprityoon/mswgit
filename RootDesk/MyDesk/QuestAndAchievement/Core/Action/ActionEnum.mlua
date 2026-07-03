@@ -1,0 +1,21 @@
+@Logic
+script ActionEnum extends Logic
+
+	property integer Attend = 1
+
+	property integer StateChange = 2
+
+	property integer MesoChange = 3
+
+	property integer StaminaChange = 4
+
+	-- [적응] 이 게임의 상호작용 액션 (업스트림 1~4는 패키지 원본 유지)
+	property integer Kill = 5
+
+	property integer Gather = 6
+
+	property integer Craft = 7
+
+	property integer Smelt = 8
+
+end

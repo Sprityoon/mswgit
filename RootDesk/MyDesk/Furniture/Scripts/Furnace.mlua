@@ -225,6 +225,12 @@ script Furnace extends Component
 			if self.OutputItemCount > 0 then
 				inv:AddItem(self.OutputItemName, self.OutputItemCount)
 				log(string.format("[FURNACE] Collected %d %s from Output slot.", self.OutputItemCount, self.OutputItemName))
+
+				-- 업적/퀘스트 진행: 제련 결과물 수거 액션 발행
+				if _ActionSignals ~= nil then
+					_ActionSignals:EmitToPlayer(playerEntity, _ActionEnum.Smelt, self.OutputItemName, self.OutputItemCount)
+				end
+
 				self.OutputItemName = ""
 				self.OutputItemCount = 0
 			end

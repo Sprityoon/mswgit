@@ -495,8 +495,9 @@ script ResourceSpawner extends Logic
 		local layer1Entity = self:GetOrCreateLayer(map, "RectTileMap")
 		local layer2Entity = self:GetOrCreateLayer(map, "RectTileMap2")
 		local layer3Entity = self:GetOrCreateLayer(map, "RectTileMap3")
+		local layer4Entity = self:GetOrCreateLayer(map, "RectTileMap4")
 		
-		if not isvalid(layer1Entity) or not isvalid(layer2Entity) or not isvalid(layer3Entity) then
+		if not isvalid(layer1Entity) or not isvalid(layer2Entity) or not isvalid(layer3Entity) or not isvalid(layer4Entity) then
 			log_warning("ResourceSpawner: Missing one of the map layer entities in map " .. mapName)
 			return
 		end
@@ -504,8 +505,9 @@ script ResourceSpawner extends Logic
 		local tilemap1 = layer1Entity.RectTileMapComponent
 		local tilemap2 = layer2Entity.RectTileMapComponent
 		local tilemap3 = layer3Entity.RectTileMapComponent
+		local tilemap4 = layer4Entity.RectTileMapComponent
 		
-		if not isvalid(tilemap1) or not isvalid(tilemap2) or not isvalid(tilemap3) then
+		if not isvalid(tilemap1) or not isvalid(tilemap2) or not isvalid(tilemap3) or not isvalid(tilemap4) then
 			log_warning("ResourceSpawner: Missing one of the RectTileMapComponents in map " .. mapName)
 			return
 		end
@@ -909,25 +911,9 @@ script ResourceSpawner extends Logic
 				local choice = "BaseEarth"
 
 				if proceduralTerrain then
-					-- Procedural (hunting) terrain: pick the tile from biome + grass noise, then paint.
-					if biomeId == "desert" then
-						local decoRoll = self:Hash2D(x, y, seedVal + 8888)
-						if decoRoll < 0.03 then
-							local decoIndex = math.floor(self:Hash2D(x, y, seedVal + 8889) * 3) + 1
-							choice = "DessertDeco" .. decoIndex
-						else
-							choice = "Dessert"
-						end
-					elseif biomeId == "rocky" then
-						choice = "Rocks"
-					elseif biomeId == "snowfield" then
-						choice = "Snow"
-					elseif biomeId == "green_island" then
-						if grassCacheAt(x, y) then
-							choice = "BaseGrass"
-						else
-							choice = "BaseEarth"
-						end
+					-- Procedural (hunting) terrain: only use tiles from tile1.tileset (BaseGrass and BaseEarth)
+					if grassCacheAt(x, y) then
+						choice = "BaseGrass"
 					else
 						choice = "BaseEarth"
 					end
@@ -935,11 +921,9 @@ script ResourceSpawner extends Logic
 					-- Draw base background tile on Layer 1
 					tilemap1:SetTile("BaseEarth", x, y)
 
-					-- Paint autotiled grass or decoration tile on Layer 2
+					-- Paint autotiled grass on Layer 2
 					if choice == "BaseGrass" then
 						tilemap2:SetTile(self:ComputeGrassTileName(grassCacheAt, x, y), x, y)
-					elseif choice ~= "BaseEarth" then
-						tilemap2:SetTile(choice, x, y)
 					end
 				else
 					-- Hand-painted (estate) terrain: terrain tiles are NOT repainted here (grass was
