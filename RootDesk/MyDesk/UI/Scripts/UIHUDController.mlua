@@ -416,11 +416,56 @@ script UIHUDController extends Component
 	end
 
 	@ExecSpace("ClientOnly")
+	method void UpdateQuestTracker(Entity player)
+		-- 온보딩 퀘스트 트래커 (game_design.md §3.11): 진행 중인 퀘스트 중 Priority가 가장 낮은
+		-- 하나를 좌상단 텍스트로 상시 표시한다. 진행 중인 퀘스트가 없으면 비운다.
+		-- 데이터: PlayerQuest.UserDataTable(SyncInit/SyncValuesChanged로 클라 복제)
+		--        + _QuestDataSetLogic(클라도 DataLoadLogic이 로드, QuestDataSet serveronly=false).
+		local tracker = _EntityService:GetEntityByPath("/ui/HUDGroup/QuestTracker")
+		if not isvalid(tracker) or not isvalid(tracker.TextComponent) then return end
+
+		local pq = player:GetComponent("script.PlayerQuest")
+		if not isvalid(pq) then
+			tracker.TextComponent.Text = ""
+			return
+		end
+
+		---@type PlayerQuest
+		local quest = pq
+		local bestData = nil
+		local bestUser = nil
+		for id, userData in pairs(quest.UserDataTable) do
+			if userData.State == _QuestStateEnum.InProgress then
+				local data = _QuestDataSetLogic:GetData(id)
+				if data ~= nil and (bestData == nil or data.Priority < bestData.Priority) then
+					bestData = data
+					bestUser = userData
+				end
+			end
+		end
+
+		if bestData == nil then
+			tracker.TextComponent.Text = ""
+			return
+		end
+
+		local progress = ""
+		local conds = bestData.ConditionDatas
+		if conds ~= nil and #conds >= 1 and bestUser.Values ~= nil then
+			local v = bestUser.Values[1] or 0
+			progress = string.format(" (%d/%d)", v, conds[1].Value)
+		end
+		tracker.TextComponent.Text = "[퀘스트] " .. bestData.ProgressingDesc .. progress
+	end
+
+	@ExecSpace("ClientOnly")
 	method void UpdateHUD()
 		-- description: Updates quick slots (icons, counts, rarity colors) and the day/night time UI.
 		-- HP / Level / Stamina now live in the UIMyInfo widget (script.UIMyInfo).
 		local player = _UserService.LocalPlayer
 		if not isvalid(player) then return end
+
+		self:UpdateQuestTracker(player)
 
 		local inv = player:GetComponent("script.PlayerInventory")
 		if isvalid(inv) then

@@ -58,6 +58,17 @@ function patchHUD() {
     });
   }
 
+  // 온보딩 퀘스트 트래커 (game_design.md §3.11) — 좌상단 스탯 아래 상시 노출.
+  // 텍스트 내용은 UIHUDController:UpdateQuestTracker가 채운다 (진행 퀘스트 없으면 빈 문자열).
+  b.text("QuestTracker", "", {
+    anchor: "top-left",
+    pos: [24, -185],
+    rect_size: [520, 40],
+    size: 20,
+    color: "#FFE9A8",
+    alignment: 3, // middle-left
+  });
+
   // Spawn cover: full-screen opaque black sprite shown until the server signals the
   // player's home is ready (UIHUDController.FadeOutSpawn fades it out). High displayOrder
   // so it sits above every other HUD element; raycast blocks input during the load.

@@ -11,6 +11,7 @@
   * `clear_logs` -> `logs`: 빌드 오류 및 런타임 오류 검출.
 * **RUID 유효성**: `SpriteRendererComponent` 등 생성 시, `SpriteRUID`를 비워두지 말고 적절한 리소스를 `msw-search`로 검색하여 바인딩하십시오.
 * **Builder 사용**: `.map`, `.model`, `.ui` 파일을 수정할 때는 [references/builder-protocol.md](../../plugins/msw-maker-base-skill/skills/msw-general/references/builder-protocol.md)를 숙지하고 각각의 Builder 스크립트를 사용하십시오.
+* **CSV 데이터셋 편집 (⚠️ CRLF 필수)**: `.userdataset` 짝의 `.csv`를 파일로 직접 편집할 때 **줄바꿈은 반드시 CRLF**여야 한다. LF-only로 저장하면 Maker refresh가 행을 임포트하지 못해 `_DataService:GetTable(...)`이 **에러 없이 0행**을 반환한다 (2026-07-04 QuestDataSet 실측).
 
 ## DEVELOPMENT WORKFLOW
 

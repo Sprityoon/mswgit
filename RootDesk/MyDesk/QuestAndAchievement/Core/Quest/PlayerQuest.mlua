@@ -251,6 +251,34 @@ script PlayerQuest extends Component
 		
 		local userId = userEntity.PlayerComponent.UserId
 		self:SyncValuesChanged(idValuesTable, userId)
+
+		-- [적응] 자동 완수 (game_design.md §3.11 온보딩 퀘스트 라인): 전용 퀘스트 수령 UI가 아직 없으므로
+		-- 조건을 전부 채운 퀘스트는 즉시 서버에서 완료 처리한다. CompleteQuests가 내부에서
+		-- AutoAcceptQuests를 호출해 다음 연계 퀘스트(LinkedPrevId + AutoAccept)가 자동으로 이어진다.
+		-- 완료 피드백은 PlayerController 토스트로 표시. (보상 아이템 지급은 후속 — RewardItems 스키마가
+		-- 정수 itemId 기반이라 이 게임의 문자열 아이템 id와 매핑 작업 필요.)
+		local completeIds = {}
+		for id, _ in pairs(idValuesTable) do
+			local data = _QuestDataSetLogic:GetData(id)
+			local userData = userDataTable[id]
+			if data ~= nil and userData ~= nil and userData:IsCompletable(data) then
+				completeIds[#completeIds + 1] = id
+			end
+		end
+		if #completeIds > 0 then
+			self:CompleteQuests(completeIds)
+			local pc = userEntity:GetComponent("script.PlayerController")
+			if isvalid(pc) then
+				---@type PlayerController
+				local controller = pc
+				for i = 1, #completeIds do
+					local data = _QuestDataSetLogic:GetData(completeIds[i])
+					if data ~= nil then
+						controller:ClientShowMineFeedback("[퀘스트 완료] " .. data.Name, userId)
+					end
+				end
+			end
+		end
 	end
 
 	@ExecSpace("Server")

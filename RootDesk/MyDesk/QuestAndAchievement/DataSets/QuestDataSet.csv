@@ -1,1 +1,7 @@
 ﻿Id,Name,Desc,ProgressingDesc,CategoryEnum,CycleEnum,IsRepeatable,LinkedPrevId,RequiredId,AutoAccept,CannotAbandon,ConsumeItems,RewardItems,Priority,Disable
+2001,첫 걸음: 돌 줍기,영지에 떨어진 돌을 주워 모으세요.,돌 줍기,Normal,,,0,0,1,1,,,1,
+2002,손도끼 만들기,돌 2개로 손도끼를 제작하세요. (C키 제작창),손도끼 제작,Normal,,,2001,0,1,1,,,2,
+2003,나무 모으기,손도끼로 나무를 베어 목재를 모으세요.,목재 모으기,Normal,,,2002,0,1,1,,,3,
+2004,돌 곡괭이 만들기,목재 1개와 돌 3개로 곡괭이를 제작하세요.,돌 곡괭이 제작,Normal,,,2003,0,1,1,,,4,
+2005,본격 채광,곡괭이로 돌을 캐서 모으세요. 큰 바위는 더 많이 나옵니다.,돌 캐기,Normal,,,2004,0,1,1,,,5,
+2006,화로 만들기,돌 8개와 목재 4개로 화로를 제작하세요. 광석 제련의 시작!,화로 제작,Normal,,,2005,0,1,1,,,6,

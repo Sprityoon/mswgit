@@ -1,1 +1,7 @@
 ﻿Id,Description,CondEnum,CondArg,CondExtra,Value,Disable
+2001,돌 3개 줍기,Gather,Stone,,3,
+2002,손도끼 1개 제작,Craft,Hand Axe,,1,
+2003,목재 5개 모으기,Gather,Wood,,5,
+2004,돌 곡괭이 1개 제작,Craft,Stone Pickaxe,,1,
+2005,돌 10개 캐기,Gather,Stone,,10,
+2006,화로 1개 제작,Craft,Furnace,,1,
