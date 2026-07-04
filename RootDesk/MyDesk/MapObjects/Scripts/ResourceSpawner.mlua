@@ -261,9 +261,10 @@ script ResourceSpawner extends Logic
 	end
 
 	method string ComputeAutotileName(string prefix, any maskAt, integer x, integer y)
-		-- 9방향(3x3) 오토타일 변형 선택. maskAt(ax, ay) -> boolean 이 해당 패밀리 마스크.
-		-- 접미사 컨벤션(wall.tileset): 중앙 = prefix 그대로, 가장자리/모서리 = prefix..LT/T/RT/L/R/LD/D/RD.
-		-- 13종과 달리 내부 모서리(대각만 빈) 전용 타일이 없으므로 그 경우 중앙 타일로 렌더된다.
+		-- 9방향(3x3) + 내부 모서리 4종 오토타일 변형 선택. maskAt(ax, ay) -> boolean 이 해당 패밀리 마스크.
+		-- 접미사 컨벤션(wall.tileset): 중앙 = prefix 그대로, 가장자리/외부 모서리 = LT/T/RT/L/R/LD/D/RD,
+		-- 내부 모서리(4방은 다 차고 대각만 빈 오목 지점) = LT2/RT2/LD2/RD2 (2026-07-04 보조 타일 추가).
+		-- ⚠️ 현재 XX2 보조 타일은 Soil 패밀리에만 존재 — 다른 prefix로 호출 시 오목 지점이 없는 마스크만 사용할 것.
 		local t = maskAt(x, y + 1)
 		local d = maskAt(x, y - 1)
 		local l = maskAt(x - 1, y)
@@ -286,6 +287,17 @@ script ResourceSpawner extends Logic
 			suffix = "L"
 		elseif not r then
 			suffix = "R"
+		else
+			-- 4방이 전부 차 있으면 오목(내부) 모서리 검사 — 대각 하나만 비면 XX2 보조 타일
+			if not maskAt(x - 1, y + 1) then
+				suffix = "LT2"
+			elseif not maskAt(x + 1, y + 1) then
+				suffix = "RT2"
+			elseif not maskAt(x - 1, y - 1) then
+				suffix = "LD2"
+			elseif not maskAt(x + 1, y - 1) then
+				suffix = "RD2"
+			end
 		end
 		return prefix .. suffix
 	end

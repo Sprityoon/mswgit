@@ -24,6 +24,7 @@ function loadWallTileIndex() {
   const idx = {};
   datas.forEach((d, i) => { idx[d.Name] = i; });
   for (const need of ["FullGrass", "Soil", "SoilT", "SoilRT", "SoilR", "SoilRD", "SoilD", "SoilLD", "SoilL", "SoilLT",
+    "SoilLT2", "SoilRT2", "SoilLD2", "SoilRD2",
     "TerraceTop", "TerraceTopT", "TerraceTopRT", "TerraceTopR", "TerraceTopRD", "TerraceTopD", "TerraceTopLD", "TerraceTopL", "TerraceTopLT",
     "CliffFaceL", "CliffFaceM", "CliffFaceR", "CliffFaceLD", "CliffFaceD", "CliffFaceRD", "Big Wall"]) {
     if (idx[need] === undefined) throw new Error("wall.tileset missing tile name: " + need);
@@ -31,8 +32,9 @@ function loadWallTileIndex() {
   return idx;
 }
 
-// ---------- 9방향 오토타일 (ResourceSpawner:ComputeAutotileName과 동일 규칙) ----------
-function autotileSuffix(maskAt, x, y) {
+// ---------- 9방향 + 내부 모서리 오토타일 (ResourceSpawner:ComputeAutotileName과 동일 규칙) ----------
+// inner=true면 4방이 다 차고 대각 하나만 빈 오목 지점에 XX2 내부 모서리 접미사를 쓴다 (Soil 전용 보조 타일).
+function autotileSuffix(maskAt, x, y, inner) {
   const t = maskAt(x, y + 1), d = maskAt(x, y - 1), l = maskAt(x - 1, y), r = maskAt(x + 1, y);
   if (!t && !l) return "LT";
   if (!t && !r) return "RT";
@@ -42,6 +44,12 @@ function autotileSuffix(maskAt, x, y) {
   if (!d) return "D";
   if (!l) return "L";
   if (!r) return "R";
+  if (inner) {
+    if (!maskAt(x - 1, y + 1)) return "LT2";
+    if (!maskAt(x + 1, y + 1)) return "RT2";
+    if (!maskAt(x - 1, y - 1)) return "LD2";
+    if (!maskAt(x + 1, y - 1)) return "RD2";
+  }
   return "";
 }
 
@@ -75,6 +83,10 @@ function disc(set, cx, cy, r) {
 }
 function rect(set, x0, x1, y0, y1) {
   for (let x = x0; x <= x1; x++) for (let y = y0; y <= y1; y++) set.add(x + "," + y);
+}
+function carve(set, x0, x1, y0, y1) {
+  // 마스크에서 사각 영역을 제거 (광장 안 정원 아일랜드 등)
+  for (let x = x0; x <= x1; x++) for (let y = y0; y <= y1; y++) set.delete(x + "," + y);
 }
 // 팔각형: 정사각 반경 h에서 코너를 45° 챔퍼(길이 c)로 균일하게 깎는다.
 // disc()의 원 래스터는 스텝 길이가 1,1,2,3…으로 불규칙해 9방향 모서리 타일이 지저분하게 섞임 —
@@ -213,7 +225,7 @@ function paintMap(rel, R, soilRaw, opts) {
   for (const key of soil) {
     const [x, y] = key.split(",").map(Number);
     if (!inPlayable(x, y)) continue;
-    soilTiles.set(key, IDX["Soil" + autotileSuffix(soilAt, x, y)]);
+    soilTiles.set(key, IDX["Soil" + autotileSuffix(soilAt, x, y, true)]);
   }
   setTiles(L.soil, soilTiles);
 
@@ -257,15 +269,26 @@ function paintMap(rel, R, soilRaw, opts) {
 
 // ================= 맵별 디자인 =================
 
-// --- 영지 map01 (R=30): 중앙 광장 + 동/북 길 + 남서 밭 ---
+// --- 영지 map01 (R=30, MyMap.png 레퍼런스): 중앙 우물 광장 + 굽이치는 북쪽 길 + 남서 밭 단지 ---
+// 레퍼런스에서 제외(오브젝트/타일 부재): 울타리, 버섯집, 우물/닭장 오브젝트, 동쪽 강+다리, 격자선
 {
   const s = new Set();
-  octagon(s, 0, 0, 4, 3);             // 스폰 광장 (9x9 팔각형 — 직선 3 + 챔퍼 3)
-  rect(s, 3, 16, -1, 0);              // 동쪽 길
-  rect(s, -1, 0, 3, 12);              // 북쪽 길
-  rect(s, -9, -1, -1, 0);             // 서쪽 길 (밭 방면)
-  rect(s, -9, -8, -8, -1);            // 남서 꺾임
-  rect(s, -14, -8, -13, -9);          // 밭 (경작지 느낌 패치)
+  octagon(s, 0, 0, 3, 2);             // 우물 광장 (7x7 팔각형 — MyMap 중앙 우물 자리)
+  // 굽이치는 북쪽 길 (S자 커브, 전 구간 폭 2)
+  rect(s, -1, 0, 3, 9);               //   ↑ 광장에서 북으로
+  rect(s, -6, 0, 9, 10);              //   ← 서쪽 꺾임
+  rect(s, -6, -5, 10, 18);            //   ↑
+  rect(s, -6, 2, 18, 19);             //   → 동쪽 꺾임
+  rect(s, 1, 2, 19, 27);              //   ↑ 북쪽 경계까지
+  rect(s, 3, 27, -1, 0);              // 동쪽 길 (강가 방면)
+  rect(s, -1, 0, -12, -3);            // 남쪽 길
+  octagon(s, 0, -14, 2, 1);           // 남쪽 끝 마당 (닭장 자리)
+  rect(s, -9, -3, -1, 0);             // 서쪽 길 (밭 방면)
+  rect(s, -9, -8, -12, -1);           // 밭 진입로 (남쪽으로)
+  // 남서 밭 단지 (MyMap 좌하단 경작지 — 고랑 느낌으로 3구획)
+  rect(s, -23, -18, -8, -3);          // 밭 A
+  rect(s, -16, -10, -8, -3);          // 밭 B (진입로에 접함)
+  rect(s, -23, -10, -15, -11);        // 밭 C (아래 가로 구획)
   paintMap("map/map01.map", 30, s, {
     // ⚠️ map01은 기존 엔티티 이름/SL을 그대로 사용 (리네임/SL 변경은 refresh 증분 적용이 못 받음)
     // 기존: RectTileMap(SL0) RectTileMap2(SL1) RectTileMap3(SL3) RectTileMap4(SL2) RectTileMap_1(SL4) RectTileMap_2(SL5)
@@ -273,17 +296,22 @@ function paintMap(rel, R, soilRaw, opts) {
   });
 }
 
-// --- 마을 town (R=35): 대광장 + 십자 대로 + 동/서 구역 패드 ---
+// --- 마을 town (R=35, Town.png 레퍼런스): 대형 석재 광장 + 4분면 정원 아일랜드 + 십자 대로 ---
+// 레퍼런스에서 제외(오브젝트/타일 부재): 분수, 울타리/생울타리, 꽃밭, 벤치, 가로등, 거목 상점
+// 기존 엔티티 유지: House(-5,5)·ResearchLab(5,5)는 북쪽 정원 위, Merchant(-3,2)·Portal(5,0)·Spawn(0,-1)은 광장 위
 {
   const s = new Set();
-  octagon(s, 0, 0, 7, 4);             // 중앙 대광장 (15x15 팔각형, 도착 지점 (3,0) 포함)
-  rect(s, -26, 26, -1, 1);            // 동서 대로
-  rect(s, -1, 1, 6, 26);              // 북쪽 대로
-  rect(s, -1, 1, -26, -6);            // 남쪽 대로
-  rect(s, 14, 22, 4, 10);             // 동쪽 시장 패드
-  rect(s, -22, -14, 4, 10);           // 서쪽 구역 패드
-  rect(s, 14, 14, 1, 4);              // 시장 연결
-  rect(s, -14, -14, 1, 4);            // 서쪽 연결
+  rect(s, -14, 14, -13, 9);           // 대광장 (석재 바닥 전체)
+  // 4분면 정원 아일랜드 (광장에서 잔디로 도려냄 — Town.png의 화단 구역)
+  carve(s, -11, -4, 2, 6);            // 북서 정원 (House가 위에 얹힘)
+  carve(s, 4, 11, 2, 6);              // 북동 정원 (ResearchLab)
+  carve(s, -11, -4, -10, -5);         // 남서 정원
+  carve(s, 4, 11, -10, -5);           // 남동 정원
+  // 십자 대로 (광장 → 사방 경계)
+  rect(s, -2, 2, 9, 32);              // 북쪽 대로 (건물 사이)
+  rect(s, -2, 2, -32, -13);           // 남쪽 대로
+  rect(s, 14, 32, -2, 2);             // 동쪽 대로
+  rect(s, -32, -14, -2, 2);           // 서쪽 대로
   paintMap("map/town.map", 35, s);
 }
 

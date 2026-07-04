@@ -8063,7 +8063,7 @@
                     "x": -6,
                     "y": -1
                   },
-                  "tileIndex": 9
+                  "tileIndex": 11
                 },
                 {
                   "type": 0,
@@ -8111,7 +8111,7 @@
                     "x": -6,
                     "y": 5
                   },
-                  "tileIndex": 9
+                  "tileIndex": 4
                 },
                 {
                   "type": 0,
@@ -8135,7 +8135,7 @@
                     "x": -5,
                     "y": -2
                   },
-                  "tileIndex": 9
+                  "tileIndex": 11
                 },
                 {
                   "type": 0,
@@ -8199,7 +8199,7 @@
                     "x": -5,
                     "y": 6
                   },
-                  "tileIndex": 9
+                  "tileIndex": 4
                 },
                 {
                   "type": 0,
@@ -8223,7 +8223,7 @@
                     "x": -4,
                     "y": -3
                   },
-                  "tileIndex": 9
+                  "tileIndex": 11
                 },
                 {
                   "type": 0,
@@ -8303,7 +8303,7 @@
                     "x": -4,
                     "y": 7
                   },
-                  "tileIndex": 9
+                  "tileIndex": 4
                 },
                 {
                   "type": 0,
@@ -8327,7 +8327,7 @@
                     "x": -3,
                     "y": -4
                   },
-                  "tileIndex": 9
+                  "tileIndex": 11
                 },
                 {
                   "type": 0,
@@ -8423,7 +8423,7 @@
                     "x": -3,
                     "y": 8
                   },
-                  "tileIndex": 9
+                  "tileIndex": 4
                 },
                 {
                   "type": 0,
@@ -8599,7 +8599,7 @@
                     "x": -1,
                     "y": -5
                   },
-                  "tileIndex": 9
+                  "tileIndex": 11
                 },
                 {
                   "type": 0,
@@ -8919,7 +8919,7 @@
                     "x": 1,
                     "y": -5
                   },
-                  "tileIndex": 9
+                  "tileIndex": 12
                 },
                 {
                   "type": 0,
@@ -9167,7 +9167,7 @@
                     "x": 3,
                     "y": -4
                   },
-                  "tileIndex": 9
+                  "tileIndex": 12
                 },
                 {
                   "type": 0,
@@ -9263,7 +9263,7 @@
                     "x": 3,
                     "y": 8
                   },
-                  "tileIndex": 9
+                  "tileIndex": 5
                 },
                 {
                   "type": 0,
@@ -9287,7 +9287,7 @@
                     "x": 4,
                     "y": -3
                   },
-                  "tileIndex": 9
+                  "tileIndex": 12
                 },
                 {
                   "type": 0,
@@ -9367,7 +9367,7 @@
                     "x": 4,
                     "y": 7
                   },
-                  "tileIndex": 9
+                  "tileIndex": 5
                 },
                 {
                   "type": 0,
@@ -9391,7 +9391,7 @@
                     "x": 5,
                     "y": -2
                   },
-                  "tileIndex": 9
+                  "tileIndex": 12
                 },
                 {
                   "type": 0,
@@ -9455,7 +9455,7 @@
                     "x": 5,
                     "y": 6
                   },
-                  "tileIndex": 9
+                  "tileIndex": 5
                 },
                 {
                   "type": 0,
@@ -9479,7 +9479,7 @@
                     "x": 6,
                     "y": -1
                   },
-                  "tileIndex": 9
+                  "tileIndex": 12
                 },
                 {
                   "type": 0,
@@ -9527,7 +9527,7 @@
                     "x": 6,
                     "y": 5
                   },
-                  "tileIndex": 9
+                  "tileIndex": 5
                 },
                 {
                   "type": 0,

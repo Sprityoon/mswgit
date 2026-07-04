@@ -38,12 +38,12 @@
         },
         {
           "Id": "94adcd2fd937421ea92f93a7101526a2",
-          "Name": "Name4",
+          "Name": "SoilLT2",
           "IsCollidable": false
         },
         {
           "Id": "0b7ec789153a453690d29704c21814ce",
-          "Name": "Name5",
+          "Name": "SoilRT2",
           "IsCollidable": false
         },
         {
@@ -73,12 +73,12 @@
         },
         {
           "Id": "3e814d8cd1bc48479c53e5a98333eff3",
-          "Name": "Name13",
+          "Name": "SoilLD2",
           "IsCollidable": false
         },
         {
           "Id": "20466471b719443e9109c35dbfe494e1",
-          "Name": "Name14",
+          "Name": "SoilRD2",
           "IsCollidable": false
         },
         {
@@ -299,17 +299,17 @@
         {
           "Id": "0584029114fe4d57a0f600b9b429e30c",
           "Name": "CliffFaceL",
-          "IsCollidable": false
+          "IsCollidable": true
         },
         {
           "Id": "c6ece2e6f90344f29da1d86927f387aa",
           "Name": "CliffFaceM",
-          "IsCollidable": false
+          "IsCollidable": true
         },
         {
           "Id": "e9ee9c3d786c4c3f8042d24eac632dd2",
           "Name": "CliffFaceR",
-          "IsCollidable": false
+          "IsCollidable": true
         },
         {
           "Id": "2ac625634f124315a1399dc1972b02d2",
@@ -344,17 +344,17 @@
         {
           "Id": "f453b25694124512863dba2bee8d6c5b",
           "Name": "CliffFaceLD",
-          "IsCollidable": false
+          "IsCollidable": true
         },
         {
           "Id": "e2e49205ea6a40afa56b07a40067ed04",
           "Name": "CliffFaceD",
-          "IsCollidable": false
+          "IsCollidable": true
         },
         {
           "Id": "eaa82e5fcfa34d2798e610df028f1100",
           "Name": "CliffFaceRD",
-          "IsCollidable": false
+          "IsCollidable": true
         },
         {
           "Id": "744a4b1f37b84feb8a258b9da2521004",
