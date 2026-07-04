@@ -76,6 +76,14 @@ function disc(set, cx, cy, r) {
 function rect(set, x0, x1, y0, y1) {
   for (let x = x0; x <= x1; x++) for (let y = y0; y <= y1; y++) set.add(x + "," + y);
 }
+// 팔각형: 정사각 반경 h에서 코너를 45° 챔퍼(길이 c)로 균일하게 깎는다.
+// disc()의 원 래스터는 스텝 길이가 1,1,2,3…으로 불규칙해 9방향 모서리 타일이 지저분하게 섞임 —
+// 팔각형은 직선 변 + 균일 1셀 스텝만 나와 테두리 프린지가 규칙적으로 이어진다.
+function octagon(set, cx, cy, h, c) {
+  for (let dx = -h; dx <= h; dx++)
+    for (let dy = -h; dy <= h; dy++)
+      if (Math.abs(dx) + Math.abs(dy) <= 2 * h - c) set.add((cx + dx) + "," + (cy + dy));
+}
 
 // ---------- 맵 파일 유틸 ----------
 function loadMap(rel) {
@@ -252,7 +260,7 @@ function paintMap(rel, R, soilRaw, opts) {
 // --- 영지 map01 (R=30): 중앙 광장 + 동/북 길 + 남서 밭 ---
 {
   const s = new Set();
-  disc(s, 0, 0, 3.4);                 // 스폰 광장
+  octagon(s, 0, 0, 4, 3);             // 스폰 광장 (9x9 팔각형 — 직선 3 + 챔퍼 3)
   rect(s, 3, 16, -1, 0);              // 동쪽 길
   rect(s, -1, 0, 3, 12);              // 북쪽 길
   rect(s, -9, -1, -1, 0);             // 서쪽 길 (밭 방면)
@@ -268,7 +276,7 @@ function paintMap(rel, R, soilRaw, opts) {
 // --- 마을 town (R=35): 대광장 + 십자 대로 + 동/서 구역 패드 ---
 {
   const s = new Set();
-  disc(s, 0, 0, 6.2);                 // 중앙 광장 (도착 지점 (3,0) 포함)
+  octagon(s, 0, 0, 7, 4);             // 중앙 대광장 (15x15 팔각형, 도착 지점 (3,0) 포함)
   rect(s, -26, 26, -1, 1);            // 동서 대로
   rect(s, -1, 1, 6, 26);              // 북쪽 대로
   rect(s, -1, 1, -26, -6);            // 남쪽 대로
@@ -282,14 +290,14 @@ function paintMap(rel, R, soilRaw, opts) {
 // --- 사냥터 template_field (R=30): 공터 3곳 + 연결 길 + NE 플래토 데코 ---
 {
   const s = new Set();
-  disc(s, 0, 0, 4.2);                 // 중앙 공터 (귀환 포탈 (0,-3) 포함)
-  disc(s, -10, 0, 2.6);               // 서쪽 포탈 패드
-  disc(s, 10, 0, 2.6);                // 동쪽 포탈 패드
+  octagon(s, 0, 0, 5, 3);             // 중앙 공터 (귀환 포탈 (0,-3) 포함)
+  octagon(s, -10, 0, 3, 2);           // 서쪽 포탈 패드
+  octagon(s, 10, 0, 3, 2);            // 동쪽 포탈 패드
   rect(s, -10, 10, -1, 0);            // 동서 연결 길
-  disc(s, -16, 14, 5);                // 북서 공터
+  octagon(s, -16, 14, 5, 3);          // 북서 공터
   rect(s, -1, 0, 4, 14);              // 북쪽 길
   rect(s, -16, -1, 13, 14);           // 북서 연결
-  disc(s, 14, -13, 6);                // 남동 공터
+  octagon(s, 14, -13, 6, 4);          // 남동 공터
   rect(s, 13, 14, -13, -1);           // 남동 연결
   paintMap("map/template_field.map", 30, s, {
     // 기존 6레이어 이름=표준, SL도 이미 0~5 순차 — 그대로 사용 (RectTileMap5=SL4가 데코)
@@ -301,7 +309,7 @@ function paintMap(rel, R, soilRaw, opts) {
 // --- 보스 아레나 template_boss (R=15): 원형 아레나 + 남쪽 포탈 회랑 ---
 {
   const s = new Set();
-  disc(s, 0, 2, 6.5);                 // 아레나 (보스 (0,2))
+  octagon(s, 0, 2, 7, 4);             // 아레나 (보스 (0,2), 15x15 팔각형)
   rect(s, -1, 1, -10, -3);            // 남쪽 포탈 회랑 ((0,-8),(0,-7) 포함)
   paintMap("map/template_boss.map", 15, s, {
     // 기존 RectTileMap(SL4)/RectTileMap2(SL5)는 SL만 교정 (컴포넌트 필드 변경은 증분 적용 가능)
