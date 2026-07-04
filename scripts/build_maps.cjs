@@ -199,6 +199,8 @@ function setTiles(slot, cells) {
   }
   arr.sort((a, b) => (a.position.x - b.position.x) || (a.position.y - b.position.y));
   tc.tileMap = arr;
+  // Maker가 열어둔 맵의 증분 머지가 타일 변경을 건너뛰는 사례 실측 — revision 범프로 재인제스트 신호
+  slot.js.revision = (slot.js.revision || 1) + 1;
 }
 
 // ---------- 페인터 ----------
@@ -290,9 +292,9 @@ function paintMap(rel, R, soilRaw, opts) {
   rect(s, -16, -10, -8, -3);          // 밭 B (진입로에 접함)
   rect(s, -23, -10, -15, -11);        // 밭 C (아래 가로 구획)
   paintMap("map/map01.map", 30, s, {
-    // ⚠️ map01은 기존 엔티티 이름/SL을 그대로 사용 (리네임/SL 변경은 refresh 증분 적용이 못 받음)
-    // 기존: RectTileMap(SL0) RectTileMap2(SL1) RectTileMap3(SL3) RectTileMap4(SL2) RectTileMap_1(SL4) RectTileMap_2(SL5)
-    layerNames: { base: "RectTileMap", soil: "RectTileMap2", floors: "RectTileMap3", walls: "RectTileMap4", deco: "RectTileMap_1" },
+    // map01 레이어는 Maker에서 표준명으로 정규화 저장됨 (2026-07-04 사용자 작업):
+    // RectTileMap(SL0)/RectTileMap2(SL1)/RectTileMap3(SL3)/RectTileMap4(SL2)/RectTileMap5(SL4)/RectTileMap6(SL5)
+    // → 기본 매핑 사용 (deco=RectTileMap5). SL 값은 건드리지 않음 (렌더 순서 동작에 문제 없음).
   });
 }
 
