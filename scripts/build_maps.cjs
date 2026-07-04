@@ -1,4 +1,9 @@
-// build_maps.cjs — 영지/마을/사냥터 리디자인 일괄 페인팅 (2026-07-04 컨셉)
+// build_maps.cjs — 영지/마을/사냥터 초기 블록아웃 일괄 페인팅 (2026-07-04 컨셉)
+//
+// ⛔⛔ 맵 소유권 전환 (2026-07-04): 초기 블록아웃이 끝났고 이제 맵은 **Maker 손편집이 소스 오브 트루스**다.
+//    이 스크립트를 다시 돌리면 대상 레이어를 전부 재계산해 **사용자 손편집을 통째로 덮어쓴다**
+//    (revision 범프 때문에 refresh에서 파일이 에디터 씬을 이긴다).
+//    → 명시적 `--force` 없이는 실행을 거부한다. 사용자가 다시 블록아웃을 원할 때만 사용할 것.
 //
 // 컨셉 (docs/design/skill-tree-plan.md §5 + 2026-07-04 결정):
 //   - Grass(FullGrass)는 기본 바닥으로 전면 깔림, Soil은 사람이 다니는 길 (9방향 오토타일)
@@ -8,8 +13,13 @@
 //                / MapLayer5 = 엔티티 전용 (타일 레이어 없음)
 //   - 경계: 충돌은 Big Wall(레이어4), 비주얼은 TerraceTop 링 + 북벽 CliffFace(레이어5가 위에 덮음)
 //
-// 실행: node scripts/build_maps.cjs  (멱등 — 대상 레이어를 항상 새로 계산해 전체 재작성)
+// 실행: node scripts/build_maps.cjs --force  (멱등 — 대상 레이어를 항상 새로 계산해 전체 재작성)
 "use strict";
+if (!process.argv.includes("--force")) {
+  console.error("⛔ 맵은 이제 Maker 손편집 소유입니다. 이 생성기는 사용자 손편집을 전부 덮어씁니다.");
+  console.error("   초기 블록아웃을 다시 깔고 싶을 때만: node scripts/build_maps.cjs --force");
+  process.exit(1);
+}
 const fs = require("fs");
 const path = require("path");
 

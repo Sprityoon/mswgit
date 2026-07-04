@@ -50,6 +50,8 @@ script ResourceSpawner extends Logic
 	property boolean UseProceduralBiomes = false
 	-- UseChunkStreaming=false: 근접 로드/언로드 루프 정지, 맵 셋업 시 전 청크 1회 정적 로드
 	property boolean UseChunkStreaming = false
+	-- AutotileSoilOnSetup=false: 맵 셋업 시 Soil 오토타일 런타임 재보정 안 함 (맵 = Maker 손편집 소유).
+	property boolean AutotileSoilOnSetup = false
 
 	method table GetSpawnedEntities(string mapName)
 		if not self.SpawnedEntitiesMap[mapName] then
@@ -556,8 +558,11 @@ script ResourceSpawner extends Logic
 		-- Reconstruct player-placed tiles and furniture
 		self:ReconstructWorldPlacementsForMap(map)
 
-		-- 손디자인 맵: 칠해진 Soil 길 경계를 9방향 변형으로 보정한다.
-		if not proceduralTerrain then
+		-- Soil 길 9방향 오토타일 런타임 보정 — ⛔ 기본 OFF (2026-07-04 맵 소유권 전환):
+		-- 맵 타일은 이제 Maker 손편집이 소스 오브 트루스다. 이 보정을 켜두면 로그인마다
+		-- 사용자가 고른 타일 변형을 다시 계산해 덮어쓰고, 스무딩이 대각 1칸 모양을 메꿔버린다.
+		-- 마스크 페인팅 도구를 다시 쓸 때만 AutotileSoilOnSetup을 켤 것.
+		if self.AutotileSoilOnSetup and not proceduralTerrain then
 			self:AutotileSoilLayer(map)
 		end
 
