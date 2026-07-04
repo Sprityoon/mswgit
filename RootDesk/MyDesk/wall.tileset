@@ -23,17 +23,17 @@
         },
         {
           "Id": "57be06cf85d44a7495763d6ffe33bbd7",
-          "Name": "Name1",
+          "Name": "SoilLT",
           "IsCollidable": false
         },
         {
           "Id": "3538db06a09e465bb2288e7abcad5b7d",
-          "Name": "Name2",
+          "Name": "SoilT",
           "IsCollidable": false
         },
         {
           "Id": "4c2413679c8344228a46accf3552b609",
-          "Name": "Name3",
+          "Name": "SoilRT",
           "IsCollidable": false
         },
         {
@@ -58,7 +58,7 @@
         },
         {
           "Id": "e4ab0777813c4a8c8c86ec6cb2555da9",
-          "Name": "Name10",
+          "Name": "SoilL",
           "IsCollidable": false
         },
         {
@@ -68,7 +68,7 @@
         },
         {
           "Id": "bbc00887e2a24d4196e3066b49814f09",
-          "Name": "Name12",
+          "Name": "SoilR",
           "IsCollidable": false
         },
         {
@@ -93,22 +93,22 @@
         },
         {
           "Id": "2ebe5a0698db48a29a090e17bf048cac",
-          "Name": "Name19",
+          "Name": "SoilLD",
           "IsCollidable": false
         },
         {
           "Id": "295ec9d97f3c4923bb3bf4b4798bda25",
-          "Name": "Name20",
+          "Name": "SoilD",
           "IsCollidable": false
         },
         {
           "Id": "033f39d3e4be4fd9a8fd3aae223b419b",
-          "Name": "Name21",
+          "Name": "SoilRD",
           "IsCollidable": false
         },
         {
           "Id": "da9fe8148eef42fdb6989f306d4d2e52",
-          "Name": "Name22",
+          "Name": "FullGrass",
           "IsCollidable": false
         },
         {
@@ -163,17 +163,17 @@
         },
         {
           "Id": "244a42c9a82a4aed91affa55d671c4a0",
-          "Name": "Name37",
+          "Name": "TerraceTopLT",
           "IsCollidable": false
         },
         {
           "Id": "385ad1705a4444b8b6b91130fe41389f",
-          "Name": "Name38",
+          "Name": "TerraceTopT",
           "IsCollidable": false
         },
         {
           "Id": "57e325f1c39f44e3bb1d3f4df924421c",
-          "Name": "Name39",
+          "Name": "TerraceTopRT",
           "IsCollidable": false
         },
         {
@@ -208,17 +208,17 @@
         },
         {
           "Id": "73e5b86af8854608af92dce997e34e63",
-          "Name": "Name46",
+          "Name": "TerraceTopL",
           "IsCollidable": false
         },
         {
           "Id": "71e97c35e15b423789fa477868ec7223",
-          "Name": "Name47",
+          "Name": "TerraceTop",
           "IsCollidable": false
         },
         {
           "Id": "f967149a0ff84080b23f3b9e21a78bac",
-          "Name": "Name48",
+          "Name": "TerraceTopR",
           "IsCollidable": false
         },
         {
@@ -253,17 +253,17 @@
         },
         {
           "Id": "f86d2b91a8964f6f8c299beb0242ba42",
-          "Name": "Name55",
+          "Name": "TerraceTopLD",
           "IsCollidable": false
         },
         {
           "Id": "24256e11cab143b5a1f8bcf00e96bff8",
-          "Name": "Name56",
+          "Name": "TerraceTopD",
           "IsCollidable": false
         },
         {
           "Id": "5e0fb307fda049d5bc5e5f5cde7ee90e",
-          "Name": "Name57",
+          "Name": "TerraceTopRD",
           "IsCollidable": false
         },
         {
@@ -298,17 +298,17 @@
         },
         {
           "Id": "0584029114fe4d57a0f600b9b429e30c",
-          "Name": "Name64",
+          "Name": "CliffFaceL",
           "IsCollidable": false
         },
         {
           "Id": "c6ece2e6f90344f29da1d86927f387aa",
-          "Name": "Name65",
+          "Name": "CliffFaceM",
           "IsCollidable": false
         },
         {
           "Id": "e9ee9c3d786c4c3f8042d24eac632dd2",
-          "Name": "Name66",
+          "Name": "CliffFaceR",
           "IsCollidable": false
         },
         {
@@ -343,17 +343,17 @@
         },
         {
           "Id": "f453b25694124512863dba2bee8d6c5b",
-          "Name": "Name73",
+          "Name": "CliffFaceLD",
           "IsCollidable": false
         },
         {
           "Id": "e2e49205ea6a40afa56b07a40067ed04",
-          "Name": "Name74",
+          "Name": "CliffFaceD",
           "IsCollidable": false
         },
         {
           "Id": "eaa82e5fcfa34d2798e610df028f1100",
-          "Name": "Name75",
+          "Name": "CliffFaceRD",
           "IsCollidable": false
         },
         {

@@ -101,7 +101,8 @@ script MonsterSpawner extends Logic
 		local resourceSpawner = _ResourceSpawner
 		if resourceSpawner == nil then return end
 
-		local radius = resourceSpawner.MapRadius or 75
+		-- 경계 Big Wall 밴드(외곽 WallThickness겹) 안쪽 플레이어블 영역에만 스폰한다.
+		local radius = (resourceSpawner.MapRadius or 75) - (resourceSpawner.WallThickness or 3)
 		local gridToEntity = resourceSpawner:GetGridToEntity(mapName)
 
 		-- Selectable biomes list from DataSet

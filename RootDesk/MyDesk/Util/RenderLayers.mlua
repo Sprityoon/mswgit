@@ -9,7 +9,7 @@ script RenderLayers extends Logic
 	--
 	-- ⚠️ 현재 값은 기존 동작 유지를 위한 "MapLayer2". 헤네시스 타일셋 확정 후 맵 레이어 재구성 배치에서
 	--    "MapLayer5"(지형 타일 0~4 위 엔티티 전용 레이어)로 플립한다 — 이 한 줄만 바꾸면 전 스폰 지점에 반영.
-	property string EntityLayer = "MapLayer2"
+	property string EntityLayer = "MapLayer5"
 
 	-- 같은 레이어 안에서 타일(OrderInLayer 1)보다 위에 오도록 코드 스폰 스프라이트가 지켜야 할 최소값
 	property integer MinEntityOrder = 2

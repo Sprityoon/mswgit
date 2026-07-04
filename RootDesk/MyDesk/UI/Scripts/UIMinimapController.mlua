@@ -124,10 +124,21 @@ script UIMinimapController extends Component
 	@ExecSpace("ClientOnly")
 	method Color TileColor(string tileName)
 		-- Maps a tile name to its minimap color. Prefix-based so new variants inherit a family color.
+		-- wall.tileset 새 패밀리(FullGrass/Soil/TerraceTop/CliffFace/Big Wall) + 구 tile1 이름 호환.
 		if tileName == nil or tileName == "" then
 			return Color(0.06, 0.07, 0.09, 1.0)
 		end
-		if string.sub(tileName, 1, 9) == "BaseGrass" then
+		if tileName == "FullGrass" then
+			return Color(0.39, 0.60, 0.13, 1.0)
+		elseif string.sub(tileName, 1, 4) == "Soil" then
+			return Color(0.76, 0.60, 0.42, 1.0)
+		elseif string.sub(tileName, 1, 10) == "TerraceTop" then
+			return Color(0.30, 0.48, 0.12, 1.0)
+		elseif string.sub(tileName, 1, 9) == "CliffFace" then
+			return Color(0.45, 0.32, 0.22, 1.0)
+		elseif tileName == "Big Wall" then
+			return Color(0.25, 0.20, 0.16, 1.0)
+		elseif string.sub(tileName, 1, 9) == "BaseGrass" then
 			return Color(0.39, 0.60, 0.13, 1.0)
 		elseif string.sub(tileName, 1, 8) == "BaseSand" then
 			return Color(0.91, 0.82, 0.55, 1.0)
