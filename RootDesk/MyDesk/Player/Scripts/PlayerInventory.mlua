@@ -305,6 +305,7 @@ script PlayerInventory extends Component
 			self.EquippedTool = ""
 			log("[EQUIP] " .. self.Entity.Name .. " unequipped " .. itemName)
 			self:ClientOnEquipChanged("")
+			self:NotifyHandItemChanged()
 			if _PersistenceManager and self.Entity.PlayerComponent then
 				_PersistenceManager:MarkPlayerDirty(self.Entity.PlayerComponent.UserId)
 			end
@@ -330,8 +331,20 @@ script PlayerInventory extends Component
 		self.EquippedTool = itemName
 		log("[EQUIP] " .. self.Entity.Name .. " equipped " .. itemName)
 		self:ClientOnEquipChanged(itemName)
+		self:NotifyHandItemChanged()
 		if _PersistenceManager and self.Entity.PlayerComponent then
 			_PersistenceManager:MarkPlayerDirty(self.Entity.PlayerComponent.UserId)
+		end
+	end
+
+	@ExecSpace("ServerOnly")
+	method void NotifyHandItemChanged()
+		-- 장착 변경을 손에 든 아이템 스프라이트에 반영 (PlayerController:UpdateHandItem).
+		local pc = self.Entity:GetComponent("script.PlayerController")
+		if isvalid(pc) then
+			---@type PlayerController
+			local controller = pc
+			controller:UpdateHandItem()
 		end
 	end
 
