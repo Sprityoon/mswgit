@@ -228,6 +228,7 @@ script PersistenceManager extends Logic
 				inv.EquippedTool = data.equippedTool or ""
 				inv.QuickSlotsJson = data.quickSlots or "[\"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\"]"
 				inv.SelectedQuickSlotIndex = data.selectedSlot or 1
+				inv:ApplyHeldToolCostume()
 				log("PersistenceManager: Inventory restored.")
 			end
 
