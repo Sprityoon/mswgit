@@ -1,0 +1,176 @@
+@Component
+script UIQuestController extends Component
+
+	-- 온보딩 퀘스트 트래커 + 완료 토스트 (HUDGroup 상시 노출).
+	-- 로컬 플레이어의 PlayerQuest.UserDataTable을 폴링해 진행 중 퀘스트(우선순위 최소)를 렌더하고,
+	-- 새로 완료된 퀘스트에 토스트를 띄운다. 표시 내용은 전적으로 QuestDataSet/QuestConditionDataSet(CSV)이
+	-- 결정한다 — UI에 퀘스트/보상 하드코딩 없음(하드코딩 금지 룰).
+
+	property number RefreshAccum = 0.0
+
+	property table KnownCompleteCount = {}
+
+	property boolean Primed = false
+
+	property boolean ToastVisible = false
+
+	property number ToastAccum = 0.0
+
+	@ExecSpace("ClientOnly")
+	method void OnBeginPlay()
+		self:SetInfoVisible(false)
+		self:HideToast()
+	end
+
+	@ExecSpace("ClientOnly")
+	method void OnUpdate(number delta)
+		if self.ToastVisible then
+			self.ToastAccum = self.ToastAccum + delta
+			if self.ToastAccum >= 3.5 then
+				self:HideToast()
+			end
+		end
+
+		self.RefreshAccum = self.RefreshAccum + delta
+		if self.RefreshAccum < 0.4 then return end
+		self.RefreshAccum = 0.0
+		self:Refresh()
+	end
+
+	method any GetLocalQuest()
+		local lp = _UserService.LocalPlayer
+		if not isvalid(lp) then return nil end
+		local pq = lp.PlayerQuest
+		if pq == nil then return nil end
+		return pq
+	end
+
+	@ExecSpace("ClientOnly")
+	method void Refresh()
+		local pq = self:GetLocalQuest()
+		if pq == nil then return end
+
+		local userDataTable = pq.UserDataTable
+		if userDataTable == nil then return end
+
+		-- 1) 새로 완료된 퀘스트 감지 → 토스트 (최초 폴링은 프라이밍만, 기존 완료분은 토스트 금지)
+		for id, userData in pairs(userDataTable) do
+			local cc = userData.CompleteCount or 0
+			local known = self.KnownCompleteCount[id]
+			if self.Primed and known ~= nil and cc > known then
+				self:ShowCompletionToast(id)
+			end
+			self.KnownCompleteCount[id] = cc
+		end
+		self.Primed = true
+
+		-- 2) 진행 중 퀘스트 중 우선순위 최소를 활성 퀘스트로 렌더
+		local activeId = nil
+		local activePriority = nil
+		local activeData = nil
+		for id, userData in pairs(userDataTable) do
+			if userData.State == _QuestStateEnum.InProgress then
+				local data = _QuestDataSetLogic:GetData(id)
+				if data ~= nil then
+					if activePriority == nil or data.Priority < activePriority then
+						activePriority = data.Priority
+						activeId = id
+						activeData = data
+					end
+				end
+			end
+		end
+
+		if activeId == nil then
+			self:SetInfoVisible(false)
+			return
+		end
+
+		self:SetInfoVisible(true)
+		local userData = userDataTable[activeId]
+		self:SetText("QuestName", activeData.Name or "")
+		self:SetText("Guide", activeData.ProgressingDesc or "")
+		self:SetText("Progress", self:BuildProgressText(activeData, userData))
+	end
+
+	method string BuildProgressText(any data, any userData)
+		local conds = data.ConditionDatas
+		if conds == nil or #conds == 0 then return "" end
+
+		local values = userData.Values
+		local parts = {}
+		for i = 1, #conds do
+			local cond = conds[i]
+			local uv = 0
+			if values ~= nil and values[i] ~= nil then
+				uv = values[i]
+			end
+			parts[#parts + 1] = string.format("%s %d/%d", cond.Description or "", uv, cond.Value)
+		end
+		return table.concat(parts, "\n")
+	end
+
+	method string BuildRewardStr(any data)
+		local rewardItems = data.RewardItems
+		if rewardItems == nil then return "" end
+		local parts = {}
+		for i = 1, #rewardItems do
+			local it = rewardItems[i]
+			parts[#parts + 1] = tostring(it[1]) .. " x" .. tostring(it[2])
+		end
+		return table.concat(parts, ", ")
+	end
+
+	@ExecSpace("ClientOnly")
+	method void ShowCompletionToast(integer id)
+		local data = _QuestDataSetLogic:GetData(id)
+		if data == nil then return end
+
+		local msg = "✔ 퀘스트 완료: " .. (data.Name or "")
+		local rewardStr = self:BuildRewardStr(data)
+		if rewardStr ~= "" then
+			msg = msg .. "\n보상  " .. rewardStr
+		end
+
+		local toast = _EntityService:GetEntityByPath("/ui/HUDGroup/QuestToast")
+		if isvalid(toast) then
+			toast.Enable = true
+			local textEnt = toast:GetChildByName("Text", true)
+			if isvalid(textEnt) and isvalid(textEnt.TextComponent) then
+				textEnt.TextComponent.Text = msg
+			end
+		end
+		self.ToastVisible = true
+		self.ToastAccum = 0.0
+	end
+
+	@ExecSpace("ClientOnly")
+	method void HideToast()
+		local toast = _EntityService:GetEntityByPath("/ui/HUDGroup/QuestToast")
+		if isvalid(toast) then
+			toast.Enable = false
+		end
+		self.ToastVisible = false
+		self.ToastAccum = 0.0
+	end
+
+	@ExecSpace("ClientOnly")
+	method void SetInfoVisible(boolean vis)
+		local names = { "Bg", "Header", "QuestName", "Guide", "Progress" }
+		for i = 1, #names do
+			local ent = self.Entity:GetChildByName(names[i], true)
+			if isvalid(ent) then
+				ent.Enable = vis
+			end
+		end
+	end
+
+	@ExecSpace("ClientOnly")
+	method void SetText(string childName, string text)
+		local ent = self.Entity:GetChildByName(childName, true)
+		if isvalid(ent) and isvalid(ent.TextComponent) then
+			ent.TextComponent.Text = text
+		end
+	end
+
+end

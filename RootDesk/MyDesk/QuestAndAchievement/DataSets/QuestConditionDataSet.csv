@@ -1,1 +1,8 @@
 ﻿Id,Description,CondEnum,CondArg,CondExtra,Value,Disable
+101,풀 채집,Gather,Grass,,3,
+102,손도끼 제작,Craft,Hand Axe,,1,
+103,나무 채집,Gather,Wood,,5,
+104,곡괭이 제작,Craft,Stone Pickaxe,,1,
+105,돌 채광,Gather,Stone,,3,
+106,나무 상자 설치,Place,Wooden Chest,,1,
+107,포탈 이동,Warp,,,1,

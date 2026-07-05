@@ -845,6 +845,11 @@ script PlayerInventory extends Component
 				log_error("Failed to spawn furniture entity: " .. itemName)
 			end
 		end
+
+		-- 업적/퀘스트 진행: 설치 액션 발행
+		if _ActionSignals ~= nil then
+			_ActionSignals:EmitToPlayer(self.Entity, _ActionEnum.Place, itemName, 1)
+		end
 	end
 	method string SafeEncodeJson(table tbl, string defaultVal)
 		if tbl == nil or next(tbl) == nil then

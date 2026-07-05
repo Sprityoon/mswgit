@@ -67,6 +67,28 @@ function patchHUD() {
   });
   b.patch("SpawnFade", { display_order: 9999 });
 
+  // Quest tracker (top-left) — 온보딩 진행 퀘스트 표시. 컨트롤러가 자식/토스트를 런타임 조회하므로 별도 바인딩 없음.
+  if (!b.getId("/ui/HUDGroup/QuestTracker")) {
+    b.panel("QuestTracker", { anchor: "top-left", pos: [190, -120], rect_size: [340, 170] });
+    b.addComponent("QuestTracker", "script.UIQuestController");
+    b.patch("QuestTracker", { display_order: 30 });
+    b.sprite("QuestTracker/Bg", { anchor: "middle-center", pos: [0, 0], rect_size: [340, 170], color: "#22252B", alpha: 0.72, raycast: false });
+    b.text("QuestTracker/Header", "★ 퀘스트", { anchor: "middle-center", pos: [0, 66], rect_size: [320, 28], size: 20, color: "#FFE9A8", alignment: 4 });
+    b.text("QuestTracker/QuestName", "", { anchor: "middle-center", pos: [0, 32], rect_size: [324, 28], size: 19, color: "#FFFFFF", alignment: 4 });
+    b.text("QuestTracker/Guide", "", { anchor: "middle-center", pos: [0, -6], rect_size: [324, 44], size: 14, color: "#C7CBD1", alignment: 4 });
+    b.text("QuestTracker/Progress", "", { anchor: "middle-center", pos: [0, -52], rect_size: [324, 26], size: 17, color: "#7ED957", alignment: 4 });
+  } else if (!b.hasComponent("QuestTracker", "script.UIQuestController")) {
+    b.addComponent("QuestTracker", "script.UIQuestController");
+  }
+
+  // Quest completion toast (top-center), 기본 숨김. 컨트롤러가 Enable 토글.
+  if (!b.getId("/ui/HUDGroup/QuestToast")) {
+    b.panel("QuestToast", { anchor: "top-center", pos: [0, -150], rect_size: [560, 78], enable: false });
+    b.patch("QuestToast", { display_order: 60 });
+    b.sprite("QuestToast/Bg", { anchor: "middle-center", pos: [0, 0], rect_size: [560, 78], color: "#1E3A1E", alpha: 0.92, raycast: false });
+    b.text("QuestToast/Text", "", { anchor: "middle-center", pos: [0, 0], rect_size: [540, 66], size: 22, color: "#EAFBD0", alignment: 4 });
+  }
+
   b.write(file, {
     bind: {
       mlua: path.join(rootUIDir, "UIHUDController.mlua"),

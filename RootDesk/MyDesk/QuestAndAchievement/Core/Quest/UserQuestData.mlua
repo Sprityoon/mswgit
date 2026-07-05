@@ -297,12 +297,16 @@ script UserQuestData
 		-- This function should check the conditions using the `IsCompletable` function before execution.
 		local rewardItems = data.RewardItems
 		if rewardItems ~= nil then
-			local userId = userEntity.PlayerComponent.UserId
+			-- [적응] 보상 아이템(문자열 Name)을 서버 권위로 인벤토리에 지급한다.
+			local inv = userEntity:GetComponent("script.PlayerInventory")
 			for i = 1, #rewardItems do
 				local rewardItem = rewardItems[i]
-				local itemId = rewardItem[1]
+				local itemName = rewardItem[1]
 				local itemCount = rewardItem[2]
-				log(string.format("Reward Item. ItemID : %d, ItemCount : %d, UserID : %s", itemId, itemCount, userId))
+				if isvalid(inv) and itemName ~= nil and itemName ~= "" and itemCount ~= nil and itemCount > 0 then
+					inv:AddItem(itemName, itemCount)
+					log(string.format("[QUEST] Reward granted: %s x%d (Quest %d)", itemName, itemCount, data.Id))
+				end
 			end
 		end
 		
