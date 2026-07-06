@@ -133,17 +133,6 @@ script PlayerController extends Component
 					self.Stamina = math.min(self.MaxStamina, self.Stamina + 2)
 				end
 			end, 1.0)
-
-			-- 손에 든 장착 아이템 스프라이트 (game_design.md §3.3.1 연장): 플레이어 자식 엔티티로
-			-- 부착하고 장착/방향 변경 시 서버가 아이콘·좌우 반전·오프셋을 갱신한다 (@Sync 트랜스폼/스프라이트).
-			local handModelId = _EntryService:GetModelIdByName("HandItem")
-			if handModelId ~= nil and handModelId ~= "" then
-				local pos = self.Entity.TransformComponent.WorldPosition
-				local hand = _SpawnService:SpawnByModelId(handModelId, "HandItem", Vector3(pos.x, pos.y, 0), self.Entity)
-				if isvalid(hand) then
-					self:UpdateHandItem()
-				end
-			end
 		end
 	end
 
@@ -249,7 +238,7 @@ script PlayerController extends Component
 	method void OnUpdate(number delta)
 		-- Resolve any overlaps with resource colliders first
 		self:ResolveOverlaps(delta)
-		
+
 		-- description: Monitor player movement inputs to track last facing direction and drive movement.
 		-- Handle visual IFrame flashing (translucent blinking)
 		if self.IFrameTimer > 0 then
@@ -413,55 +402,6 @@ script PlayerController extends Component
 		self.LastDirectionX = dirX
 		self.LastDirectionY = dirY
 		log("Player facing updated on server: " .. self.LastDirectionX .. ", " .. self.LastDirectionY)
-
-		self:UpdateHandItem()
-	end
-
-	@ExecSpace("ServerOnly")
-	method void UpdateHandItem()
-		-- 손에 든 장착 아이템 표시 갱신: EquippedTool의 아이콘을 자식 스프라이트("HandItem")에 반영하고
-		-- 마지막 수평 facing 쪽으로 오프셋·좌우 반전을 맞춘다. 장착 변경(PlayerInventory:Equip)과
-		-- 방향 변경(ServerSetDirection) 시에만 호출 — 프레임 루프 없음.
-		local hand = self.Entity:GetChildByName("HandItem")
-		if not isvalid(hand) then return end
-		local sprite = hand.SpriteRendererComponent
-		if not isvalid(sprite) then return end
-
-		-- 아이콘 결정 (item_dataset.IconRUID — thumbnail:// 접두어는 스프라이트 RUID로 정리)
-		local ruid = ""
-		local inv = self.Entity:GetComponent("script.PlayerInventory")
-		if isvalid(inv) then
-			---@type PlayerInventory
-			local pinv = inv
-			local equipped = pinv.EquippedTool
-			if equipped ~= nil and equipped ~= "" then
-				local ds = _DataService:GetTable("item_dataset")
-				if ds ~= nil then
-					local row = ds:FindRow("Name", pinv:GetBaseItemName(equipped))
-					if row ~= nil then
-						ruid = row:GetItem("IconRUID") or ""
-						if string.sub(ruid, 1, 12) == "thumbnail://" then
-							ruid = string.sub(ruid, 13)
-						end
-					end
-				end
-			end
-		end
-		sprite.SpriteRUID = ruid
-
-		-- 수평 facing 유지: 위/아래 이동 중엔 마지막 좌우 방향을 기억한다.
-		if self.LastDirectionX ~= 0 then
-			self._T.HandSide = self.LastDirectionX
-		end
-		local side = self._T.HandSide or -1
-
-		local t = hand.TransformComponent
-		if isvalid(t) then
-			-- Position은 자식 로컬 좌표 (아바타 발밑 피벗 기준 손 높이)
-			t.Position = Vector3(0.38 * side, 0.62, 0)
-			t.ZRotation = -20 * side
-		end
-		sprite.FlipX = (side < 0)
 	end
 
 	@ExecSpace("ServerOnly")

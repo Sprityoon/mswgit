@@ -1,0 +1,247 @@
+@Component
+script UIShopController extends Component
+
+	-- In-game NPC shop UI controller (ClientOnly)
+	-- Manages items rendering, tab switching, and purchase/sales requests.
+
+	property Entity btnClose = "4d3c93f5-1fed-4925-8dfc-c0178c0d1bbe"
+	property Entity btnTabBuy = "b807f549-5a57-4bf6-be4a-62f118a33569"
+	property Entity btnTabSell = "2cfb4121-a723-485f-a42c-e13971bf6f1f"
+	property Entity coinText = "06e0ea70-52a4-4033-aba6-fb371afd05ec"
+
+	-- Bindings for 6 slots
+	property Entity slot1 = "b0a3bf45-7f83-45a6-9bcd-850865325484"
+	property Entity slot1_icon = "8504a814-e5b6-441d-a3cd-cc078faeba29"
+	property Entity slot1_name = "30fbaad9-d8a6-41c8-9995-7c6d35e9d925"
+	property Entity slot1_price = "20d50837-676c-4e95-b64d-02b049deffd8"
+
+	property Entity slot2 = "989bff95-4bb0-4ea2-8268-e9d727959128"
+	property Entity slot2_icon = "4b6504b6-a04e-4cf3-9985-75471246b956"
+	property Entity slot2_name = "aa10e524-3e10-4fb2-8350-87da723f0a4c"
+	property Entity slot2_price = "b1de72f8-fab3-4406-966c-ca02f4b57dd5"
+
+	property Entity slot3 = "b2ffcbd5-1372-4711-8886-fd15bef19713"
+	property Entity slot3_icon = "36660c9e-d9fe-4c05-a9c0-8e6bdc463265"
+	property Entity slot3_name = "ee4f16f1-cb1b-4ccd-89b4-83f9a1832271"
+	property Entity slot3_price = "9d0c3876-ce5e-4328-94a0-1963ccdb2f2d"
+
+	property Entity slot4 = "668fc66c-b9e7-415f-aff8-44a31cd0082b"
+	property Entity slot4_icon = "a3093b4c-f562-481a-bfa0-6f43d71382fe"
+	property Entity slot4_name = "6d2ae06e-ecbc-4b10-be8d-7658b0f21864"
+	property Entity slot4_price = "3cefc4e9-4a5f-45b6-96b1-7c57f70a3015"
+
+	property Entity slot5 = "6d76a5ea-61e2-4ba6-9e0f-c833616a4d30"
+	property Entity slot5_icon = "43749044-5207-4f83-8a9d-87cf036ea928"
+	property Entity slot5_name = "74239c10-1bbf-497a-82ff-27ed04a44414"
+	property Entity slot5_price = "2bccaa99-4cff-477a-898a-3e1d73f592ac"
+
+	property Entity slot6 = "ac94f0d1-714f-45cf-8737-bd7d6757f22a"
+	property Entity slot6_icon = "0444251b-8cec-4e38-b0d0-8be5f52a68eb"
+	property Entity slot6_name = "f1e65861-c49a-428d-b8e5-6bd0081bdf4b"
+	property Entity slot6_price = "e11a4798-1040-4004-89b0-961e4feed9af"
+
+	-- Runtime state (client-only)
+	property string currentTab = "buy"  -- "buy" or "sell"
+	property table shopItems = {}       -- index -> { name, price }
+	property table slotHandlers = {}    -- index -> handler
+
+	@ExecSpace("ClientOnly")
+	method void OnBeginPlay()
+		self.Entity.Enable = false
+
+		if isvalid(self.btnClose) then
+			self.btnClose:ConnectEvent(ButtonClickEvent, function() self:Close() end)
+		end
+
+		if isvalid(self.btnTabBuy) then
+			self.btnTabBuy:ConnectEvent(ButtonClickEvent, function() self:SetTab("buy") end)
+		end
+
+		if isvalid(self.btnTabSell) then
+			self.btnTabSell:ConnectEvent(ButtonClickEvent, function() self:SetTab("sell") end)
+		end
+
+		-- Connect click events for 6 slots
+		for i = 1, 6 do
+			local slot = self["slot" .. i]
+			if isvalid(slot) then
+				local index = i
+				local h = slot:ConnectEvent(ButtonClickEvent, function() self:OnSlotClick(index) end)
+				self.slotHandlers[i] = h
+			end
+		end
+	end
+
+	@ExecSpace("ClientOnly")
+	method void OnEndPlay()
+		for i = 1, 6 do
+			local slot = self["slot" .. i]
+			local h = self.slotHandlers[i]
+			if isvalid(slot) and h ~= nil then
+				slot:DisconnectEvent(ButtonClickEvent, h)
+			end
+		end
+	end
+
+	@ExecSpace("ClientOnly")
+	method void Open()
+		self.Entity.Enable = true
+		self:SetTab("buy")
+	end
+
+	@ExecSpace("ClientOnly")
+	method void Close()
+		self.Entity.Enable = false
+	end
+
+	@ExecSpace("ClientOnly")
+	method void SetTab(string tabName)
+		self.currentTab = tabName
+
+		-- Highlight the active tab (Buy = green, Sell = grey/blue)
+		if isvalid(self.btnTabBuy) and isvalid(self.btnTabBuy.SpriteGUIRendererComponent) then
+			if tabName == "buy" then
+				self.btnTabBuy.SpriteGUIRendererComponent.Color = Color(0.18, 0.40, 0.20, 1.0) -- Active Green
+			else
+				self.btnTabBuy.SpriteGUIRendererComponent.Color = Color(0.30, 0.30, 0.36, 1.0) -- Inactive Grey
+			end
+		end
+
+		if isvalid(self.btnTabSell) and isvalid(self.btnTabSell.SpriteGUIRendererComponent) then
+			if tabName == "sell" then
+				self.btnTabSell.SpriteGUIRendererComponent.Color = Color(0.18, 0.40, 0.20, 1.0) -- Active Green
+			else
+				self.btnTabSell.SpriteGUIRendererComponent.Color = Color(0.30, 0.30, 0.36, 1.0) -- Inactive Grey
+			end
+		end
+
+		self:RefreshShop()
+	end
+
+	@ExecSpace("ClientOnly")
+	method void RefreshShop()
+		local localPlayer = _UserService.LocalPlayer
+		if not isvalid(localPlayer) then return end
+
+		local inv = localPlayer:GetComponent("script.PlayerInventory")
+		if not isvalid(inv) then return end
+
+		-- Update coin text
+		if isvalid(self.coinText) and isvalid(self.coinText.TextComponent) then
+			self.coinText.TextComponent.Text = "보유 코인: " .. tostring(inv.Coin) .. " 코인"
+		end
+
+		-- Load ShopItemDataSet
+		local shopDs = _DataService:GetTable("ShopItemDataSet")
+		if shopDs == nil then
+			log_error("RefreshShop: ShopItemDataSet not found.")
+			return
+		end
+
+		local itemDs = _DataService:GetTable("item_dataset")
+		if itemDs == nil then
+			log_error("RefreshShop: item_dataset not found.")
+			return
+		end
+
+		self.shopItems = {}
+		local activeCount = 0
+		local rowCount = shopDs:GetRowCount()
+
+		for i = 1, rowCount do
+			local itemName = shopDs:GetCell(i, "Name") or ""
+			local buyPrice = tonumber(shopDs:GetCell(i, "BuyPrice")) or 0
+			local sellPrice = tonumber(shopDs:GetCell(i, "SellPrice")) or 0
+
+			local isValidItem = false
+			local displayPrice = 0
+
+			if self.currentTab == "buy" and buyPrice > 0 then
+				isValidItem = true
+				displayPrice = buyPrice
+			elseif self.currentTab == "sell" and sellPrice > 0 then
+				isValidItem = true
+				displayPrice = sellPrice
+			end
+
+			if isValidItem then
+				activeCount = activeCount + 1
+				if activeCount <= 6 then
+					self.shopItems[activeCount] = { name = itemName, price = displayPrice }
+
+					local slot = self["slot" .. activeCount]
+					local icon = self["slot" .. activeCount .. "_icon"]
+					local nameTxt = self["slot" .. activeCount .. "_name"]
+					local priceTxt = self["slot" .. activeCount .. "_price"]
+
+					if isvalid(slot) then
+						-- Find IconRUID from item_dataset
+						local ruid = ""
+						local row = itemDs:FindRow("Name", itemName)
+						if row ~= nil then
+							ruid = row:GetItem("IconRUID") or ""
+						end
+
+						-- Set Icon
+						if isvalid(icon) and isvalid(icon.SpriteGUIRendererComponent) then
+							icon.SpriteGUIRendererComponent.ImageRUID = ruid
+						end
+
+						-- Set Name
+						if isvalid(nameTxt) and isvalid(nameTxt.TextComponent) then
+							nameTxt.TextComponent.Text = itemName
+						end
+
+						-- Set Price text
+						if isvalid(priceTxt) and isvalid(priceTxt.TextComponent) then
+							if self.currentTab == "buy" then
+								priceTxt.TextComponent.Text = tostring(displayPrice) .. " 코인"
+							else
+								priceTxt.TextComponent.Text = tostring(displayPrice) .. " 코인"
+							end
+						end
+
+						slot.Enable = true
+					end
+				end
+			end
+		end
+
+		-- Hide unused slots
+		for i = activeCount + 1, 6 do
+			local slot = self["slot" .. i]
+			if isvalid(slot) then
+				slot.Enable = false
+			end
+		end
+	end
+
+	@ExecSpace("ClientOnly")
+	method void OnSlotClick(integer index)
+		local item = self.shopItems[index]
+		if item == nil then return end
+
+		local localPlayer = _UserService.LocalPlayer
+		if not isvalid(localPlayer) then return end
+
+		local inv = localPlayer:GetComponent("script.PlayerInventory")
+		if not isvalid(inv) then return end
+
+		if self.currentTab == "buy" then
+			inv:ServerRequestBuyItem(item.name)
+		else
+			-- Verify item exists in inventory first (client check before server request)
+			if inv:GetItemCount(item.name) <= 0 then
+				local pc = localPlayer:GetComponent("script.PlayerController")
+				if isvalid(pc) then
+					---@type PlayerController
+					local c = pc
+					c:ClientShowMineFeedback("판매할 아이템이 인벤토리에 없습니다!")
+				end
+				return
+			end
+			inv:ServerRequestSellItem(item.name)
+		end
+	end
+
+end

@@ -74,7 +74,7 @@
           "Value": {
             "$type": "MOD.Core.MODVector2, MOD.Core",
             "x": 0.052,
-            "y": 0.08
+            "y": 0.05
           }
         },
         {
@@ -86,8 +86,8 @@
           },
           "Value": {
             "$type": "MOD.Core.MODVector2, MOD.Core",
-            "x": 0.268,
-            "y": 0.7
+            "x": 0.1,
+            "y": 0.1
           }
         },
         {
@@ -100,7 +100,7 @@
           "Value": {
             "$type": "MOD.Core.MODVector2, MOD.Core",
             "x": 2.5,
-            "y": 3.9
+            "y": 2
           }
         },
         {
@@ -113,7 +113,7 @@
           "Value": {
             "$type": "MOD.Core.MODVector2, MOD.Core",
             "x": 0.5,
-            "y": 0.655
+            "y": 0.5
           }
         },
         {
@@ -255,7 +255,7 @@
             "$type": "MODNativeType",
             "type": "System.Single, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089"
           },
-          "Value": 55
+          "Value": 66
         },
         {
           "TargetType": "MOD.Core.AvatarStateAnimationComponent",

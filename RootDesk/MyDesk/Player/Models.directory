@@ -1,0 +1,23 @@
+{
+  "Id": "",
+  "GameId": "",
+  "EntryKey": "directory://1927e1d421284ed9bb560b2d31b07a1a",
+  "ContentType": "x-mod/directory",
+  "Content": "",
+  "Usage": 0,
+  "UsePublish": 1,
+  "UseService": 0,
+  "CoreVersion": "26.5.0.0",
+  "StudioVersion": "",
+  "DynamicLoading": 0,
+  "ContentProto": {
+    "Use": "Json",
+    "Json": {
+      "entry_id": "directory://1927e1d421284ed9bb560b2d31b07a1a",
+      "name": "Models",
+      "lock": false,
+      "folding": false,
+      "nameEditable": true
+    }
+  }
+}

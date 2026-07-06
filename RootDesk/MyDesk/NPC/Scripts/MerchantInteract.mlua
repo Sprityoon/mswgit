@@ -1,0 +1,84 @@
+@Component
+script MerchantInteract extends Component
+
+	-- Client-only interaction logic for the NPC Merchant.
+	-- Opens the ShopPopup UI when clicked/touched or when F key is pressed nearby.
+
+	property any keyHandler = nil
+
+	method void OnBeginPlay()
+		if self:IsClient() then
+			self.Entity:ConnectEvent(TouchEvent, self.OnTouch, self)
+			self.keyHandler = _InputService:ConnectEvent(KeyDownEvent, self.OnKeyDown, self)
+		end
+	end
+
+	method void OnEndPlay()
+		if self:IsClient() and self.keyHandler ~= nil then
+			_InputService:DisconnectEvent(KeyDownEvent, self.keyHandler)
+			self.keyHandler = nil
+		end
+	end
+
+	@ExecSpace("ClientOnly")
+	method void OnTouch(TouchEvent event)
+		local localPlayer = _UserService.LocalPlayer
+		if not isvalid(localPlayer) then return end
+		
+		local dist = self:GetDistanceToPlayer(localPlayer)
+		log("[MerchantInteract] Touched by player. Distance: " .. tostring(dist))
+
+		if dist > 3.0 then
+			self:ShowRangeFeedback(localPlayer)
+			return
+		end
+
+		self:OpenShop()
+	end
+
+	@ExecSpace("ClientOnly")
+	method void OnKeyDown(KeyDownEvent event)
+		if event.key ~= KeyboardKey.F then return end
+
+		local localPlayer = _UserService.LocalPlayer
+		if not isvalid(localPlayer) then return end
+
+		local dist = self:GetDistanceToPlayer(localPlayer)
+		if dist <= 3.0 then
+			log("[MerchantInteract] F key pressed. Opening shop. Distance: " .. tostring(dist))
+			self:OpenShop()
+		end
+	end
+
+	@ExecSpace("ClientOnly")
+	method number GetDistanceToPlayer(Entity player)
+		local myPos = self.Entity.TransformComponent.WorldPosition
+		local playerPos = player.TransformComponent.WorldPosition
+		return Vector2.Distance(Vector2(myPos.x, myPos.y), Vector2(playerPos.x, playerPos.y))
+	end
+
+	@ExecSpace("ClientOnly")
+	method void ShowRangeFeedback(Entity player)
+		local pc = player:GetComponent("script.PlayerController")
+		if isvalid(pc) then
+			---@type PlayerController
+			local c = pc
+			c:ClientShowMineFeedback("상인 NPC에게 더 가까이 다가가야 합니다.")
+		end
+	end
+
+	@ExecSpace("ClientOnly")
+	method void OpenShop()
+		local shopPopup = _EntityService:GetEntityByPath("/ui/PopupGroup/ShopPopup")
+		if isvalid(shopPopup) then
+			local ctrl = shopPopup:GetComponent("script.UIShopController")
+			if isvalid(ctrl) then
+				ctrl:Open()
+				log("[MerchantInteract] Opened ShopPopup UI via interaction.")
+			end
+		else
+			log_error("[MerchantInteract] ShopPopup UI not found at /ui/PopupGroup/ShopPopup")
+		end
+	end
+
+end

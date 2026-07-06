@@ -283,6 +283,54 @@ function patchPopups() {
     }
   }
 
+  // 8) ShopPopup Panel (hidden by default)
+  const SP = "ShopPopup";
+  if (!b.getId(`/ui/PopupGroup/${SP}`)) {
+    b.panel(SP, { anchor: "middle-center", pos: [0, 0], rect_size: [800, 700], enable: false });
+    b.addComponent(SP, "script.UIShopController");
+    b.patch(SP, { display_order: 41 });
+    
+    // Background card
+    b.sprite(`${SP}/Bg`, { anchor: "middle-center", pos: [0, 0], rect_size: [600, 500], color: "#2B2B33", alpha: 1.0, raycast: true });
+    
+    // Title
+    b.text(`${SP}/Bg/Title`, "상점", { anchor: "middle-center", pos: [0, 215], rect_size: [280, 40], size: 26, color: "#FFE9A8", alignment: 4 });
+    
+    // Close button
+    b.button(`${SP}/Bg/BtnClose`, "X", { anchor: "middle-center", pos: [265, 215], rect_size: [40, 40], font_size: 22, color: "#FFFFFF" });
+    b.patchComponent(`${SP}/Bg/BtnClose`, "MOD.Core.SpriteGUIRendererComponent", { Color: { r: 0.55, g: 0.18, b: 0.16, a: 1.0 } });
+    
+    // Tab Buttons (Buy / Sell)
+    b.button(`${SP}/Bg/BtnTabBuy`, "구매", { anchor: "middle-center", pos: [-100, 160], rect_size: [180, 46], font_size: 20, color: "#FFFFFF" });
+    b.patchComponent(`${SP}/Bg/BtnTabBuy`, "MOD.Core.SpriteGUIRendererComponent", { Color: { r: 0.18, g: 0.40, b: 0.20, a: 1.0 } });
+    
+    b.button(`${SP}/Bg/BtnTabSell`, "판매", { anchor: "middle-center", pos: [100, 160], rect_size: [180, 46], font_size: 20, color: "#FFFFFF" });
+    b.patchComponent(`${SP}/Bg/BtnTabSell`, "MOD.Core.SpriteGUIRendererComponent", { Color: { r: 0.30, g: 0.30, b: 0.36, a: 1.0 } });
+    
+    // Player Coin Display
+    b.text(`${SP}/Bg/CoinText`, "보유 코인: 0", { anchor: "middle-center", pos: [0, 115], rect_size: [340, 30], size: 18, color: "#FFE9A8", alignment: 4 });
+
+    // Grid / Slots for Items (6 slots)
+    const shopSlots = [
+      [-160, 20], [0, 20], [160, 20],
+      [-160, -90], [0, -90], [160, -90]
+    ];
+    for (let i = 1; i <= 6; i++) {
+      const pos = shopSlots[i - 1];
+      const slotName = `${SP}/Bg/Slot${i}`;
+      b.button(slotName, "", { anchor: "middle-center", pos: pos, rect_size: [130, 90] });
+      b.patchComponent(slotName, "MOD.Core.SpriteGUIRendererComponent", { Color: { r: 0.22, g: 0.22, b: 0.26, a: 1.0 } });
+      
+      b.sprite(`${slotName}/Icon`, { anchor: "middle-center", pos: [0, 15], rect_size: [40, 40], image_ruid: "" });
+      b.text(`${slotName}/ItemName`, "", { anchor: "middle-center", pos: [0, -15], rect_size: [120, 20], size: 13, color: "#FFFFFF", alignment: 4 });
+      b.text(`${slotName}/PriceText`, "", { anchor: "middle-center", pos: [0, -32], rect_size: [120, 18], size: 12, color: "#FFE9A8", alignment: 4 });
+    }
+  } else {
+    if (!b.hasComponent(SP, "script.UIShopController")) {
+      b.addComponent(SP, "script.UIShopController");
+    }
+  }
+
   b.write(file, {
     bind: {
       mlua: path.join(rootUIDir, "UIInventoryController.mlua"),
@@ -338,6 +386,21 @@ function patchPopups() {
     btnClose: `${ST}/Bg/BtnClose`,
     spText: `${ST}/Bg/SPText`
   });
+
+  // Inject Shop bindings
+  const shopProps = {
+    btnClose: `${SP}/Bg/BtnClose`,
+    btnTabBuy: `${SP}/Bg/BtnTabBuy`,
+    btnTabSell: `${SP}/Bg/BtnTabSell`,
+    coinText: `${SP}/Bg/CoinText`
+  };
+  for (let i = 1; i <= 6; i++) {
+    shopProps[`slot${i}`] = `${SP}/Bg/Slot${i}`;
+    shopProps[`slot${i}_icon`] = `${SP}/Bg/Slot${i}/Icon`;
+    shopProps[`slot${i}_name`] = `${SP}/Bg/Slot${i}/ItemName`;
+    shopProps[`slot${i}_price`] = `${SP}/Bg/Slot${i}/PriceText`;
+  }
+  b.injectBindings(path.join(rootUIDir, "UIShopController.mlua"), shopProps);
 
   const after = b.listEntities().length;
   console.log(`PopupGroup.ui patched: ${before} -> ${after} entities.`);

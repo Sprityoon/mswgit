@@ -1,19 +1,20 @@
-﻿id,Name,ModelName,EntryId,Category,ToolType,ToolPower,IconRUID,PlacedTileName,Rarity,Tradable,Description,WeaponRUID
-wood,Wood,Item_Wood,2cb8f37e-ef6b-4e17-86fb-d940f18a7412,resource,,0,b952164321fd4c9c94cb0d3e7c73b182,,Common,true,"""A flexible wooden branch. Useful for crafting basic tools.""",
-stone,Stone,Item_Stone,05fa541a-a48d-4f36-bf82-0c60784a4a53,resource,,0,5ed8bdcf520044c0a1660873beb30b10,,Common,true,"""A common stone found in the wild. Used in crafting tools and buildings.""",
-copper ore,Copper Ore,Item_CopperOre,3484bbf6-1973-4b23-a720-9d1b0754aa6f,resource,,0,914eb87802b64924b5f78bb97a55faeb,,Common,true,"""A chunk of copper ore. Can be smelted into copper bars.""",
-grass,Grass,Item_Grass,896c7bd8-8a8a-48a8-a7c7-fc8c337c2a9b,resource,,0,f0bce7f800f140559f35a12a93de9c9e,,Common,true,"""Soft wild grass. Can be used for binding or insulation.""",
-hand_axe,Hand Axe,Item_HandAxe,8fdc2947-7735-4aa3-90ad-208438aeb809,tool,axe,0,57345d4aa6a640419af19e340c29940f,,Common,true,"""A simple axe made of stone. Used to cut trees.""",5b0af54d1fd0489198f8c31183d130fa
-stone_pickaxe,Stone Pickaxe,Item_StonePickaxe,0f6274e2-70fd-409b-8a20-7999c099c721,tool,pickaxe,2,428577ffb2964719b8ab0bb18e5171e1,,Common,true,"""A sturdy stone pickaxe. Ideal for mining large stones.""",09c266c572cc425b96b5b2b0d92defd1
-stone_axe,Stone Axe,Item_StoneAxe,08cec3b5-eaaa-4b36-9957-0e96f0708161,tool,axe,2,2e0751aabbb14ccf85cfb99c024511c9,,Common,true,"""An upgraded axe. Efficiently cuts down trees.""",096fabc5a35e426db5912ec35e77a769
-wooden_chest,Wooden Chest,Item_WoodenChest,ebd82997-e2b7-4a6f-b3cc-0dc9380e529b,furniture,,0,22e9f409617b4e4180f9c92fb26b13f7,,Common,true,"""A simple chest to store your extra materials.""",
-furnace,Furnace,Item_Furnace,f2d3a4b5-67c8-49d0-bfd1-ebd3c4a2a1b9,furniture,,0,8cb667c940834bb9b19c11ae242a0aa1,,Uncommon,true,"""A stone furnace used to smelt ores into metal bars.""",
-iron_ore,Iron Ore,Item_IronOre,71d8820c-c72e-4b2a-b7a4-ef8b337c2a01,resource,,0,79f438d0427142f09f979b58e982b1bd,,Uncommon,true,"""A chunk of iron ore. Can be smelted into iron bars.""",
-copper_bar,Copper Bar,Item_CopperBar,1234cdef-5678-4321-abcd-ef1234567890,resource,,0,d7429bc723034933b9b51de9b6b912fc,,Uncommon,true,"""A refined bar of pure copper. Used for mid-tier crafting.""",
-iron_bar,Iron Bar,Item_IronBar,9876fedc-5432-1234-abcd-ef9876543210,resource,,0,7ac77c77fdc0480080303b2dc0b96c35,,Rare,true,"""A refined bar of strong iron. Used for high-tier crafting.""",
-wood_floor,Wood Floor,Item_WoodFloor,a0123456-789a-bcde-f012-3456789abcde,furniture,,0,22e9f409617b4e4180f9c92fb26b13f7,Baram_167,Common,true,"""A wooden floor tile for building structures.""",
-portal,Portal,Item_Portal,f9d3a4b5-67c8-49d0-bfd1-ebd3c4a2a1a0,furniture,,0,aba58d2139ca4736bab39f6b4c39aa37,,Epic,false,"""A magical portal structure that teleports you to another map.""",
-copper_pickaxe,Copper Pickaxe,Item_CopperPickaxe,0f6274e2-70fd-409b-8a20-7999c099c721,tool,pickaxe,3,thumbnail://79904036a8a1457cb9b5c624084383b8,,Uncommon,true,"""A refined copper pickaxe. Efficient for mining ores.""",79904036a8a1457cb9b5c624084383b8
-copper_axe,Copper Axe,Item_CopperAxe,08cec3b5-eaaa-4b36-9957-0e96f0708161,tool,axe,3,thumbnail://233fd0760c124458b57928542f77bdc2,,Uncommon,true,"""A refined copper axe. Efficient for chopping trees.""",233fd0760c124458b57928542f77bdc2
-iron_pickaxe,Iron Pickaxe,Item_IronPickaxe,0f6274e2-70fd-409b-8a20-7999c099c721,tool,pickaxe,5,thumbnail://475260585aa44acba3bca0e4b820e208,,Rare,true,"""A sturdy iron pickaxe. Required for high-tier mining.""",475260585aa44acba3bca0e4b820e208
-iron_axe,Iron Axe,Item_IronAxe,08cec3b5-eaaa-4b36-9957-0e96f0708161,tool,axe,5,thumbnail://963cde7d88654f4a94b045e035ca1cae,,Rare,true,"""A sturdy iron axe. Required for high-tier chopping.""",963cde7d88654f4a94b045e035ca1cae
+﻿id,Name,ModelName,EntryId,Category,ToolType,ToolPower,IconRUID,PlacedTileName,Rarity,Tradable,Description,WeaponRUID,SwingAction
+wood,Wood,Item_Wood,2cb8f37e-ef6b-4e17-86fb-d940f18a7412,resource,,0,b952164321fd4c9c94cb0d3e7c73b182,,Common,true,"""A flexible wooden branch. Useful for crafting basic tools.""",,
+stone,Stone,Item_Stone,05fa541a-a48d-4f36-bf82-0c60784a4a53,resource,,0,5ed8bdcf520044c0a1660873beb30b10,,Common,true,"""A common stone found in the wild. Used in crafting tools and buildings.""",,
+copper ore,Copper Ore,Item_CopperOre,3484bbf6-1973-4b23-a720-9d1b0754aa6f,resource,,0,914eb87802b64924b5f78bb97a55faeb,,Common,true,"""A chunk of copper ore. Can be smelted into copper bars.""",,
+grass,Grass,Item_Grass,896c7bd8-8a8a-48a8-a7c7-fc8c337c2a9b,resource,,0,f0bce7f800f140559f35a12a93de9c9e,,Common,true,"""Soft wild grass. Can be used for binding or insulation.""",,
+hand_axe,Hand Axe,Item_HandAxe,8fdc2947-7735-4aa3-90ad-208438aeb809,tool,axe,0,57345d4aa6a640419af19e340c29940f,,Common,true,"""A simple axe made of stone. Used to cut trees.""",5b0af54d1fd0489198f8c31183d130fa,swingO2
+stone_pickaxe,Stone Pickaxe,Item_StonePickaxe,0f6274e2-70fd-409b-8a20-7999c099c721,tool,pickaxe,2,428577ffb2964719b8ab0bb18e5171e1,,Common,true,"""A sturdy stone pickaxe. Ideal for mining large stones.""",09c266c572cc425b96b5b2b0d92defd1,swingT1
+stone_axe,Stone Axe,Item_StoneAxe,08cec3b5-eaaa-4b36-9957-0e96f0708161,tool,axe,2,2e0751aabbb14ccf85cfb99c024511c9,,Common,true,"""An upgraded axe. Efficiently cuts down trees.""",096fabc5a35e426db5912ec35e77a769,swingO2
+wooden_chest,Wooden Chest,Item_WoodenChest,ebd82997-e2b7-4a6f-b3cc-0dc9380e529b,furniture,,0,22e9f409617b4e4180f9c92fb26b13f7,,Common,true,"""A simple chest to store your extra materials.""",,
+furnace,Furnace,Item_Furnace,f2d3a4b5-67c8-49d0-bfd1-ebd3c4a2a1b9,furniture,,0,8cb667c940834bb9b19c11ae242a0aa1,,Uncommon,true,"""A stone furnace used to smelt ores into metal bars.""",,
+iron_ore,Iron Ore,Item_IronOre,71d8820c-c72e-4b2a-b7a4-ef8b337c2a01,resource,,0,79f438d0427142f09f979b58e982b1bd,,Uncommon,true,"""A chunk of iron ore. Can be smelted into iron bars.""",,
+copper_bar,Copper Bar,Item_CopperBar,1234cdef-5678-4321-abcd-ef1234567890,resource,,0,d7429bc723034933b9b51de9b6b912fc,,Uncommon,true,"""A refined bar of pure copper. Used for mid-tier crafting.""",,
+iron_bar,Iron Bar,Item_IronBar,9876fedc-5432-1234-abcd-ef9876543210,resource,,0,7ac77c77fdc0480080303b2dc0b96c35,,Rare,true,"""A refined bar of strong iron. Used for high-tier crafting.""",,
+wood_floor,Wood Floor,Item_WoodFloor,a0123456-789a-bcde-f012-3456789abcde,furniture,,0,22e9f409617b4e4180f9c92fb26b13f7,Baram_167,Common,true,"""A wooden floor tile for building structures.""",,
+portal,Portal,Item_Portal,f9d3a4b5-67c8-49d0-bfd1-ebd3c4a2a1a0,furniture,,0,aba58d2139ca4736bab39f6b4c39aa37,,Epic,false,"""A magical portal structure that teleports you to another map.""",,
+copper_pickaxe,Copper Pickaxe,Item_CopperPickaxe,0f6274e2-70fd-409b-8a20-7999c099c721,tool,pickaxe,3,thumbnail://79904036a8a1457cb9b5c624084383b8,,Uncommon,true,"""A refined copper pickaxe. Efficient for mining ores.""",79904036a8a1457cb9b5c624084383b8,swingT1
+copper_axe,Copper Axe,Item_CopperAxe,08cec3b5-eaaa-4b36-9957-0e96f0708161,tool,axe,3,thumbnail://233fd0760c124458b57928542f77bdc2,,Uncommon,true,"""A refined copper axe. Efficient for chopping trees.""",233fd0760c124458b57928542f77bdc2,swingO2
+iron_pickaxe,Iron Pickaxe,Item_IronPickaxe,0f6274e2-70fd-409b-8a20-7999c099c721,tool,pickaxe,5,thumbnail://475260585aa44acba3bca0e4b820e208,,Rare,true,"""A sturdy iron pickaxe. Required for high-tier mining.""",475260585aa44acba3bca0e4b820e208,swingT1
+iron_axe,Iron Axe,Item_IronAxe,08cec3b5-eaaa-4b36-9957-0e96f0708161,tool,axe,5,thumbnail://963cde7d88654f4a94b045e035ca1cae,,Rare,true,"""A sturdy iron axe. Required for high-tier chopping.""",963cde7d88654f4a94b045e035ca1cae,swingO2
+coin,Coin,Item_Coin,c011e001-e2b7-4a6f-b3cc-0dc9380e529b,resource,,0,408c027728b5404f8901c85f6307cfcf,,Common,true,"""In-game currency used to buy items from the shop.""",,

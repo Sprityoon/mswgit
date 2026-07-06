@@ -225,11 +225,11 @@ script PersistenceManager extends Logic
 					log_warning("PersistenceManager: Failed to decode inventoryData, fallback to empty.")
 					inv.Items = {}
 				end
+				inv.Coin = data.coin or 0
 				inv.EquippedTool = data.equippedTool or ""
 				inv.QuickSlotsJson = data.quickSlots or "[\"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\"]"
 				inv.SelectedQuickSlotIndex = data.selectedSlot or 1
 				inv:ApplyHeldToolCostume()
-				inv:NotifyHandItemChanged() -- 복원된 장착 도구를 손에 든 스프라이트에 반영
 				log("PersistenceManager: Inventory restored.")
 			end
 
@@ -428,6 +428,7 @@ script PersistenceManager extends Logic
 			stamina = tonumber(pc.Stamina) or 100,
 			maxStamina = tonumber(pc.MaxStamina) or 100,
 			gatheringSpeed = tonumber(pc.GatheringSpeed) or 1.0,
+			coin = tonumber(inv.Coin) or 0,
 			inventoryData = inv.InventoryDataJson,
 			equippedTool = inv.EquippedTool,
 			quickSlots = inv.QuickSlotsJson,

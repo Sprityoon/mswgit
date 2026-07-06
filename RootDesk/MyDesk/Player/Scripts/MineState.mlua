@@ -9,7 +9,10 @@ script MineState extends StateType
 		self.startTime = _UtilLogic.ElapsedSeconds
 		local entity = self.ParentComponent.Entity
 		
-		-- Pick the swing animation from the equipped tool's ToolType (item_dataset, data-driven).
+		-- Pick the swing animation from the equipped tool (item_dataset, data-driven).
+		-- 도구는 CostumeManager의 OneHandedWeapon 슬롯에 장착되므로, 한손(*O*) 계열 액션만
+		-- 무기 파츠 프레임이 존재한다. swingT*(두손) 액션을 재생하면 몸은 움직여도 무기
+		-- 프레임이 없어 모션 중 도구가 사라진다(과거 swingT1 버그의 원인).
 		local animName = "stabO2"
 		local inv = entity:GetComponent("script.PlayerInventory")
 		if isvalid(inv) and inv.EquippedTool ~= "" then
@@ -18,13 +21,23 @@ script MineState extends StateType
 			if ds ~= nil then
 				local row = ds:FindRow("Name", baseName)
 				if row ~= nil then
-					local toolType = row:GetItem("ToolType") or ""
-					-- One-handed weapon parts only carry swingO*/stabO* frames; the two-handed
-					-- swingT* IDs render the body but leave the held weapon invisible.
-					if toolType == "pickaxe" then
-						animName = "swingO1"
-					elseif toolType == "axe" then
-						animName = "swingO2"
+					-- 1순위: item_dataset의 SwingAction 컬럼 (행 추가/수정만으로 모션 교체 가능).
+					-- pcall 가드: 데이터셋이 아직 리프레시되지 않아 컬럼이 없어도 폴백으로 동작.
+					local swingAction = ""
+					local ok, v = pcall(function() return row:GetItem("SwingAction") end)
+					if ok and v ~= nil then swingAction = v end
+
+					if swingAction ~= "" then
+						animName = swingAction
+					else
+						-- 2순위 폴백: ToolType 기반. 반드시 한손 액션만 사용한다.
+						-- swingO1 = 머리 위에서 내리찍기(채광), swingO2 = 사선 내려치기(벌목).
+						local toolType = row:GetItem("ToolType") or ""
+						if toolType == "pickaxe" then
+							animName = "swingO1"
+						elseif toolType == "axe" then
+							animName = "swingO2"
+						end
 					end
 				end
 			end

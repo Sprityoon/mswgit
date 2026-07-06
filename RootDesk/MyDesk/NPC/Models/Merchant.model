@@ -24,7 +24,9 @@
         "MOD.Core.StateComponent",
         "MOD.Core.ChatBalloonComponent",
         "MOD.Core.StateAnimationComponent",
-        "MOD.Core.NameTagComponent"
+        "MOD.Core.NameTagComponent",
+        "MOD.Core.TouchReceiveComponent",
+        "script.MerchantInteract"
       ],
       "Properties": [
         {
@@ -167,6 +169,28 @@
             "type": "System.String, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089"
           },
           "Value": "MapLayer5"
+        },
+        {
+          "TargetType": "MOD.Core.TouchReceiveComponent",
+          "Name": "AutoFitToSize",
+          "ValueType": {
+            "$type": "MODNativeType",
+            "type": "System.Boolean, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089"
+          },
+          "Value": true
+        },
+        {
+          "TargetType": "MOD.Core.TouchReceiveComponent",
+          "Name": "TouchArea",
+          "ValueType": {
+            "$type": "MODNativeType",
+            "type": "MOD.Core.MODVector2, MOD.Core, Version=26.5.0.0, Culture=neutral, PublicKeyToken=null"
+          },
+          "Value": {
+            "$type": "MOD.Core.MODVector2, MOD.Core",
+            "x": 1.5,
+            "y": 2.5
+          }
         }
       ],
       "EventLinks": [],

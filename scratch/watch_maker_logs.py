@@ -1,16 +1,41 @@
 # watch_maker_logs.py — read-only Maker MCP log watcher (no editor control).
 # Polls maker_logs(normal) every 20s; prints only NEW lines relevant to the
 # skill-tree / achievement verification session. stdout lines become monitor events.
-import subprocess, json, threading, queue, time, sys, re
+import subprocess, json, threading, queue, time, sys, re, os
 
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 KEYWORDS = re.compile(r"ActionSignals|SKILL|LEVEL UP|Achievement|skill", re.I)
 
+def resolve_mcp_bat():
+    """Locate msw-maker-mcp.bat portably (no per-user hardcoded path).
+    Priority: MSW_MCP_BAT env override -> project .mcp.json -> known install dirs."""
+    env = os.environ.get("MSW_MCP_BAT")
+    if env and os.path.isfile(env):
+        return env
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # scratch/ -> project root
+    try:
+        with open(os.path.join(root, ".mcp.json"), encoding="utf-8") as f:
+            args = json.load(f)["mcpServers"]["msw-maker-mcp"]["args"]
+        for a in args:
+            if str(a).lower().endswith(".bat") and os.path.isfile(a):
+                return a
+    except Exception:
+        pass
+    for cand in (
+        os.path.join(os.environ.get("LOCALAPPDATA", ""), "Nexon", "MapleStory Worlds", "MakerMCP", "msw-maker-mcp.bat"),
+        r"C:\Nexon\MapleStory Worlds\MakerMCP\msw-maker-mcp.bat",
+    ):
+        if cand and os.path.isfile(cand):
+            return cand
+    raise FileNotFoundError(
+        "msw-maker-mcp.bat not found. Set MSW_MCP_BAT to its full path "
+        "(see .mcp.json > mcpServers > msw-maker-mcp > args).")
+
 class Mcp:
     def __init__(self):
         self.p = subprocess.Popen(
-            ["cmd.exe", "/c", "call", r"C:\Users\mh566\AppData\Local\Nexon\MapleStory Worlds\MakerMCP\msw-maker-mcp.bat"],
+            ["cmd.exe", "/c", "call", resolve_mcp_bat()],
             stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
         self.q = queue.Queue(); self._id = 0
         threading.Thread(target=self._reader, daemon=True).start()

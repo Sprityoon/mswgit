@@ -40,6 +40,27 @@ script Monster extends Component
 		local sc = self.Entity.StateComponent
 		if isvalid(sc) then sc:ChangeState("DEAD") end
 
+		-- Coin drop based on MonsterCoinDropDataSet
+		local map = self.Entity.CurrentMap
+		local transform = self.Entity.TransformComponent
+		if isvalid(map) and isvalid(transform) and _TileDurabilityManager ~= nil then
+			local dropDs = _DataService:GetTable("MonsterCoinDropDataSet")
+			if dropDs ~= nil then
+				local row = dropDs:FindRow("MonsterName", self.Entity.Name)
+				if row ~= nil then
+					local dropChance = tonumber(dropDs:GetCell(row.RowIndex, "DropChance")) or 0.0
+					if math.random() <= dropChance then
+						local minAmt = tonumber(dropDs:GetCell(row.RowIndex, "MinAmount")) or 1
+						local maxAmt = tonumber(dropDs:GetCell(row.RowIndex, "MaxAmount")) or 1
+						local count = math.random(minAmt, maxAmt)
+						local p = transform.WorldPosition
+						_TileDurabilityManager:SpawnResourceDrop(map, Vector3(p.x, p.y, 0), "Coin", count, count, 0)
+						log("[MONSTER] Dropped " .. count .. " Coins from " .. self.Entity.Name)
+					end
+				end
+			end
+		end
+
 		-- Boss reward: drop loot at the corpse + unlock the next-tier waypoint for the killer.
 		if self.IsBoss then
 			self:GrantBossRewards()

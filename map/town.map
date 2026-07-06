@@ -48056,100 +48056,6 @@
         }
       },
       {
-        "id": "2f61d052-eee7-4949-bc59-c3654c9351de",
-        "path": "/maps/town/Merchant",
-        "componentNames": "MOD.Core.TransformComponent,MOD.Core.SpriteRendererComponent,MOD.Core.RigidbodyComponent,MOD.Core.StateComponent,MOD.Core.ChatBalloonComponent,MOD.Core.StateAnimationComponent,MOD.Core.NameTagComponent",
-        "jsonString": {
-          "name": "Merchant",
-          "path": "/maps/town/Merchant",
-          "nameEditable": true,
-          "enable": true,
-          "visible": true,
-          "localize": false,
-          "displayOrder": 12,
-          "pathConstraints": "///",
-          "revision": 1,
-          "modelId": "merchant",
-          "@components": [
-            {
-              "@type": "MOD.Core.TransformComponent",
-              "Position": {
-                "x": -3,
-                "y": 2,
-                "z": 0
-              },
-              "QuaternionRotation": {
-                "x": 0,
-                "y": 0,
-                "z": 0,
-                "w": 1
-              },
-              "Scale": {
-                "x": 1,
-                "y": 1,
-                "z": 1
-              },
-              "Enable": true
-            },
-            {
-              "@type": "MOD.Core.SpriteRendererComponent",
-              "SpriteRUID": "61839a48f0144bbdb039f312ee7339bb",
-              "Color": {
-                "r": 1,
-                "g": 1,
-                "b": 1,
-                "a": 1
-              },
-              "DrawMode": 0,
-              "FlipX": false,
-              "FlipY": false,
-              "PlayRate": 1,
-              "OrderInLayer": 12,
-              "StartFrameIndex": 0,
-              "EndFrameIndex": 2147483647,
-              "Enable": true,
-              "SortingLayer": "MapLayer2"
-            },
-            {
-              "@type": "MOD.Core.RigidbodyComponent",
-              "MoveVelocity": {
-                "x": 0,
-                "y": 0
-              },
-              "RealMoveVelocity": {
-                "x": 0,
-                "y": 0
-              },
-              "Enable": true
-            },
-            {
-              "@type": "MOD.Core.StateComponent",
-              "Enable": true
-            },
-            {
-              "@type": "MOD.Core.ChatBalloonComponent",
-              "Enable": true
-            },
-            {
-              "@type": "MOD.Core.StateAnimationComponent",
-              "Enable": true
-            },
-            {
-              "@type": "MOD.Core.NameTagComponent",
-              "Enable": true
-            }
-          ],
-          "@version": 1,
-          "origin": {
-            "type": "Model",
-            "entry_id": "merchant",
-            "sub_entity_id": null,
-            "root_entity_id": "2f61d052-eee7-4949-bc59-c3654c9351de",
-            "replaced_model_id": null
-          }
-        }
-      },
-      {
         "id": "1bdf603f-f1cb-41cd-ad89-9002e79faa14",
         "path": "/maps/town/MapleMapLayer4",
         "componentNames": "MOD.Core.MapLayerComponent",
@@ -61375,6 +61281,114 @@
             }
           ],
           "@version": 1
+        }
+      },
+      {
+        "id": "38a7705f-601b-46e1-a7de-640a86315eaa",
+        "path": "/maps/town/Merchant",
+        "componentNames": "MOD.Core.TransformComponent,MOD.Core.SpriteRendererComponent,MOD.Core.RigidbodyComponent,MOD.Core.StateComponent,MOD.Core.ChatBalloonComponent,MOD.Core.StateAnimationComponent,MOD.Core.NameTagComponent,MOD.Core.TouchReceiveComponent,script.MerchantInteract",
+        "jsonString": {
+          "name": "Merchant",
+          "path": "/maps/town/Merchant",
+          "nameEditable": true,
+          "enable": true,
+          "visible": true,
+          "localize": false,
+          "displayOrder": 14,
+          "pathConstraints": "///",
+          "revision": 1,
+          "modelId": "merchant",
+          "@components": [
+            {
+              "@type": "MOD.Core.TransformComponent",
+              "Position": {
+                "x": 0,
+                "y": 1,
+                "z": 0
+              },
+              "QuaternionRotation": {
+                "x": 0,
+                "y": 0,
+                "z": 0,
+                "w": 1
+              },
+              "Scale": {
+                "x": 1,
+                "y": 1,
+                "z": 1
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.SpriteRendererComponent",
+              "SpriteRUID": "61839a48f0144bbdb039f312ee7339bb",
+              "Color": {
+                "r": 1,
+                "g": 1,
+                "b": 1,
+                "a": 1
+              },
+              "DrawMode": 0,
+              "FlipX": false,
+              "FlipY": false,
+              "PlayRate": 1,
+              "OrderInLayer": 12,
+              "StartFrameIndex": 0,
+              "EndFrameIndex": 2147483647,
+              "Enable": true,
+              "SortingLayer": "MapLayer5"
+            },
+            {
+              "@type": "MOD.Core.RigidbodyComponent",
+              "MoveVelocity": {
+                "x": 0,
+                "y": 0
+              },
+              "RealMoveVelocity": {
+                "x": 0,
+                "y": 0
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.StateComponent",
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.ChatBalloonComponent",
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.StateAnimationComponent",
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.NameTagComponent",
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.TouchReceiveComponent",
+              "Enable": true,
+              "AutoFitToSize": true,
+              "TouchArea": {
+                "$type": "MOD.Core.MODVector2, MOD.Core",
+                "x": 1.5,
+                "y": 2.5
+              }
+            },
+            {
+              "@type": "script.MerchantInteract",
+              "Enable": true
+            }
+          ],
+          "@version": 1,
+          "origin": {
+            "type": "Model",
+            "entry_id": "merchant",
+            "sub_entity_id": null,
+            "root_entity_id": "38a7705f-601b-46e1-a7de-640a86315eaa",
+            "replaced_model_id": null
+          }
         }
       }
     ]
