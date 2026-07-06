@@ -97,6 +97,7 @@ script PlayerInventory extends Component
 				self.Items[itemName] = nil
 				if self.EquippedTool == itemName then
 					self.EquippedTool = ""
+					self:ApplyHeldToolCostume()
 				end
 				self.InventoryDataJson = self:SafeEncodeJson(self.Items, "{}")
 				if _PersistenceManager and self.Entity.PlayerComponent then
@@ -136,6 +137,7 @@ script PlayerInventory extends Component
 			self.Items[k] = nil
 			if self.EquippedTool == k then
 				self.EquippedTool = ""
+				self:ApplyHeldToolCostume()
 			end
 		end
 		
@@ -303,6 +305,7 @@ script PlayerInventory extends Component
 		-- Toggle off when re-equipping the same tool
 		if self.EquippedTool == itemName or itemName == "" then
 			self.EquippedTool = ""
+			self:ApplyHeldToolCostume()
 			log("[EQUIP] " .. self.Entity.Name .. " unequipped " .. itemName)
 			self:ClientOnEquipChanged("")
 			self:NotifyHandItemChanged()
@@ -329,6 +332,7 @@ script PlayerInventory extends Component
 		end
 		
 		self.EquippedTool = itemName
+		self:ApplyHeldToolCostume()
 		log("[EQUIP] " .. self.Entity.Name .. " equipped " .. itemName)
 		self:ClientOnEquipChanged(itemName)
 		self:NotifyHandItemChanged()
@@ -346,6 +350,29 @@ script PlayerInventory extends Component
 			local controller = pc
 			controller:UpdateHandItem()
 		end
+	end
+
+	@ExecSpace("ServerOnly")
+	method void ApplyHeldToolCostume()
+		-- Mirrors EquippedTool onto the avatar's one-handed weapon slot so the character
+		-- visibly holds the tool. WeaponRUID comes from item_dataset (data-driven); an empty
+		-- value (non-tool or unequipped) clears the slot back to bare hands.
+		local costume = self.Entity.CostumeManagerComponent
+		if not isvalid(costume) then return end
+		
+		local weaponRuid = ""
+		local baseName = self:GetBaseItemName(self.EquippedTool)
+		if baseName ~= "" then
+			local ds = _DataService:GetTable("item_dataset")
+			if ds ~= nil then
+				local row = ds:FindRow("Name", baseName)
+				if row ~= nil then
+					weaponRuid = row:GetItem("WeaponRUID") or ""
+				end
+			end
+		end
+		
+		costume:SetEquip(MapleAvatarItemCategory.OneHandedWeapon, weaponRuid)
 	end
 
 	@ExecSpace("Server")
@@ -830,6 +857,11 @@ script PlayerInventory extends Component
 			else
 				log_error("Failed to spawn furniture entity: " .. itemName)
 			end
+		end
+
+		-- 업적/퀘스트 진행: 설치 액션 발행
+		if _ActionSignals ~= nil then
+			_ActionSignals:EmitToPlayer(self.Entity, _ActionEnum.Place, itemName, 1)
 		end
 	end
 	method string SafeEncodeJson(table tbl, string defaultVal)

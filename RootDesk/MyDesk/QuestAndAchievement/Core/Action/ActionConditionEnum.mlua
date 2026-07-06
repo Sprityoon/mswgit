@@ -26,6 +26,10 @@ script ActionConditionEnum extends Logic
 
 	property integer Smelt = 8
 
+	property integer Place = 9
+
+	property integer Warp = 10
+
 	method boolean Init()
 		local configTable = {
 			{ "Attend", ActionConditionData_Attend },
@@ -36,6 +40,8 @@ script ActionConditionEnum extends Logic
 			{ "Gather", ActionConditionData_Gather },
 			{ "Craft", ActionConditionData_Craft },
 			{ "Smelt", ActionConditionData_Smelt },
+			{ "Place", ActionConditionData_Place },
+			{ "Warp", ActionConditionData_Warp },
 		}
 
 		local structTable = self.StructTypeTable

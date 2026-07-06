@@ -538,7 +538,7 @@ graph TD
 
 ### Phase 9: 게임 경험 보강 (제안, 우선순위 협의) — §3.10
 - [x] 낮/밤 주기 (1일=10분/600초) + 야간 몬스터 스폰율 상승 및 강력한 변종 스폰 + 밤 오버레이 화면 톤 + HUD 상단 중앙 시계 UI 연동 (완료)
-- [ ] 온보딩 퀘스트 라인 (채집→제작→채광→상자 설치 가이드).
+- [x] **온보딩 퀘스트 라인 (채집→제작→채광→상자 설치→원정, 완료)**: `quest-achievement-package` 위에 데이터 주도로 구현. `QuestDataSet.csv`에 AutoAccept+LinkedPrevId 선형 체인 7단계(101~107: 풀 채집→손도끼 제작→나무 채집→곡괭이 제작→돌 채광→나무 상자 설치→포탈 이동), `QuestConditionDataSet.csv`에 조건 매핑. 신규 유저는 도구가 없으므로 **첫 퀘스트 보상으로 Stone을 지급해 크래프팅 부트스트랩**(이후 각 단계 보상이 다음 제작을 가능케 함). 기존 ActionSignal 훅(Gather/Craft/Smelt) 재사용 + **신규 Place/Warp 액션**(`ActionEnum`/`ActionConditionEnum` + `ActionConditionData_Place/_Warp`, `ServerRequestPlace`/`ServerRequestWarp(To)` 발행). 완료는 서버 권위 자동완료(`PlayerQuest.OnActionEvent`), 보상은 `UserQuestData.Complete`→`PlayerInventory:AddItem` 지급(보상 아이템은 문자열 Name, `"Name:count"` 포맷). HUD 좌상단 **퀘스트 트래커 + 완료 토스트**(`UIQuestController` 폴링, `QuestTracker`/`QuestToast` in HUDGroup). 신규 퀘스트/보상은 CSV 행 추가만으로 확장. refresh 빌드 로그 에러 0건 검증(2026-07-06). ※플레이 검증은 제작자.
 - [ ] 도감(Collection Log) UI 및 수집 보상.
 - [ ] 획득 토스트/제작 완료 연출/희귀 드롭 등급색 빔 연출.
 - [ ] 제작대/화로 근접 제작 조건 분리 (기본 레시피 vs 상위 레시피).

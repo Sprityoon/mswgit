@@ -9,15 +9,25 @@ script MineState extends StateType
 		self.startTime = _UtilLogic.ElapsedSeconds
 		local entity = self.ParentComponent.Entity
 		
-		-- TODO: 실제 인벤토리/장비 시스템과 연동하여 장착 중인 도구 타입을 가져오세요.
-		-- (아래는 테스트를 위한 임시 하드코딩 변수입니다.)
-		local equippedItemType = "None"
-		
+		-- Pick the swing animation from the equipped tool's ToolType (item_dataset, data-driven).
 		local animName = "stabO2"
-		if equippedItemType == "Pickaxe" then
-			animName = "swingT1"
-		elseif equippedItemType == "Axe" then
-			animName = "swingT2"
+		local inv = entity:GetComponent("script.PlayerInventory")
+		if isvalid(inv) and inv.EquippedTool ~= "" then
+			local baseName = inv:GetBaseItemName(inv.EquippedTool)
+			local ds = _DataService:GetTable("item_dataset")
+			if ds ~= nil then
+				local row = ds:FindRow("Name", baseName)
+				if row ~= nil then
+					local toolType = row:GetItem("ToolType") or ""
+					-- One-handed weapon parts only carry swingO*/stabO* frames; the two-handed
+					-- swingT* IDs render the body but leave the held weapon invisible.
+					if toolType == "pickaxe" then
+						animName = "swingO1"
+					elseif toolType == "axe" then
+						animName = "swingO2"
+					end
+				end
+			end
 		end
 		
 		local avatarRenderer = entity.AvatarRendererComponent

@@ -10,7 +10,7 @@ KEYWORDS = re.compile(r"ActionSignals|SKILL|LEVEL UP|Achievement|skill", re.I)
 class Mcp:
     def __init__(self):
         self.p = subprocess.Popen(
-            ["cmd.exe", "/c", "call", r"C:\Nexon\MapleStory Worlds\MakerMCP\msw-maker-mcp.bat"],
+            ["cmd.exe", "/c", "call", r"C:\Users\mh566\AppData\Local\Nexon\MapleStory Worlds\MakerMCP\msw-maker-mcp.bat"],
             stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
         self.q = queue.Queue(); self._id = 0
         threading.Thread(target=self._reader, daemon=True).start()

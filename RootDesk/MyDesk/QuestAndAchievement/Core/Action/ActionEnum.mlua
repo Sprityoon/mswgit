@@ -18,4 +18,8 @@ script ActionEnum extends Logic
 
 	property integer Smelt = 8
 
+	property integer Place = 9
+
+	property integer Warp = 10
+
 end

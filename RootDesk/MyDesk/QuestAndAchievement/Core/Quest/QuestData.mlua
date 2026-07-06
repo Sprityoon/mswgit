@@ -109,15 +109,17 @@ script QuestData
 	end
 
 	method boolean ParseItem(string itemStr, table outItems)
-		local argStrs = _UtilLogic:Split(itemStr, ",")
+		-- [적응] 아이템 항목은 "Name:count" (콤마 대신 콜론 — CSV 콤마 파싱 이슈 회피)
+		local argStrs = _UtilLogic:Split(itemStr, ":")
 		
-		local itemId = math.tointeger(tonumber(argStrs[1]))
+		-- [적응] 이 게임의 보상 아이템은 정수 itemId가 아닌 item_dataset의 문자열 Name을 쓴다.
+		local itemName = argStrs[1]
 		local itemCount = math.tointeger(tonumber(argStrs[2]))
-		if itemId == nil or itemCount == nil then
+		if _Util:IsNilorEmptyString(itemName) or itemCount == nil then
 			return false
 		end
 		
-		outItems[#outItems + 1] = { itemId, itemCount }
+		outItems[#outItems + 1] = { itemName, itemCount }
 		
 		return true
 	end

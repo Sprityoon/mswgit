@@ -1141,6 +1141,11 @@ script PlayerController extends Component
 			local targetPos = portalGate.TargetPosition
 			playerComp:MoveToMapPosition(targetMap, targetPos)
 			log("PlayerController: Warped player " .. playerComp.UserId .. " to " .. targetMap .. " at " .. tostring(targetPos))
+
+			-- 업적/퀘스트 진행: 포탈 이동 액션 발행
+			if _ActionSignals ~= nil then
+				_ActionSignals:EmitToPlayer(self.Entity, _ActionEnum.Warp, targetMap, 1)
+			end
 		elseif isvalid(territoryPortal) then
 			local subIndex = territoryPortal.SubTerritoryIndex
 			local ownerId = playerComp.UserId
@@ -1265,6 +1270,10 @@ script PlayerController extends Component
 		end
 		playerComp:MoveToMapPosition(target, Vector2(arriveX, arriveY))
 		log("PlayerController: List-warped " .. playerComp.UserId .. " to " .. target)
+		-- 업적/퀘스트 진행: 포탈 이동 액션 발행
+		if _ActionSignals ~= nil then
+			_ActionSignals:EmitToPlayer(self.Entity, _ActionEnum.Warp, target, 1)
+		end
 	end
 
 	@ExecSpace("Client")
