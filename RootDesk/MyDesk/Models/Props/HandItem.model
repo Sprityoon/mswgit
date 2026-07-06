@@ -135,7 +135,7 @@
             "$type": "MOD.Core.MODVector3, MOD.Core",
             "x": 0.45,
             "y": 0.45,
-            "z": 1
+            "z": 1.0
           }
         }
       ],
