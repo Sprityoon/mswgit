@@ -22,12 +22,12 @@ const ENTITY_LAYER = "MapLayer5";
 // 플랜 §5 명시 7종 (SortingLayer 기존값 MapLayer0/2 → MapLayer5)
 const EXPLICIT = [
   "RootDesk/MyDesk/Monster/Models/Slime.model",
-  "RootDesk/MyDesk/Models/Monsters/Boar.model",
-  "RootDesk/MyDesk/Models/Monsters/HornMushroom.model",
-  "RootDesk/MyDesk/Models/Monsters/SlimeKing.model",
-  "RootDesk/MyDesk/Models/NPCs/Merchant.model",
-  "RootDesk/MyDesk/Models/MapObjects/Building_House.model",
-  "RootDesk/MyDesk/Models/MapObjects/Building_ResearchLab.model",
+  "RootDesk/MyDesk/Monster/Models/Boar.model",
+  "RootDesk/MyDesk/Monster/Models/HornMushroom.model",
+  "RootDesk/MyDesk/Monster/Models/SlimeKing.model",
+  "RootDesk/MyDesk/NPC/Models/Merchant.model",
+  "RootDesk/MyDesk/MapObjects/Models/Building_House.model",
+  "RootDesk/MyDesk/MapObjects/Models/Building_ResearchLab.model",
 ];
 
 // 드롭/설치물 모델 (SortingLayer 미설정 → 명시 부여; 플랜 표의 "드롭 전부" 항목)
