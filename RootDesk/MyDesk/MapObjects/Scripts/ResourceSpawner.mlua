@@ -44,6 +44,14 @@ script ResourceSpawner extends Logic
 	property string WallTileSetRUID = "tileset://2361293b-a3c2-4138-8dec-4fb4d1f9acf4"
 	property string WallTileName = "Big Wall"
 	property string GrownGrassModelId = ""
+	-- ⛔ 시스템 잠금 플래그 (2026-07-04 컨셉 변경): 사냥터 리디자인 동안 바이옴 절차 지형과
+	-- 청크 스트리밍을 잠근다. 코드는 보존 — 플래그만 되돌리면 재가동.
+	-- UseProceduralBiomes=false: EnsureHuntMap이 절차 지형을 켜지 않음 (모든 맵 = 손디자인 정적 지형)
+	property boolean UseProceduralBiomes = false
+	-- UseChunkStreaming=false: 근접 로드/언로드 루프 정지, 맵 셋업 시 전 청크 1회 정적 로드
+	property boolean UseChunkStreaming = false
+	-- AutotileSoilOnSetup=false: 맵 셋업 시 Soil 오토타일 런타임 재보정 안 함 (맵 = Maker 손편집 소유).
+	property boolean AutotileSoilOnSetup = false
 
 	method table GetSpawnedEntities(string mapName)
 		if not self.SpawnedEntitiesMap[mapName] then
@@ -169,18 +177,21 @@ script ResourceSpawner extends Logic
 			self:TickResourceRespawn()
 		end, 10.0)
 		
-		-- Setup proximity check for all dynamic maps
-		self.LoadingTimerId = _TimerService:SetTimerRepeat(function()
-			local mapNames = _DynamicMapService:GetDynamicMapNameList()
-			if mapNames then
-				for _, mapName in ipairs(mapNames) do
-					local map = _EntityService:GetEntityByPath("/maps/" .. mapName)
-					if isvalid(map) then
-						self:CheckProximityLoading(map)
+		-- 근접 청크 스트리밍 (⛔ 잠금: UseChunkStreaming=false 동안 미가동 — 맵 셋업 시
+		-- SpawnInitialResourcesForMap이 전 청크를 1회 정적 로드한다)
+		if self.UseChunkStreaming then
+			self.LoadingTimerId = _TimerService:SetTimerRepeat(function()
+				local mapNames = _DynamicMapService:GetDynamicMapNameList()
+				if mapNames then
+					for _, mapName in ipairs(mapNames) do
+						local map = _EntityService:GetEntityByPath("/maps/" .. mapName)
+						if isvalid(map) then
+							self:CheckProximityLoading(map)
+						end
 					end
 				end
-			end
-		end, 0.5)
+			end, 0.5)
+		end
 	end
 
 	@ExecSpace("ServerOnly")
@@ -242,93 +253,98 @@ script ResourceSpawner extends Logic
 	end
 
 	method boolean IsGrassTileName(string name)
-		-- True for any tile in the BaseGrass autotile family (plain + edge/corner variants).
-		return name ~= nil and string.sub(name, 1, 9) == "BaseGrass"
+		-- 베이스 잔디 타일 (wall 타일셋 "FullGrass" 단일 타일 — 영지/마을/사냥터의 기본 바닥).
+		return name ~= nil and name == "FullGrass"
 	end
 
-	method string ComputeGrassTileName(any grassAt, integer x, integer y)
-		-- Picks the BaseGrass autotile variant for a grass cell from its 8 neighbours.
-		-- grassAt(ax, ay) -> boolean is the grass mask lookup. Shared by the procedural noise path
-		-- and the hand-painted estate path so both wrap borders identically.
-		local t = grassAt(x, y + 1)
-		local d = grassAt(x, y - 1)
-		local l = grassAt(x - 1, y)
-		local r = grassAt(x + 1, y)
-		local tl = grassAt(x - 1, y + 1)
-		local tr = grassAt(x + 1, y + 1)
-		local dl = grassAt(x - 1, y - 1)
-		local dr = grassAt(x + 1, y - 1)
+	method boolean IsSoilTileName(string name)
+		-- Soil 9방향 오토타일 패밀리 (Soil + SoilT/RT/R/RD/D/LD/L/LT — 사람이 다니는 길).
+		return name ~= nil and string.sub(name, 1, 4) == "Soil"
+	end
 
-		local tileName = "BaseGrass"
+	method string ComputeAutotileName(string prefix, any maskAt, integer x, integer y)
+		-- 9방향(3x3) + 내부 모서리 4종 오토타일 변형 선택. maskAt(ax, ay) -> boolean 이 해당 패밀리 마스크.
+		-- 접미사 컨벤션(wall.tileset): 중앙 = prefix 그대로, 가장자리/외부 모서리 = LT/T/RT/L/R/LD/D/RD,
+		-- 내부 모서리(4방은 다 차고 대각만 빈 오목 지점) = LT2/RT2/LD2/RD2 (2026-07-04 보조 타일 추가).
+		-- ⚠️ 현재 XX2 보조 타일은 Soil 패밀리에만 존재 — 다른 prefix로 호출 시 오목 지점이 없는 마스크만 사용할 것.
+		local t = maskAt(x, y + 1)
+		local d = maskAt(x, y - 1)
+		local l = maskAt(x - 1, y)
+		local r = maskAt(x + 1, y)
+
+		local suffix = ""
 		if not t and not l then
-			tileName = "BaseGrassLT2"
+			suffix = "LT"
 		elseif not t and not r then
-			tileName = "BaseGrassRT2"
+			suffix = "RT"
 		elseif not d and not l then
-			tileName = "BaseGrassLD2"
+			suffix = "LD"
 		elseif not d and not r then
-			tileName = "BaseGrassRD2"
+			suffix = "RD"
 		elseif not t then
-			tileName = "BaseGrassT"
+			suffix = "T"
 		elseif not d then
-			tileName = "BaseGrassD"
+			suffix = "D"
 		elseif not l then
-			tileName = "BaseGrassL"
+			suffix = "L"
 		elseif not r then
-			tileName = "BaseGrassR"
-		elseif not tl then
-			tileName = "BaseGrassLT1"
-		elseif not tr then
-			tileName = "BaseGrassRT1"
-		elseif not dl then
-			tileName = "BaseGrassLD1"
-		elseif not dr then
-			tileName = "BaseGrassRD1"
+			suffix = "R"
+		else
+			-- 4방이 전부 차 있으면 오목(내부) 모서리 검사 — 대각 하나만 비면 XX2 보조 타일
+			if not maskAt(x - 1, y + 1) then
+				suffix = "LT2"
+			elseif not maskAt(x + 1, y + 1) then
+				suffix = "RT2"
+			elseif not maskAt(x - 1, y - 1) then
+				suffix = "LD2"
+			elseif not maskAt(x + 1, y - 1) then
+				suffix = "RD2"
+			end
 		end
-		return tileName
+		return prefix .. suffix
 	end
 
 	@ExecSpace("ServerOnly")
-	method void AutotileGrassLayer(Entity map)
-		-- Reads hand-painted grass on Layer 2 (RectTileMap2) and rewrites each grass cell to the
-		-- correct BaseGrass edge/corner variant so borders wrap automatically. The source of truth is
-		-- the painted tiles (not noise) — used by hand-designed estates (game_design.md Phase 11-B).
+	method void AutotileSoilLayer(Entity map)
+		-- 손디자인 맵의 길 보정: Layer 2(RectTileMap2)에 칠해진 Soil 계열 타일을 읽어
+		-- 각 셀을 9방향 변형으로 다시 칠한다. 소스 오브 트루스는 칠해진 타일(노이즈 아님).
+		-- 잔디(FullGrass)는 Layer 1 베이스 전면 깔림이라 보정 대상이 아니다.
 		if not isvalid(map) then return end
 		local layer2Entity = map:GetChildByName("RectTileMap2")
 		if not isvalid(layer2Entity) then return end
 		local tilemap2 = layer2Entity.RectTileMapComponent
 		if not isvalid(tilemap2) then return end
 
-		-- 1. Build the raw grass mask from the painted tiles.
+		-- 1. Build the raw soil mask from the painted tiles.
 		local rawMask = {}
-		local function rawGrassAt(ax, ay)
+		local function rawSoilAt(ax, ay)
 			local col = rawMask[ax]
 			return col ~= nil and col[ay] == true
 		end
 		local positions = tilemap2:GetAllTilePositions()
 		for _, cell in ipairs(positions:ToTable()) do
 			local info = tilemap2:GetTile(cell.x, cell.y)
-			if info ~= nil and self:IsGrassTileName(info.Name) then
+			if info ~= nil and self:IsSoilTileName(info.Name) then
 				if rawMask[cell.x] == nil then rawMask[cell.x] = {} end
 				rawMask[cell.x][cell.y] = true
 			end
 		end
 
-		-- 2. Smooth diagonal pinches (same rule as the procedural path) so 1-wide diagonal grass
-		-- connections widen to 2-wide ribbons the 13-tile set can render without jagged seams.
-		local function smoothGrassAt(ax, ay)
-			if rawGrassAt(ax, ay) then return true end
-			if rawGrassAt(ax + 1, ay) and rawGrassAt(ax, ay + 1) and not rawGrassAt(ax + 1, ay + 1) then return true end
-			if rawGrassAt(ax + 1, ay) and rawGrassAt(ax, ay - 1) and not rawGrassAt(ax + 1, ay - 1) then return true end
-			if rawGrassAt(ax - 1, ay) and rawGrassAt(ax, ay + 1) and not rawGrassAt(ax - 1, ay + 1) then return true end
-			if rawGrassAt(ax - 1, ay) and rawGrassAt(ax, ay - 1) and not rawGrassAt(ax - 1, ay - 1) then return true end
+		-- 2. Smooth diagonal pinches so 1-wide diagonal soil connections widen to 2-wide ribbons.
+		-- 9종 세트는 내부 모서리 타일이 없어 대각 단절이 13종 때보다 더 거칠게 보이므로 유지.
+		local function smoothSoilAt(ax, ay)
+			if rawSoilAt(ax, ay) then return true end
+			if rawSoilAt(ax + 1, ay) and rawSoilAt(ax, ay + 1) and not rawSoilAt(ax + 1, ay + 1) then return true end
+			if rawSoilAt(ax + 1, ay) and rawSoilAt(ax, ay - 1) and not rawSoilAt(ax + 1, ay - 1) then return true end
+			if rawSoilAt(ax - 1, ay) and rawSoilAt(ax, ay + 1) and not rawSoilAt(ax - 1, ay + 1) then return true end
+			if rawSoilAt(ax - 1, ay) and rawSoilAt(ax, ay - 1) and not rawSoilAt(ax - 1, ay - 1) then return true end
 			return false
 		end
 
 		-- 3. Materialize the smoothed mask over each painted cell plus a 1-tile border (enough for the
 		-- autotile neighbour reads).
 		local smoothMask = {}
-		local function grassAt(ax, ay)
+		local function soilAt(ax, ay)
 			local col = smoothMask[ax]
 			return col ~= nil and col[ay] == true
 		end
@@ -338,24 +354,24 @@ script ResourceSpawner extends Logic
 					for ny = ay - 1, ay + 1 do
 						if smoothMask[nx] == nil then smoothMask[nx] = {} end
 						if smoothMask[nx][ny] == nil then
-							smoothMask[nx][ny] = smoothGrassAt(nx, ny)
+							smoothMask[nx][ny] = smoothSoilAt(nx, ny)
 						end
 					end
 				end
 			end
 		end
 
-		-- 4. Paint the correct variant on every grass cell of the smoothed mask.
+		-- 4. Paint the correct 9-dir variant on every soil cell of the smoothed mask.
 		local count = 0
 		for ax, col in pairs(smoothMask) do
-			for ay, isGrass in pairs(col) do
-				if isGrass then
-					tilemap2:SetTile(self:ComputeGrassTileName(grassAt, ax, ay), ax, ay)
+			for ay, isSoil in pairs(col) do
+				if isSoil then
+					tilemap2:SetTile(self:ComputeAutotileName("Soil", soilAt, ax, ay), ax, ay)
 					count = count + 1
 				end
 			end
 		end
-		log("ResourceSpawner: AutotileGrassLayer painted " .. count .. " grass cells in map " .. map.Name)
+		log("ResourceSpawner: AutotileSoilLayer painted " .. count .. " soil cells in map " .. map.Name)
 	end
 
 	@ExecSpace("ServerOnly")
@@ -542,20 +558,37 @@ script ResourceSpawner extends Logic
 		-- Reconstruct player-placed tiles and furniture
 		self:ReconstructWorldPlacementsForMap(map)
 
-		-- Hand-painted estates: wrap the painted grass borders with the correct autotile variants.
-		if not proceduralTerrain then
-			self:AutotileGrassLayer(map)
+		-- Soil 길 9방향 오토타일 런타임 보정 — ⛔ 기본 OFF (2026-07-04 맵 소유권 전환):
+		-- 맵 타일은 이제 Maker 손편집이 소스 오브 트루스다. 이 보정을 켜두면 로그인마다
+		-- 사용자가 고른 타일 변형을 다시 계산해 덮어쓰고, 스무딩이 대각 1칸 모양을 메꿔버린다.
+		-- 마스크 페인팅 도구를 다시 쓸 때만 AutotileSoilOnSetup을 켤 것.
+		if self.AutotileSoilOnSetup and not proceduralTerrain then
+			self:AutotileSoilLayer(map)
+		end
+
+		-- 청크 스트리밍 ⛔ 잠금 상태: 전 청크를 셋업 시 1회 정적 로드한다 (자원 산포 포함).
+		-- 근접 루프가 없으므로 이후 언로드도 없다 — 맵이 소멸할 때까지 상주.
+		if not self.UseChunkStreaming then
+			local chunkSize = self.MacroCellSize
+			local maxChunk = math.floor(mapRadius / chunkSize)
+			local minChunk = math.floor(-mapRadius / chunkSize)
+			for cx = minChunk, maxChunk do
+				for cy = minChunk, maxChunk do
+					self:LoadChunk(map, cx, cy)
+				end
+			end
 		end
 
 		log("ResourceSpawner: Dynamic setup completed for map: " .. mapName)
 	end
 
 	@ExecSpace("ServerOnly")
-	method Entity EnsureHuntMap(string mapName, string templateMapName, boolean isBossArena)
+	method Entity EnsureHuntMap(string mapName, string templateMapName, string biomeId)
 		-- Creates (idempotently) a shared, always-resident hunting-ground map cloned from the templateMapName
-		-- template and configures its terrain. Field zones use multi-biome procedural terrain + combat;
-		-- the boss arena (hunt04) forces green_island so MonsterSpawner's per-cell green_island guard
-		-- skips auto-spawn there, leaving only the hand-spawned boss. Returns the map entity (or nil).
+		-- template. 지형은 템플릿의 손디자인 정적 타일 그대로 사용한다 (절차 지형 ⛔ 잠금 —
+		-- UseProceduralBiomes=false). biomeId는 PortalDestinationDataSet의 Biome 컬럼에서 오며
+		-- 몬스터 스폰(MonsterSpawnDataSet)·드롭 테이블이 이 값을 조회한다. "green_island"는
+		-- MonsterSpawner의 세이프존 가드에 걸려 자동 몬스터 스폰이 없다 (보스 아레나용).
 		-- Not destroyed by OnUserLeave — names are not "Home_*", so the empty-map cleanup skips them.
 		local existing = _EntityService:GetEntityByPath("/maps/" .. mapName)
 		if isvalid(existing) then return existing end
@@ -571,14 +604,11 @@ script ResourceSpawner extends Logic
 			return nil
 		end
 
-		if isBossArena then
-			-- Boss arena: single peaceful biome (no auto monster spawn) but still a painted floor.
-			self:SetMapForceBiomeId(mapName, "green_island")
-		else
-			-- Field zone: multi-biome procedural overlay + combat.
-			self:SetMapForceBiomeId(mapName, "")
+		if biomeId == nil or biomeId == "" then
+			biomeId = "earth_field"
 		end
-		self:SetMapProceduralTerrain(mapName, true)
+		self:SetMapForceBiomeId(mapName, biomeId)
+		self:SetMapProceduralTerrain(mapName, self.UseProceduralBiomes)
 		self:SpawnInitialResourcesForMap(huntMap)
 
 		return huntMap
@@ -590,30 +620,26 @@ script ResourceSpawner extends Logic
 		--   hunt01 (field, easy) -> hunt02 (field, copper) -> hunt03 (field, hard) -> hunt04 (boss arena).
 		-- Each zone has an immovable Home-return portal and a forward connection portal; hunt04 hosts the
 		-- King Slime boss. Idempotent — re-entry is a no-op once the maps exist.
+		-- 템플릿/바이옴은 전부 PortalDestinationDataSet(TemplateMap/Biome 컬럼) 데이터 주도.
 		local ds = _DataService:GetTable("PortalDestinationDataSet")
-		local getTemplate = function(mapName)
+		local getCol = function(mapName, colName, fallback)
 			if ds ~= nil then
 				for i = 1, ds:GetRowCount() do
 					if ds:GetCell(i, "MapName") == mapName then
-						local val = ds:GetCell(i, "TemplateMap")
+						local val = ds:GetCell(i, colName)
 						if val ~= nil and val ~= "" then
 							return val
 						end
 					end
 				end
 			end
-			return "template_field"
+			return fallback
 		end
 
-		local t1 = getTemplate("hunt01")
-		local t2 = getTemplate("hunt02")
-		local t3 = getTemplate("hunt03")
-		local t4 = getTemplate("hunt04")
-
-		local hunt01 = self:EnsureHuntMap("hunt01", t1, false)
-		local hunt02 = self:EnsureHuntMap("hunt02", t2, false)
-		local hunt03 = self:EnsureHuntMap("hunt03", t3, false)
-		local hunt04 = self:EnsureHuntMap("hunt04", t4, true)
+		local hunt01 = self:EnsureHuntMap("hunt01", getCol("hunt01", "TemplateMap", "template_field"), getCol("hunt01", "Biome", "earth_field"))
+		local hunt02 = self:EnsureHuntMap("hunt02", getCol("hunt02", "TemplateMap", "template_field"), getCol("hunt02", "Biome", "earth_field"))
+		local hunt03 = self:EnsureHuntMap("hunt03", getCol("hunt03", "TemplateMap", "template_field"), getCol("hunt03", "Biome", "earth_field"))
+		local hunt04 = self:EnsureHuntMap("hunt04", getCol("hunt04", "TemplateMap", "template_boss"), getCol("hunt04", "Biome", "green_island"))
 
 		-- hunt01: Home return + forward to hunt02.
 		if isvalid(hunt01) then
@@ -908,30 +934,36 @@ script ResourceSpawner extends Logic
 				end
 				
 				local biomeId = self:GetBiomeAt(mapName, x, y)
-				local choice = "BaseEarth"
+				local choice = ""
 
 				if proceduralTerrain then
-					-- Procedural (hunting) terrain: only use tiles from tile1.tileset (BaseGrass and BaseEarth)
-					if grassCacheAt(x, y) then
-						choice = "BaseGrass"
-					else
-						choice = "BaseEarth"
+					-- (⛔ 잠금 경로 — UseProceduralBiomes 재가동 시에만 진입) 절차 지형도 wall 타일셋의
+					-- 새 문법을 따른다: Layer 1 = FullGrass 전면, Layer 2 = 노이즈가 흙으로 판정한
+					-- 셀에 Soil 9방향 오토타일 (마스크 반전: grass 아님 = soil).
+					tilemap1:SetTile("FullGrass", x, y)
+
+					local function soilCacheAt(ax, ay)
+						return not grassCacheAt(ax, ay)
 					end
-
-					-- Draw base background tile on Layer 1
-					tilemap1:SetTile("BaseEarth", x, y)
-
-					-- Paint autotiled grass on Layer 2
-					if choice == "BaseGrass" then
-						tilemap2:SetTile(self:ComputeGrassTileName(grassCacheAt, x, y), x, y)
+					if grassCacheAt(x, y) then
+						choice = "FullGrass"
+					else
+						choice = "Soil"
+						tilemap2:SetTile(self:ComputeAutotileName("Soil", soilCacheAt, x, y), x, y)
 					end
 				else
-					-- Hand-painted (estate) terrain: terrain tiles are NOT repainted here (grass was
-					-- autotiled once at setup). Read the painted Layer 2 tile so resource placement
-					-- still respects RequiredTile (e.g. trees only on grass).
-					local info = tilemap2:GetTile(x, y)
-					if info ~= nil and self:IsGrassTileName(info.Name) then
-						choice = "BaseGrass"
+					-- 손디자인 지형: 타일은 다시 칠하지 않는다 (Soil 길은 셋업 시 1회 오토타일 보정).
+					-- 자원 배치의 RequiredTile 판정용으로 칠해진 타일만 읽는다:
+					-- Layer 2에 Soil 계열이 있으면 "Soil"(길 — 자원 스폰 억제용),
+					-- 아니면 Layer 1 베이스가 FullGrass인 경우 "FullGrass".
+					local info2 = tilemap2:GetTile(x, y)
+					if info2 ~= nil and self:IsSoilTileName(info2.Name) then
+						choice = "Soil"
+					else
+						local info1 = tilemap1:GetTile(x, y)
+						if info1 ~= nil and self:IsGrassTileName(info1.Name) then
+							choice = "FullGrass"
+						end
 					end
 				end
 

@@ -229,6 +229,7 @@ script PersistenceManager extends Logic
 				inv.QuickSlotsJson = data.quickSlots or "[\"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\"]"
 				inv.SelectedQuickSlotIndex = data.selectedSlot or 1
 				inv:ApplyHeldToolCostume()
+				inv:NotifyHandItemChanged() -- 복원된 장착 도구를 손에 든 스프라이트에 반영
 				log("PersistenceManager: Inventory restored.")
 			end
 
