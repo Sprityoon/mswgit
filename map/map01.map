@@ -10799,7 +10799,7 @@
                     "x": -9,
                     "y": 10
                   },
-                  "tileIndex": 18
+                  "tileIndex": 6
                 },
                 {
                   "type": 0,
@@ -14703,7 +14703,7 @@
                     "x": -1,
                     "y": 10
                   },
-                  "tileIndex": 9
+                  "tileIndex": 28
                 },
                 {
                   "type": 0,
@@ -18983,7 +18983,7 @@
                     "x": 8,
                     "y": -4
                   },
-                  "tileIndex": 18
+                  "tileIndex": 9
                 },
                 {
                   "type": 0,
@@ -18991,7 +18991,7 @@
                     "x": 8,
                     "y": -3
                   },
-                  "tileIndex": 18
+                  "tileIndex": 9
                 },
                 {
                   "type": 0,
@@ -19471,7 +19471,7 @@
                     "x": 9,
                     "y": -4
                   },
-                  "tileIndex": 18
+                  "tileIndex": 9
                 },
                 {
                   "type": 0,
@@ -19479,7 +19479,7 @@
                     "x": 9,
                     "y": -3
                   },
-                  "tileIndex": 18
+                  "tileIndex": 9
                 },
                 {
                   "type": 0,
@@ -19959,7 +19959,7 @@
                     "x": 10,
                     "y": -4
                   },
-                  "tileIndex": 18
+                  "tileIndex": 9
                 },
                 {
                   "type": 0,
@@ -19967,7 +19967,7 @@
                     "x": 10,
                     "y": -3
                   },
-                  "tileIndex": 18
+                  "tileIndex": 9
                 },
                 {
                   "type": 0,
@@ -19975,7 +19975,7 @@
                     "x": 10,
                     "y": -2
                   },
-                  "tileIndex": 18
+                  "tileIndex": 9
                 },
                 {
                   "type": 0,
@@ -20447,7 +20447,7 @@
                     "x": 11,
                     "y": -4
                   },
-                  "tileIndex": 18
+                  "tileIndex": 9
                 },
                 {
                   "type": 0,
@@ -20455,7 +20455,7 @@
                     "x": 11,
                     "y": -3
                   },
-                  "tileIndex": 18
+                  "tileIndex": 9
                 },
                 {
                   "type": 0,
@@ -20463,7 +20463,7 @@
                     "x": 11,
                     "y": -2
                   },
-                  "tileIndex": 18
+                  "tileIndex": 9
                 },
                 {
                   "type": 0,
@@ -20935,7 +20935,7 @@
                     "x": 12,
                     "y": -4
                   },
-                  "tileIndex": 18
+                  "tileIndex": 9
                 },
                 {
                   "type": 0,
@@ -20943,7 +20943,7 @@
                     "x": 12,
                     "y": -3
                   },
-                  "tileIndex": 18
+                  "tileIndex": 9
                 },
                 {
                   "type": 0,
@@ -20951,7 +20951,7 @@
                     "x": 12,
                     "y": -2
                   },
-                  "tileIndex": 18
+                  "tileIndex": 9
                 },
                 {
                   "type": 0,
@@ -31506,6 +31506,22 @@
                 {
                   "type": 0,
                   "position": {
+                    "x": 10,
+                    "y": -2
+                  },
+                  "tileIndex": 18
+                },
+                {
+                  "type": 0,
+                  "position": {
+                    "x": 12,
+                    "y": -2
+                  },
+                  "tileIndex": 8
+                },
+                {
+                  "type": 0,
+                  "position": {
                     "x": -6,
                     "y": 11
                   },
@@ -31598,6 +31614,14 @@
                     "y": 9
                   },
                   "tileIndex": 2
+                },
+                {
+                  "type": 0,
+                  "position": {
+                    "x": 11,
+                    "y": -3
+                  },
+                  "tileIndex": 17
                 },
                 {
                   "type": 0,
@@ -32410,6 +32434,14 @@
                 {
                   "type": 0,
                   "position": {
+                    "x": 11,
+                    "y": -2
+                  },
+                  "tileIndex": 10
+                },
+                {
+                  "type": 0,
+                  "position": {
                     "x": 1,
                     "y": 2
                   },
@@ -32741,7 +32773,7 @@
                     "x": 8,
                     "y": -1
                   },
-                  "tileIndex": 2
+                  "tileIndex": 10
                 },
                 {
                   "type": 0,
@@ -32749,7 +32781,7 @@
                     "x": 8,
                     "y": 0
                   },
-                  "tileIndex": 16
+                  "tileIndex": 6
                 },
                 {
                   "type": 0,
@@ -32757,7 +32789,7 @@
                     "x": 9,
                     "y": -1
                   },
-                  "tileIndex": 2
+                  "tileIndex": 1
                 },
                 {
                   "type": 0,
@@ -32765,7 +32797,7 @@
                     "x": 12,
                     "y": 0
                   },
-                  "tileIndex": 16
+                  "tileIndex": 7
                 },
                 {
                   "type": 0,
@@ -32805,7 +32837,7 @@
                     "x": 12,
                     "y": -1
                   },
-                  "tileIndex": 1
+                  "tileIndex": 8
                 },
                 {
                   "type": 0,
@@ -33077,7 +33109,7 @@
                     "x": 8,
                     "y": -2
                   },
-                  "tileIndex": 18
+                  "tileIndex": 10
                 },
                 {
                   "type": 0,
@@ -33109,7 +33141,7 @@
                     "x": 9,
                     "y": -2
                   },
-                  "tileIndex": 18
+                  "tileIndex": 8
                 },
                 {
                   "type": 0,
@@ -33118,6 +33150,78 @@
                     "y": 10
                   },
                   "tileIndex": 15
+                },
+                {
+                  "type": 0,
+                  "position": {
+                    "x": 12,
+                    "y": -3
+                  },
+                  "tileIndex": 8
+                },
+                {
+                  "type": 0,
+                  "position": {
+                    "x": 12,
+                    "y": -4
+                  },
+                  "tileIndex": 28
+                },
+                {
+                  "type": 0,
+                  "position": {
+                    "x": 11,
+                    "y": -4
+                  },
+                  "tileIndex": 2
+                },
+                {
+                  "type": 0,
+                  "position": {
+                    "x": 10,
+                    "y": -4
+                  },
+                  "tileIndex": 2
+                },
+                {
+                  "type": 0,
+                  "position": {
+                    "x": 10,
+                    "y": -3
+                  },
+                  "tileIndex": 16
+                },
+                {
+                  "type": 0,
+                  "position": {
+                    "x": 9,
+                    "y": -3
+                  },
+                  "tileIndex": 15
+                },
+                {
+                  "type": 0,
+                  "position": {
+                    "x": 9,
+                    "y": -4
+                  },
+                  "tileIndex": 2
+                },
+                {
+                  "type": 0,
+                  "position": {
+                    "x": 8,
+                    "y": -4
+                  },
+                  "tileIndex": 27
+                },
+                {
+                  "type": 0,
+                  "position": {
+                    "x": 8,
+                    "y": -3
+                  },
+                  "tileIndex": 10
                 }
               ]
             }
