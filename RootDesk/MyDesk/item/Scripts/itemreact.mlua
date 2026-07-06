@@ -186,9 +186,19 @@ script itemreact extends Component
 		if isvalid(inventory) then
 			inventory:AddItem(self.ItemName, 1)
 
-			-- 업적/퀘스트 진행: 아이템 획득 액션 발행
+			-- 업적/퀘스트 진행: 아이템 획득 액션 발행.
+			-- 드롭의 ItemName은 소문자 id("stone")이지만 퀘스트 CondArg는 표시명("Stone")을 쓴다
+			-- (Craft 발행과 동일한 규약). item_dataset에서 id→Name으로 정규화해 조건 매칭을 일치시킨다.
 			if _ActionSignals ~= nil then
-				_ActionSignals:EmitToPlayer(player, _ActionEnum.Gather, self.ItemName, 1)
+				local gatherName = self.ItemName
+				local ds = _DataService:GetTable("item_dataset")
+				if ds ~= nil then
+					local row = ds:FindRow("id", self.ItemName)
+					if row ~= nil then
+						gatherName = row:GetItem("Name") or self.ItemName
+					end
+				end
+				_ActionSignals:EmitToPlayer(player, _ActionEnum.Gather, gatherName, 1)
 			end
 
 			-- 자연 생성된 돌 주변 아이템인 경우, 획득 완료 상태를 ResourceSpawner에 등록해 무한 파밍 방지

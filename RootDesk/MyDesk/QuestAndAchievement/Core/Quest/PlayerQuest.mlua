@@ -276,13 +276,6 @@ script PlayerQuest extends Component
 					end
 				end
 			end
-=======
-				completableIds[#completableIds + 1] = id
-			end
-		end
-		if #completableIds > 0 then
-			self:CompleteQuests(completableIds)
->>>>>>> 9948bceab888f55f3f4f03e3397cf73ff423cbe6
 		end
 	end
 

@@ -38,7 +38,7 @@ script UIMinimapController extends Component
 			end
 			local transform = mapNameEnt.UITransformComponent
 			if isvalid(transform) then
-				transform.AlignmentOption = 1
+				transform.AlignmentOption = AlignmentType.CastFrom("Left")
 				transform.anchoredPosition = Vector2(-110, 0)
 				transform.RectSize = Vector2(150, 30)
 			end
@@ -65,7 +65,7 @@ script UIMinimapController extends Component
 			end
 			local transform = coords.UITransformComponent
 			if isvalid(transform) then
-				transform.AlignmentOption = 6
+				transform.AlignmentOption = AlignmentType.CastFrom("BottomCenter")
 				transform.anchoredPosition = Vector2(0, -15) -- 15 pixels below bottom edge
 				transform.RectSize = Vector2(120, 25)
 			end

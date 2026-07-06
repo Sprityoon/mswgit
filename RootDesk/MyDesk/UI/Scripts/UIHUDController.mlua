@@ -430,7 +430,6 @@ script UIHUDController extends Component
 			return
 		end
 
-		---@type PlayerQuest
 		local quest = pq
 		local bestData = nil
 		local bestUser = nil
