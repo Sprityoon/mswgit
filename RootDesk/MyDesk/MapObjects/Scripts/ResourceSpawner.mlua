@@ -50,8 +50,8 @@ script ResourceSpawner extends Logic
 	property boolean UseProceduralBiomes = false
 	-- UseChunkStreaming=false: 근접 로드/언로드 루프 정지, 맵 셋업 시 전 청크 1회 정적 로드
 	property boolean UseChunkStreaming = false
-	-- AutotileSoilOnSetup=false: 맵 셋업 시 Soil 오토타일 런타임 재보정 안 함 (맵 = Maker 손편집 소유).
-	property boolean AutotileSoilOnSetup = false
+	-- AutotileGrassOnSetup=false: 맵 셋업 시 Layer 2 잔디 커버 오토타일 런타임 재보정 안 함 (맵 = Maker 손편집 소유).
+	property boolean AutotileGrassOnSetup = false
 
 	method table GetSpawnedEntities(string mapName)
 		if not self.SpawnedEntitiesMap[mapName] then
@@ -253,20 +253,26 @@ script ResourceSpawner extends Logic
 	end
 
 	method boolean IsGrassTileName(string name)
-		-- 베이스 잔디 타일 (wall 타일셋 "FullGrass" 단일 타일 — 영지/마을/사냥터의 기본 바닥).
-		return name ~= nil and name == "FullGrass"
+		-- Layer 2 잔디 커버 패밀리 (2026-07-07 스킴): FullGrass(중앙) + Soil{LT..RD}(잔디 가장자리 프린지)
+		-- + Grass{LT|RT|LD|RD}Corner(오목 내부 모서리). 접두사가 Soil이라도 접미사가 붙어 있으면 잔디 에지 타일이다.
+		if name == nil then return false end
+		if name == "FullGrass" then return true end
+		if string.sub(name, 1, 5) == "Grass" then return true end
+		if string.sub(name, 1, 4) == "Soil" and string.len(name) > 4 then return true end
+		return false
 	end
 
 	method boolean IsSoilTileName(string name)
-		-- Soil 9방향 오토타일 패밀리 (Soil + SoilT/RT/R/RD/D/LD/L/LT — 사람이 다니는 길).
-		return name ~= nil and string.sub(name, 1, 4) == "Soil"
+		-- 베이스 지반/길 타일 (wall 타일셋 "Soil" 단일 타일 — Layer 1 전면 깔림, 잔디가 안 덮인 곳이 길).
+		return name ~= nil and name == "Soil"
 	end
 
 	method string ComputeAutotileName(string prefix, any maskAt, integer x, integer y)
 		-- 9방향(3x3) + 내부 모서리 4종 오토타일 변형 선택. maskAt(ax, ay) -> boolean 이 해당 패밀리 마스크.
-		-- 접미사 컨벤션(wall.tileset): 중앙 = prefix 그대로, 가장자리/외부 모서리 = LT/T/RT/L/R/LD/D/RD,
-		-- 내부 모서리(4방은 다 차고 대각만 빈 오목 지점) = LT2/RT2/LD2/RD2 (2026-07-04 보조 타일 추가).
-		-- ⚠️ 현재 XX2 보조 타일은 Soil 패밀리에만 존재 — 다른 prefix로 호출 시 오목 지점이 없는 마스크만 사용할 것.
+		-- 접미사 컨벤션: 중앙 = prefix 그대로, 가장자리/외부 모서리 = LT/T/RT/L/R/LD/D/RD,
+		-- 내부 모서리(4방은 다 차고 대각만 빈 오목 지점) = LT2/RT2/LD2/RD2.
+		-- ⚠️ 2026-07-07 wall.tileset 리네임으로 XX2 "타일"은 폐기됨(Grass*Corner로 대체) —
+		-- 잔디 커버는 prefix "" 로 접미사만 얻어 ComputeGrassTileName에서 실제 타일명으로 매핑한다.
 		local t = maskAt(x, y + 1)
 		local d = maskAt(x, y - 1)
 		local l = maskAt(x - 1, y)
@@ -304,74 +310,55 @@ script ResourceSpawner extends Logic
 		return prefix .. suffix
 	end
 
+	method string ComputeGrassTileName(any maskAt, integer x, integer y)
+		-- Layer 2 잔디 커버 셀의 실제 타일명 (2026-07-07 wall.tileset 스킴):
+		-- 중앙 = FullGrass, 가장자리 프린지 = Grass{LT..RD}(잔디→흙 전환), 오목 내부 모서리 = Grass{..}Corner.
+		local suffix = self:ComputeAutotileName("", maskAt, x, y)
+		if suffix == "" then return "FullGrass" end
+		if string.sub(suffix, -1) == "2" then
+			return "Grass" .. string.sub(suffix, 1, 2) .. "Corner"
+		end
+		return "Grass" .. suffix
+	end
+
 	@ExecSpace("ServerOnly")
-	method void AutotileSoilLayer(Entity map)
-		-- 손디자인 맵의 길 보정: Layer 2(RectTileMap2)에 칠해진 Soil 계열 타일을 읽어
-		-- 각 셀을 9방향 변형으로 다시 칠한다. 소스 오브 트루스는 칠해진 타일(노이즈 아님).
-		-- 잔디(FullGrass)는 Layer 1 베이스 전면 깔림이라 보정 대상이 아니다.
+	method void AutotileGrassLayer(Entity map)
+		-- 손디자인 맵의 잔디 커버 보정: Layer 2(RectTileMap2)에 칠해진 잔디 패밀리 타일을 읽어
+		-- 각 셀을 올바른 변형(FullGrass/Soil프린지/GrassCorner)으로 다시 칠한다. 소스 오브 트루스는 칠해진 타일.
+		-- 길 = Layer 2가 비어 Layer 1의 Soil이 드러나는 셀 — 이 패스는 잔디 셀만 다시 칠하고 길은 건드리지 않는다.
+		-- (내부 모서리 타일 Grass*Corner가 있어 별도 마스크 스무딩은 하지 않는다.)
 		if not isvalid(map) then return end
 		local layer2Entity = map:GetChildByName("RectTileMap2")
 		if not isvalid(layer2Entity) then return end
 		local tilemap2 = layer2Entity.RectTileMapComponent
 		if not isvalid(tilemap2) then return end
 
-		-- 1. Build the raw soil mask from the painted tiles.
-		local rawMask = {}
-		local function rawSoilAt(ax, ay)
-			local col = rawMask[ax]
+		-- 1. Build the grass mask from the painted tiles.
+		local grassMask = {}
+		local function grassAt(ax, ay)
+			local col = grassMask[ax]
 			return col ~= nil and col[ay] == true
 		end
 		local positions = tilemap2:GetAllTilePositions()
 		for _, cell in ipairs(positions:ToTable()) do
 			local info = tilemap2:GetTile(cell.x, cell.y)
-			if info ~= nil and self:IsSoilTileName(info.Name) then
-				if rawMask[cell.x] == nil then rawMask[cell.x] = {} end
-				rawMask[cell.x][cell.y] = true
+			if info ~= nil and self:IsGrassTileName(info.Name) then
+				if grassMask[cell.x] == nil then grassMask[cell.x] = {} end
+				grassMask[cell.x][cell.y] = true
 			end
 		end
 
-		-- 2. Smooth diagonal pinches so 1-wide diagonal soil connections widen to 2-wide ribbons.
-		-- 9종 세트는 내부 모서리 타일이 없어 대각 단절이 13종 때보다 더 거칠게 보이므로 유지.
-		local function smoothSoilAt(ax, ay)
-			if rawSoilAt(ax, ay) then return true end
-			if rawSoilAt(ax + 1, ay) and rawSoilAt(ax, ay + 1) and not rawSoilAt(ax + 1, ay + 1) then return true end
-			if rawSoilAt(ax + 1, ay) and rawSoilAt(ax, ay - 1) and not rawSoilAt(ax + 1, ay - 1) then return true end
-			if rawSoilAt(ax - 1, ay) and rawSoilAt(ax, ay + 1) and not rawSoilAt(ax - 1, ay + 1) then return true end
-			if rawSoilAt(ax - 1, ay) and rawSoilAt(ax, ay - 1) and not rawSoilAt(ax - 1, ay - 1) then return true end
-			return false
-		end
-
-		-- 3. Materialize the smoothed mask over each painted cell plus a 1-tile border (enough for the
-		-- autotile neighbour reads).
-		local smoothMask = {}
-		local function soilAt(ax, ay)
-			local col = smoothMask[ax]
-			return col ~= nil and col[ay] == true
-		end
-		for ax, col in pairs(rawMask) do
-			for ay, _ in pairs(col) do
-				for nx = ax - 1, ax + 1 do
-					for ny = ay - 1, ay + 1 do
-						if smoothMask[nx] == nil then smoothMask[nx] = {} end
-						if smoothMask[nx][ny] == nil then
-							smoothMask[nx][ny] = smoothSoilAt(nx, ny)
-						end
-					end
-				end
-			end
-		end
-
-		-- 4. Paint the correct 9-dir variant on every soil cell of the smoothed mask.
+		-- 2. Paint the correct variant on every grass cell of the mask.
 		local count = 0
-		for ax, col in pairs(smoothMask) do
-			for ay, isSoil in pairs(col) do
-				if isSoil then
-					tilemap2:SetTile(self:ComputeAutotileName("Soil", soilAt, ax, ay), ax, ay)
+		for ax, col in pairs(grassMask) do
+			for ay, isGrass in pairs(col) do
+				if isGrass then
+					tilemap2:SetTile(self:ComputeGrassTileName(grassAt, ax, ay), ax, ay)
 					count = count + 1
 				end
 			end
 		end
-		log("ResourceSpawner: AutotileSoilLayer painted " .. count .. " soil cells in map " .. map.Name)
+		log("ResourceSpawner: AutotileGrassLayer painted " .. count .. " grass cells in map " .. map.Name)
 	end
 
 	@ExecSpace("ServerOnly")
@@ -558,12 +545,12 @@ script ResourceSpawner extends Logic
 		-- Reconstruct player-placed tiles and furniture
 		self:ReconstructWorldPlacementsForMap(map)
 
-		-- Soil 길 9방향 오토타일 런타임 보정 — ⛔ 기본 OFF (2026-07-04 맵 소유권 전환):
+		-- Layer 2 잔디 커버 오토타일 런타임 보정 — ⛔ 기본 OFF (2026-07-04 맵 소유권 전환):
 		-- 맵 타일은 이제 Maker 손편집이 소스 오브 트루스다. 이 보정을 켜두면 로그인마다
-		-- 사용자가 고른 타일 변형을 다시 계산해 덮어쓰고, 스무딩이 대각 1칸 모양을 메꿔버린다.
-		-- 마스크 페인팅 도구를 다시 쓸 때만 AutotileSoilOnSetup을 켤 것.
-		if self.AutotileSoilOnSetup and not proceduralTerrain then
-			self:AutotileSoilLayer(map)
+		-- 사용자가 고른 타일 변형을 다시 계산해 덮어쓴다.
+		-- 마스크 페인팅 도구를 다시 쓸 때만 AutotileGrassOnSetup을 켤 것.
+		if self.AutotileGrassOnSetup and not proceduralTerrain then
+			self:AutotileGrassLayer(map)
 		end
 
 		-- 청크 스트리밍 ⛔ 잠금 상태: 전 청크를 셋업 시 1회 정적 로드한다 (자원 산포 포함).
@@ -938,31 +925,27 @@ script ResourceSpawner extends Logic
 
 				if proceduralTerrain then
 					-- (⛔ 잠금 경로 — UseProceduralBiomes 재가동 시에만 진입) 절차 지형도 wall 타일셋의
-					-- 새 문법을 따른다: Layer 1 = FullGrass 전면, Layer 2 = 노이즈가 흙으로 판정한
-					-- 셀에 Soil 9방향 오토타일 (마스크 반전: grass 아님 = soil).
-					tilemap1:SetTile("FullGrass", x, y)
+					-- 새 문법(2026-07-07)을 따른다: Layer 1 = Soil 전면, Layer 2 = 노이즈가 잔디로 판정한
+					-- 셀에 잔디 커버 오토타일(FullGrass/Soil프린지/GrassCorner). grass가 덮지 않은 셀 = 길.
+					tilemap1:SetTile("Soil", x, y)
 
-					local function soilCacheAt(ax, ay)
-						return not grassCacheAt(ax, ay)
-					end
 					if grassCacheAt(x, y) then
 						choice = "FullGrass"
+						tilemap2:SetTile(self:ComputeGrassTileName(grassCacheAt, x, y), x, y)
 					else
 						choice = "Soil"
-						tilemap2:SetTile(self:ComputeAutotileName("Soil", soilCacheAt, x, y), x, y)
 					end
 				else
-					-- 손디자인 지형: 타일은 다시 칠하지 않는다 (Soil 길은 셋업 시 1회 오토타일 보정).
-					-- 자원 배치의 RequiredTile 판정용으로 칠해진 타일만 읽는다:
-					-- Layer 2에 Soil 계열이 있으면 "Soil"(길 — 자원 스폰 억제용),
-					-- 아니면 Layer 1 베이스가 FullGrass인 경우 "FullGrass".
+					-- 손디자인 지형: 타일은 다시 칠하지 않는다. 자원 배치의 RequiredTile 판정용으로만 읽는다:
+					-- Layer 2에 잔디 패밀리가 칠해져 있으면 "FullGrass"(잔디 — 자원 스폰 가능 셀),
+					-- 아니면(= 잔디가 안 덮인 곳) Layer 1 베이스가 Soil인 경우 "Soil"(길 — 자원 스폰 억제용).
 					local info2 = tilemap2:GetTile(x, y)
-					if info2 ~= nil and self:IsSoilTileName(info2.Name) then
-						choice = "Soil"
+					if info2 ~= nil and self:IsGrassTileName(info2.Name) then
+						choice = "FullGrass"
 					else
 						local info1 = tilemap1:GetTile(x, y)
-						if info1 ~= nil and self:IsGrassTileName(info1.Name) then
-							choice = "FullGrass"
+						if info1 ~= nil and self:IsSoilTileName(info1.Name) then
+							choice = "Soil"
 						end
 					end
 				end

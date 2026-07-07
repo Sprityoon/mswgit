@@ -218,7 +218,7 @@ graph TD
   - **내 집 / 개인 영지 (Home_UserID - 1인 전용 공간)**: 플레이어 진입 시 서버에서 map01 템플릿을 복제하여 동적으로 생성하며, 퇴장 시 메모리에서 삭제됩니다. **green_island 단일 바이옴 + 반경 30(61×61) + 느린 자원 생성 + 전투 몹 없음**으로 구성됩니다(§2.2 ①). ⚖️ **2026-06-27 판결**: 영지 지형은 절차 노이즈가 아니라 **map01 템플릿에 손디자인된 농장 레이아웃**을 사용하며(멀티바이옴 절차 오버레이는 영지에서 미구동, 사냥터 전용 보존), **플레이어 설치 타일/가구가 항상 우선**입니다.
   - **방문 및 초대**: 다른 유저(B)의 영지 방문 시, B의 맵이 이미 메모리에 있다면 그곳으로 텔레포트하고, B가 오프라인이라면 세이브 데이터에서 임시로 B의 영지를 빌드하여 A를 입장시킵니다.
   - **권한 관리**: 손님 유저가 집주인의 영지 내 자원이나 가구를 훼손할 수 없도록 소유자 ID 기반 권한 검증 시스템을 적용합니다.
-  - **지형 (TileMap)**: 지반 타일(Layer 1 - `BaseEarth`) 및 풀밭 지형(Layer 2 - `BaseGrass`)은 static 타일맵으로 렌더링 성능을 최적화.
+  - **지형 (TileMap)**: static 타일맵으로 렌더링 성능을 최적화. ⚖️ **2026-07-07 타일 스킴**: Layer 1(`RectTileMap`)에 `Soil`을 전면으로 깔고, Layer 2(`RectTileMap2`)에 잔디 커버(`FullGrass` 중앙 + `Soil{LT..RD}` 프린지 + `Grass*Corner` 내부 모서리)를 덮는다. **잔디가 덮지 않은 셀 = 길**(아래 Soil이 드러남)이며, 길/광장 마스크는 사각형(rect) 조합으로만 디자인한다. (블록아웃 생성기: `scripts/build_maps.cjs`)
   - **상호작용 자원 (Entity)**: 나무(Wood), 석돌(Stone), 구리/철 광석(Copper/Iron Ore) 및 상자 등은 독립적인 엔티티(`Entity`)로 스폰.
   - **오브젝트 연출**: 자원 엔티티에 피격 흔들림(`ResourceReaction:PlayShake` — 회전+스케일), 채집 실패 거부 흔들림(`PlayRefusalShake` — 회전 전용), 플레이어가 가릴 때 반투명 알파 오클루전(`SetAlpha 0.4`), Y좌표 기반 정렬(`OrderInLayer`)을 구현해 타격감과 가독성을 제공한다. (별도 파티클 시스템은 아직 없음.)
 - **시드 기반 절차적 월드 생성**:
@@ -333,7 +333,7 @@ graph TD
 - **휴대용 제작 vs 제작대 분리**: 기본 레시피는 어디서나 제작 가능, 상위 레시피는 제작대/화로 근처에서만 제작 가능 — 기지로 돌아올 이유를 만들어 건설 시스템과 제작 시스템을 연결.
 - **액티브 스킬 시스템 도입**: 단순 평타(`PlayerCombat`)에서 벗어나 클래스별/무기별 고유 액티브 스킬(대시, 범위 공격 등)을 장착하고 사용할 수 있는 조작감 및 전투 다양성 보강.
 
-### 3.12. 플레이어 스킬 시스템 (Player Skill System) — ⏳ 계획
+### 3.12. 플레이어 스킬 시스템 (Player Skill System) — ✅ 구현됨 (S1~S4 검증 완료 2026-07-05, 상세: [docs/design/skill-tree-plan.md](./docs/design/skill-tree-plan.md))
 
 전투 및 모험의 손맛을 극대화하기 위해 MSW API 환경에 호환되는 플레이어 스킬 시스템을 기획한다.
 
@@ -600,11 +600,23 @@ graph TD
   - [ ] 카우방식 특수 던전 — 전용 포탈 아이템 구매/획득 시 목록 노출·소비 입장.
   - [ ] 3h 시드 로테이션(오픈 필드 변주) + 다중 사냥터 + 영지↔마을↔사냥터 순환 정교화.
 
-### Phase 13: 플레이어 스킬 시스템 구현 (진행 예정) — §3.12
-- [ ] `SkillDataSet.csv` 설계: 스킬 쿨타임, 데미지 배율, 소모 스탯, 이펙트 RUID 속성 정의.
-- [ ] `InputService` 연동: `Q`, `W`, `E`, `R` 스킬 단축키 등록 및 시전 RPC 요청 구조 구현.
-- [ ] `EffectService`를 통한 스킬 이펙트 렌더링: 버프/액티브 판정에 따라 `PlayEffectAttached` 및 `PlayEffect` 연동.
-- [ ] `SpriteAnimPlayerChangeFrameEvent`를 활용한 정밀 타격 판정 및 데미지 박스 생성 구현.
-- [ ] 클래스/무기별 스킬(대시, 파워 스트라이크, 투사체 발사) 설계 및 물리/몬스터 AI 반응 연동.
+### Phase 13: 플레이어 스킬 시스템 구현 (완료) — §3.12
+> 상세 설계·검증 기록: [docs/design/skill-tree-plan.md](./docs/design/skill-tree-plan.md) (S1~S4 전 단계 MCP 플레이 검증 2026-07-05)
+
+- [x] `SkillDataSet.csv` — 쿨타임/배율/소모/이펙트 RUID + 트리 확장 컬럼(ParentSkillId/RequiredLevel/UnlockAchievementId/MaxLevel/SPCost/레벨당 증가량/TreeRow·Col).
+- [x] `quest-achievement-package` 통합 — 처치/채집/제작/제련 ActionEvent 훅, 업적 완료 = 해금 게이트.
+- [x] SP 지급(레벨업) + 서버 권위 해금/레벨업(`RequestSkillLevelUp` 5중 검증) + `PersistenceManager` 영속화(skillLevels/SP).
+- [x] `Q/W/E/R` 장착·시전 파이프라인(`EquippedSkillsJson` + `CooldownMap` + `UISkillBarController`) 및 SkillTreePopup(K 토글, 노드 4상태).
+- [x] 패시브 스킬(`Type=Passive`, `GetPassiveBonus` — MineCooldown/MinePower 적용).
+- [ ] 잔여: `SpriteAnimPlayerChangeFrameEvent` 기반 프레임 정밀 타격 판정, 클래스/무기별 스킬 확장(대시/투사체는 시전 골격만).
+
+### Phase 14: 다음 마일스톤 (🧭 제안 2026-07-07 — 우선순위 협의)
+> **배경**: 3대 공간 루프(영지↔마을↔사냥터 4체인+보스)·스킬트리·온보딩 퀘스트·NPC 상점·영속화가 모두 가동 중. 남은 구조적 공백은 ① "농장" 필러인데 **농사가 없음**, ② 사냥 전리품의 **사용처(연구소) 부재**, ③ 영지 꾸미기 심화 수단 부족. 아래 순서를 제안한다 (14-A/B가 영지 가꾸기 축, 14-C/E가 사냥 보상 축).
+
+- [ ] **14-A 영지 타일 편집 — 길 파기/잔디 심기** (§2.2 ① "개인 타일 편집 우선"의 실구현): 삽(신규 도구)으로 잔디 커버(`RectTileMap2`) 제거 → 아래 Soil이 드러나 길이 됨(2026-07-07 타일 스킴 그대로 활용), Grass Seed 아이템으로 재식재. 편집 델타는 월드 데이터로 영속화(설치 타일과 동일 계층). `item_dataset`에 `TerrainEditAction` 컬럼로 데이터 주도 — 후속 계절 리스킨·경작지와 같은 파이프라인 공유.
+- [ ] **14-B 농사 시스템 MVP** (신규 제안 — 스타듀 핵심 루프 완성): 괭이로 경작지 타일 생성 → 씨앗 심기(엔티티) → 단계 성장(낮/밤 주기 §3.11 연동, 성장 단계별 RUID) → 수확(드롭 파이프라인 재사용). `CropDataSet.csv`(SeedItem/GrowthStages/StageDuration/HarvestItem/ReplantYield) 데이터 주도. 씨앗 공급처 = 마을 상점 + GrownGrass 드롭.
+- [ ] **14-C 연구소 가동** (§2.2 ②): 마을 `ResearchLab` 상호작용(F) UI — 몹 드롭/사냥 재료를 투입해 연구 → 가공 레시피·효율 기술 **영구 해금**(`ResearchDataSet`: InputItem/InputCount/Duration/UnlockRecipeId, `PersistenceManager` 필드 추가). 예: 멧돼지 다리 → 고기+가죽 분해술. 사냥 전리품의 사용처를 만들어 사냥터 루프를 닫는다.
+- [ ] **14-D 침대·수면 회복** (§2.2 ①): 집/침대 가구 + 침대 휴식 10분 풀충전 + 침대 로그아웃 후 10분 경과 재접속 시 풀충전(오프라인 환산). 영지 "쉼" 축 완성.
+- [ ] **14-E 희귀 드롭 소스** (§3.8 — Rarity 컬럼의 실사용처): 보스 도안(Recipe Scroll — 습득 시 제작 레시피 영구 해금), 희귀 광맥 변종(3%), 사냥터 외곽 보물 상자. 14-C 연구소와 함께 사냥 보상 축을 강화.
 
 

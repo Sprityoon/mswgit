@@ -1,0 +1,41 @@
+@Component
+script Furniture_Bed extends Component
+
+	-- Interaction script for Bed furniture.
+	-- Triggers player sleep when interacted with (F key or Click).
+
+	method void OnBeginPlay()
+		-- description: Set up touch interactions on client.
+		if self:IsClient() then
+			self.Entity:ConnectEvent(TouchEvent, self.OnTouch)
+		end
+	end
+
+	@ExecSpace("ClientOnly")
+	method void OnTouch(TouchEvent event)
+		-- description: Fired when player clicks/touches the bed.
+		local localPlayer = _UserService.LocalPlayer
+		if not isvalid(localPlayer) then return end
+		
+		local myPos = self.Entity.TransformComponent.WorldPosition
+		local playerPos = localPlayer.TransformComponent.WorldPosition
+		local dist = Vector2.Distance(Vector2(myPos.x, myPos.y), Vector2(playerPos.x, playerPos.y))
+		
+		if dist > 3.0 then
+			local pc = localPlayer:GetComponent("script.PlayerController")
+			if isvalid(pc) then
+				---@type PlayerController
+				local controller = pc
+				controller:ShowMineFeedback("침대에 더 가까이 다가가야 합니다.")
+			end
+			return
+		end
+
+		local pc = localPlayer:GetComponent("script.PlayerController")
+		if isvalid(pc) then
+			---@type PlayerController
+			local controller = pc
+			controller:ServerRequestSleep(self.Entity.Id)
+		end
+	end
+end

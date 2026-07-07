@@ -8,8 +8,8 @@ script MerchantInteract extends Component
 
 	method void OnBeginPlay()
 		if self:IsClient() then
-			self.Entity:ConnectEvent(TouchEvent, self.OnTouch, self)
-			self.keyHandler = _InputService:ConnectEvent(KeyDownEvent, self.OnKeyDown, self)
+			self.Entity:ConnectEvent(TouchEvent, self.OnTouch)
+			self.keyHandler = _InputService:ConnectEvent(KeyDownEvent, self.OnKeyDown)
 		end
 	end
 

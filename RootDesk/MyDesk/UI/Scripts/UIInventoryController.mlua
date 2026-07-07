@@ -88,7 +88,7 @@ script UIInventoryController extends Component
 
 	property any tabEquipHandler = nil
 
-	property any keyDownHandler = nil
+
 
 	property number LastToggleTime = 0
 
@@ -124,34 +124,7 @@ script UIInventoryController extends Component
 			self:RefreshGridItem(index, entity)
 		end
 
-		self.keyDownHandler = _InputService:ConnectEvent(KeyDownEvent, function(event)
-			if not self.inventoryPopup.Enable then return end
-			if self.inspectedItem == "" then return end
-			
-			local key = event.key
-			local slotIndex = -1
-			if key == KeyboardKey.Alpha1 then slotIndex = 1
-			elseif key == KeyboardKey.Alpha2 then slotIndex = 2
-			elseif key == KeyboardKey.Alpha3 then slotIndex = 3
-			elseif key == KeyboardKey.Alpha4 then slotIndex = 4
-			elseif key == KeyboardKey.Alpha5 then slotIndex = 5
-			elseif key == KeyboardKey.Alpha6 then slotIndex = 6
-			elseif key == KeyboardKey.Alpha7 then slotIndex = 7
-			elseif key == KeyboardKey.Alpha8 then slotIndex = 8
-			elseif key == KeyboardKey.Alpha9 then slotIndex = 9
-			elseif key == KeyboardKey.Alpha0 then slotIndex = 10
-			end
 
-			if slotIndex ~= -1 then
-				local player = _UserService.LocalPlayer
-				if isvalid(player) then
-					local inv = player:GetComponent("script.PlayerInventory")
-					if isvalid(inv) then
-						inv:ServerRegisterQuickSlot(slotIndex, self.inspectedItem)
-					end
-				end
-			end
-		end)
 
 		-- Discard (버리기) button wiring
 		if isvalid(self.btnDiscardOpen) then

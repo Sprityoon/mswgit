@@ -10,8 +10,8 @@
 
 ### 1.1 프로젝트
 
-- MSW(MapleStory Worlds) 생존/채집 게임. 루트: `C:/Users/yaong/Documents/메이플월드`
-- 톱다운 `RectTile` 맵 (영지 `Home_<UserId>` / 공동 마을 `town` / 사냥터). 플레이어는 `KinematicbodyComponent`.
+- MSW(MapleStory Worlds) 생존/채집 게임. 루트: `C:/minho/메이플월드`
+- 톱다운 `RectTile` 맵 (영지 `Home_<UserId>` / 공동 마을 `town` / 사냥터 `template_field` / 보스 `template_boss`). 플레이어는 `KinematicbodyComponent`.
 - 전체 게임 설계: `game_design.md` (84KB — 필요한 §만 검색해 읽을 것)
 - 에이전트 규칙: `AGENTS.md` + `docs/agents/*.md` (특히 하드코딩 금지 룰 §2, 8대 핵심 규칙 §3)
 
@@ -23,36 +23,51 @@
 4. 아이템 식별자는 `item_dataset`의 `Name` 컬럼 값(표시명 키)이다. 소문자 `id`와 혼동 금지.
 5. 런타임 검증 없이 "동작함"이라고 보고 금지. Maker MCP(`refresh`→`play`→`logs`→`stop`)를 못 쓰는 환경이면 "코드 수정 완료, 런타임 검증 보류"로 정확히 보고.
 
-### 1.3 도구 장착/스윙 파이프라인 (이번 버그의 배경지식)
+### 1.3 ⚖️ 현행 타일 스킴 (2026-07-07 확정 — 이 문서의 최우선 배경지식)
 
-- **장착**: `PlayerInventory.EquippedTool`(@Sync) → `ApplyHeldToolCostume()`이 `item_dataset`의 `WeaponRUID`를 읽어 `CostumeManagerComponent:SetEquip(MapleAvatarItemCategory.OneHandedWeapon, ruid)`로 아바타 한손무기 슬롯에 반영. (`RootDesk/MyDesk/Player/Scripts/PlayerInventory.mlua` ~L380)
-- **스윙**: Ctrl 채집/공격 → `PlayerController.mlua` ~L506 `ChangeState("MINE")` → 커스텀 상태 `MineState.mlua`(`RootDesk/MyDesk/Player/Scripts/`, `Player.stateset`의 MINE 노드)가 `ActionStateChangedEvent`로 아바타 바디에 스윙 액션 재생.
-- **핵심 제약**: 도구는 **OneHandedWeapon** 슬롯 장착이므로 무기 파츠 프레임은 **한손(*O*) 계열 액션**(`swingO1~O3`, `stabO1~O2` 등)에만 존재한다. `swingT*`(두손) 액션을 재생하면 몸 모션은 나오지만 **무기 프레임이 없어 모션 중 도구가 사라진다.**
-- 스윙 액션 선택은 `item_dataset.csv`의 **`SwingAction` 컬럼**(1순위) → `ToolType` 폴백(pickaxe→`swingO1`, axe→`swingO2`) → 기본 `stabO2` 순.
+**grass 기준 사각형 디자인, 레이어 반전.** 이전 스킴(Layer 1 = FullGrass 전면, Layer 2 = Soil 길)은 폐기됐다.
+
+| 레이어 | 엔티티 이름 | 내용 |
+|---|---|---|
+| Layer 1 (SL0) | `RectTileMap` | **`Soil` 전면 깔림** (길 바닥이자 베이스 지반) |
+| Layer 2 (SL1) | `RectTileMap2` | **잔디 커버** — `FullGrass`(중앙) + `Soil{LT,T,RT,L,R,LD,D,RD}`(잔디 가장자리 프린지) + `Grass{LT,RT,LD,RD}Corner`(오목 내부 모서리) |
+| Layer 3 (SL2) | `RectTileMap3` | 설치 바닥 (런타임 전용, tile1) |
+| Layer 4 (SL3) | `RectTileMap4` | `Big Wall` 충돌 밴드 (경계 3겹) |
+| Layer 5 (SL4) | `RectTileMap5` | 경계 테라스 비주얼 (TerraceTop 링 + 북벽 CliffFace) |
+| MapLayer5 | (엔티티 전용) | 몬스터·NPC·자원·가구·드롭 |
+
+- **잔디(Layer 2)가 덮지 않은 셀 = 길/광장** — 아래 Layer 1의 `Soil`이 드러난다. 길/광장 마스크는 **사각형(rect) 조합으로만** 디자인한다 (팔각형/원 폐기).
+- **에지 간격에 따른 두 가지 문법 규칙**:
+  1. **길 (에지 간격 0칸 - 밀착 문법)**: 폭이 좁은 길의 경우, 마주보는 잔디의 에지(프린지) 타일들이 서로 맞붙어서 흙 길(Soil)을 구성하는 밀착 문법을 사용한다.
+  2. **광장/밭/보스 아레나 (에지 간격 ≥1칸 - 홀 유지 문법)**: 넓은 흙 영역(우물 광장 7x7, 밭, 보스 아레나 등)의 경우, 둘레에만 잔디 에지(프린지) 타일을 배치하고, 안쪽은 L2 빈 칸(L1 Soil 그대로 노출) 상태로 흙 홀(Hole)을 유지한다.
+- `wall.tileset`은 2026-07-07 리네임으로 `Soil*2`(구 내부 모서리)가 사라지고 `Grass*Corner` 4종이 추가됐다.
+- **기록/구현 위치**:
+  - 블록아웃 생성기 `scripts/build_maps.cjs` (헤더 주석 = 스킴 명세. `grassTileName()`이 이름 매핑 단일 소스. `--force` 필수 — 손편집 전량 덮어씀)
+  - 런타임 `RootDesk/MyDesk/MapObjects/Scripts/ResourceSpawner.mlua` — `IsGrassTileName`(Layer 2 잔디 패밀리 판정) / `IsSoilTileName`(정확히 `"Soil"`) / `ComputeGrassTileName` / `AutotileGrassLayer`(기본 OFF, 프로퍼티 `AutotileGrassOnSetup`) / 자원 스폰 `RequiredTile` 판정(잔디 패밀리 → `"FullGrass"`, 잔디 없음+Soil → `"Soil"`)
+  - 미니맵 `RootDesk/MyDesk/UI/Scripts/UIMinimapController.mlua` `TileColor` — `Soil`(정확 일치)=흙색, `Soil{dir}`/`Grass*`/`FullGrass`=잔디색
+  - 설계 기록 `game_design.md` §3.5 "지형 (TileMap)" 불릿
+- `BiomeResourceDataSet.csv`의 `RequiredTile=FullGrass` 행(Tree/GrownGrass)은 그대로 유효 — 잔디 커버 셀에서만 스폰, 길에서는 억제.
 
 ### 1.4 검증 프로토콜 (Maker MCP)
 
 - 브리지 스크립트: `scratch/mcp_probe.py`(연결/툴 목록), `scratch/run_lua.py`(Play 컨텍스트 Lua 실행), `scratch/watch_maker_logs.py`(로그 감시).
-- ⚠️ 위 스크립트들은 MCP bat 경로가 `C:\Users\mh566\...`으로 하드코딩되어 있음 — 현재 머신(`yaong`)에는 해당 경로가 없다. 사용 전 실제 설치 경로로 수정 필요 (§3 T3).
+- MCP bat 경로 리졸버: `MSW_MCP_BAT` 환경변수 → 프로젝트 `.mcp.json`의 `msw-maker-mcp` args → 알려진 설치 경로 순.
+- ⚠️ `watch_maker_logs.py`는 `if __name__ == "__main__"` 가드 없이 모듈 최상위에서 감시 루프가 즉시 실행됨. **import 금지**(import만으로 MCP 브리지가 떠서 라이브 세션과 충돌). 반드시 `python scratch/watch_maker_logs.py`로 직접 실행할 것.
 - 표준 절차: Maker 에디터 실행 상태에서 `refresh` → `play` → 시나리오 재현 → `logs(kind=normal)`에서 Error/Warning 확인 → `stop`.
 
 ---
 
 ## 2. 완료된 작업 기록
 
-### T1. 스윙 모션 중 손에 든 도구 사라짐 버그 수정 — **코드 수정 완료, 런타임 검증 보류**
+### T0. 타일 스킴 전환 (2026-07-07) — **코드/맵 수정 완료, 런타임 검증 보류**
 
-- **증상**: 도구 장착 시 평상시엔 보이는데, 휘두르는(채집/공격) 모션 동안에만 도구가 안 보임.
-- **원인**: `MineState.mlua`가 pickaxe에 두손 액션 `swingT1`을 재생. 도구는 OneHandedWeapon 슬롯 장착이라 swingT 프레임이 없어 모션 중 무기 미렌더 (코드 주석에 이미 경고돼 있던 사항).
-- **수정 내용**:
-  1. `RootDesk/MyDesk/Player/Scripts/MineState.mlua` — 액션 선택을 데이터 주도로 변경: `item_dataset`의 `SwingAction` 컬럼 1순위(pcall 가드로 컬럼 부재 시 안전), 폴백은 ToolType 기반 **한손 액션만** 사용(pickaxe→`swingO1`, axe→`swingO2`), 기본 `stabO2`.
-  2. `RootDesk/MyDesk/item/DataSets/item_dataset.csv` — `SwingAction` 컬럼 추가. 곡괭이 3종=`swingO1`, 도끼 3종(hand/stone/copper/iron)=`swingO2`, 비도구=공백.
-- **남은 검증 (§1.4 절차)**: Maker `refresh` 후 Play → 곡괭이/도끼 각각 장착 → Ctrl 스윙 → ①모션 전체 구간에서 도구 렌더 확인 ②`swingO1`/`swingO2` 모션 자연스러움 확인 ③logs에 SwingAction 관련 Error 없음 확인. 모션이 어색하면 **코드 수정 없이 CSV의 SwingAction 값만 교체**(한손 액션 내에서: swingO1/O2/O3, stabO1/O2).
-
-### T1-b. pickaxe 스윙 = `swingT1` (보스 지시) — CSV 데이터로만 반영, **되돌리지 말 것**
-
-- 보스 지시로 곡괭이 스윙을 `swingT1`(양손 머리 위 내리찍기)로 변경. **코드 무수정** — `item_dataset.csv` 곡괭이 3종(stone/copper/iron_pickaxe)의 `SwingAction`을 `swingO1`→`swingT1`로 교체(1순위 데이터 소스). 도끼는 `swingO2` 유지.
-- ⚠️ 위 T1 경고(한손 슬롯이라 swingT* 프레임 없음 → 스윙 중 무기 미표시)를 **보스가 인지한 상태에서 명시적으로 선택**한 값이다. 향후 에이전트는 이 값을 임의로 `swingO*`로 되돌리지 말 것(모션/무기표시가 문제면 보스에게 확인). 도구를 스윙 내내 표시해야 한다면 대안은 `PlayerInventory.ApplyHeldToolCostume`에서 곡괭이를 `MapleAvatarItemCategory.TwoHandedWeapon` 슬롯으로 장착하도록 전환하는 것.
+- §1.3의 신규 스킴으로 전면 전환:
+  1. `scripts/build_maps.cjs` — 헤더 스킴 명세 갱신, `grassTileName()` 신설(FullGrass/Soil프린지/Grass*Corner 매핑), 페인터 반전(L1=Soil 전면, L2=잔디 커버에서 길 마스크만 뚫음), `disc`/`octagon` 제거 및 전 디자인 rect 전환, 레이어 슬롯 `soil`→`grass` 리네임.
+  2. `ResourceSpawner.mlua` — `IsGrassTileName`/`IsSoilTileName` 재정의, `ComputeGrassTileName` 신설, `AutotileSoilLayer`→`AutotileGrassLayer`(스무딩 제거 — Grass*Corner가 있어 불필요), 프로퍼티 `AutotileSoilOnSetup`→`AutotileGrassOnSetup`(기본 false 유지), 절차 지형 잠금 경로 및 손디자인 `RequiredTile` 판정 반전.
+  3. `UIMinimapController.mlua` — `TileColor`: `Soil` 정확 일치=흙색, `Soil{dir}` 프린지/`Grass*`=잔디색.
+  4. `game_design.md` §3.5 지형 불릿 + `PlayerInventory.mlua` 설치 검증 주석 갱신.
+  5. `node scripts/build_maps.cjs --force`로 맵 4종(map01/town/template_field/template_boss) 재페인팅. 산출 검증: 전 맵 L1=`Soil` 전면(카운트 정확), L2 잔디 패밀리 13종만 사용, 무효 tileIndex 0건.
+- **남은 검증**: §3 T1 참조.
 
 ---
 
@@ -61,17 +76,70 @@
 > 상태: `[대기]` / `[진행]` / `[완료]` / `[보류]`
 > 각 항목은 **Target(파일) / Change(변경) / Acceptance(완료 기준)** 3요소를 반드시 채운다.
 
-### T2. [대기] T1 런타임 검증
-- **Target**: 코드 변경 없음 (검증 전용)
-- **Change**: §2 T1의 "남은 검증" 절차 수행. 실패 시 CSV `SwingAction` 값 조정 또는 원인 재분석 후 보고.
-- **Acceptance**: 곡괭이·도끼 스윙 모션 전 구간에서 도구가 보이는 것을 Play 모드에서 확인, logs 무에러.
+### T1. [검증 PASS — 2026-07-07 에이전트 보스 지시로 수행] 신규 타일 스킴 런타임 검증
+- ✅ **2026-07-07 런타임 검증 결과 (보스가 play/캡처/logs 허용해 직접 수행)**: 현재 디스크 상태 기준 `refresh`→`play`→`logs`→`stop` 완주.
+  - ① `ResourceSpawner`/`UIMinimapController` Error 0건. 런타임 로그 441줄 전부 Info(에러/워닝 0). `UIMinimapController: Tilemap layers cached ... map01/Home` 정상, ResourceSpawner가 hunt01~04·Home 청크/포탈/보스 무에러 셋업.
+  - ② map01 = 십자 Soil 길이 잔디 관통, 가장자리 grass→dirt 프린지 자연스럽게 연결.
+  - ③ Home 맵에서 나무/덤불/풀 전부 잔디 위에만, 흙 길·밴드는 자원 없이 비어 있음.
+  - ④ 미니맵에 흙색 길이 녹색 잔디 위로 뚜렷이 표시(`TileColor`: `Soil`정확=(0.76,0.60,0.42) vs 잔디군=(0.39,0.60,0.13)로 구분).
+  - ⑤ 🔶 시스템 PASS(`Reconstructed ... 2 furniture entities` — 가구 재구성 동작). **인터랙티브 실제 설치**는 이번 세션 미조작.
+  - ⚠️ 검증은 **현재 디스크 상태** 기준. 보스가 `wall.tileset` 타일명을 재정리(GrassR/L/T/D 등)하거나 길 폭을 바꾸면 **재검증 필요**.
+  - ⚠️ **범위 외 신규 발견 (타일 스킴과 무관)**: `RootDesk/MyDesk/NPC/Scripts/MerchantInteract.mlua`의 `OnBeginPlay` line 2~3에서 빌드 에러 `[LEA-1102] EventHandlerBase ConnectEvent(Type eventType, func eventHandler)` 2건 — `ConnectEvent` 호출 시그니처/인자 문제로 추정. 상점 NPC 이벤트 연결이 조용히 안 걸릴 수 있으니 별도 수정 필요.
+- ⚠️ **2026-07-07 보스 인수**: 맵/타일 작업(길 폭 축소 포함)은 보스가 Maker에서 직접 진행 중. 하위 에이전트는 착수 금지 — 보스 맵 작업 중 `wall.tileset` 타일명이 재정리될 수 있으니(예: `GrassR/GrassL/GrassT/GrassD` 계열 언급됨), **타일 관련 코드 작업 전 반드시 wall.tileset 이름을 재확인**할 것.
+- **배경**: §2 T0. 맵 4종이 새 스킴으로 재페인팅됐고 `.mlua` 3종이 수정됐으나 Maker 미기동 상태라 런타임 미검증.
+- **Target**: 코드 변경 없음 (검증 전용; 실패 시에만 §1.3 기재 파일 수정)
+- **Change**: §1.4 절차로 `refresh` → `play`. ① 빌드 로그에 `ResourceSpawner`/`UIMinimapController` 관련 Error 없음 확인 ② map01에서 길(잔디 구멍)이 Soil로 보이고 잔디 프린지/코너 아트가 이어지는지 육안 확인 ③ 자원(나무/풀)이 잔디 위에만 스폰되고 길 위에 스폰 안 되는지 ④ 미니맵에서 길=흙색, 잔디=녹색으로 나오는지 ⑤ 가구 설치가 잔디/길 양쪽에서 동작하는지.
+- **Acceptance**: 위 5개 항목 Play 모드 통과 + `logs` 무에러. 실패 항목은 원인 파일과 함께 §3에 신규 T항목으로 보고.
 
-### T3. [완료] MCP 브리지 스크립트 경로 이식성 수정
-- **Target**: `scratch/mcp_probe.py`, `scratch/watch_maker_logs.py`
-- **Change**: `C:\Users\mh566\...` 하드코딩을 제거하고 `%LOCALAPPDATA%\Nexon\MapleStory Worlds\MakerMCP\msw-maker-mcp.bat` 기반 자동 탐색 + 환경변수(`MSW_MCP_BAT`) 오버라이드로 교체.
-- **Acceptance**: 현재 머신에서 `python scratch/mcp_probe.py` 실행 시 경로 에러 없이 초기화 시도(에디터 미실행 시 "INIT TIMEOUT" 메시지)까지 도달.
-- **결과 [완료]**: 두 스크립트에 동일한 `resolve_mcp_bat()` 추가. 우선순위 = `MSW_MCP_BAT` 환경변수 → 프로젝트 `.mcp.json`의 `msw-maker-mcp` args에서 `.bat` 경로 추출 → 알려진 설치 경로(`%LOCALAPPDATA%\Nexon\...`, `C:\Nexon\...`). **문서의 `%LOCALAPPDATA%` 가정은 이 머신에 부재** — 실제 경로는 `.mcp.json` 기준 `C:\Nexon\MapleStory Worlds\MakerMCP\msw-maker-mcp.bat`이므로 `.mcp.json`을 1차 소스로 사용하는 게 가장 이식성 높음. 검증: 리졸버 격리 실행 → 경로 반환·존재·`MSW_MCP_BAT` 오버라이드 확인. (전체 probe 실행은 라이브 Claude MCP 세션과의 브리지 충돌 우려로 생략 — 런타임 연결 확인은 필요 시 직접 `python scratch/mcp_probe.py`.)
-- ⚠️ **주의**: `watch_maker_logs.py`는 `if __name__ == "__main__"` 가드 없이 모듈 최상위에서 감시 루프가 즉시 실행됨. **import 금지**(import만으로 MCP 브리지가 떠서 세션 충돌). 반드시 `python scratch/watch_maker_logs.py`로 직접 실행할 것.
+### T2. [검증 PASS — 2026-07-07] 잔디 프린지/코너 아트 방향 확인
+- ✅ **검증 결과**: map01 십자 길 + Home 맵 좌측 세로 길·하단 흙 밴드에서 grass→dirt 프린지가 **거울상/역방향 심(seam) 없이 길 쪽을 향해 매끄럽게 연결**됨. `build_maps.cjs grassTileName()`과 `ResourceSpawner ComputeGrassTileName`이 동일 규칙이라 아트가 현재 이름과 정합. ⚠️ 단, **보스가 wall.tileset을 리네임/재정리 중이면** 아트-이름 정합이 깨질 수 있으니 그 작업 후 재확인 필요.
+- **배경**: 접미사 컨벤션은 "방향 = 길(마스크가 비는) 쪽"으로 구현했다 (`SoilT` = 위쪽이 길). 새로 리네임된 wall.tileset 아트가 이 방향과 거울상이면 프린지가 반대로 보인다.
+- **Target**: (방향이 맞으면 변경 없음) 어긋나면 `scripts/build_maps.cjs`의 `grassTileName()` + `ResourceSpawner.mlua`의 `ComputeGrassTileName`의 접미사 매핑만 스왑 — 두 곳이 동일 규칙이어야 한다.
+- **Change**: T1의 육안 확인 중 프린지 8방향 + 코너 4종이 길 방향과 일치하는지 대조. 어긋난 방향만 매핑 교정 후 `node scripts/build_maps.cjs --force` 재실행.
+- **Acceptance**: 전 방향 프린지/코너가 길 쪽을 향해 자연스럽게 이어짐 (map01 우물 광장 + S자 길에서 확인).
+
+### T3. [대기] 도구 스윙 모션 런타임 검증 (이월)
+- **배경**: 스윙 액션은 `item_dataset.csv`의 `SwingAction` 컬럼이 1순위 데이터 소스 (`MineState.mlua`가 조회, 폴백 pickaxe→`swingO1`/axe→`swingO2`, 기본 `stabO2`). 보스 지시로 곡괭이 3종은 `swingT1`(양손) — 한손 슬롯이라 스윙 중 무기 미표시를 **보스가 인지하고 선택**한 값이니 임의로 되돌리지 말 것. 도끼는 `swingO2`.
+- **Target**: 코드 변경 없음. 모션이 어색하면 CSV `SwingAction` 값만 교체 (보스 확인 후).
+- **Change**: Play → 곡괭이/도끼 장착 → Ctrl 스윙 → 모션·도구 렌더 확인, logs 무에러.
+- **Acceptance**: 곡괭이=`swingT1` 몸 모션 재생, 도끼=`swingO2` 전 구간 도구 렌더, SwingAction 관련 Error 없음.
+
+### T4. [대기] 경계 테라스/절벽 아트 정리
+- **배경**: `TerraceTop`/`CliffFace`/`Big Wall`은 이전 스킴의 임시 아트 그대로다. 신규 grass 기준 아트와 톤이 안 맞을 수 있고, 상위 레이어 테라스 타일이 깔린 뒤 플레이어 아바타 SortingLayer 최종 판정도 미완(`docs/design/skill-tree-plan.md` §5 4번).
+- **Target**: `RootDesk/MyDesk/wall.tileset`(Maker에서 아트 교체) + 필요 시 `scripts/build_maps.cjs` 밴드/데코 페인팅
+- **Change**: 신규 타일 아트 확정 후 테라스 링/절벽면 리스킨, 플레이어가 테라스 타일 아래로 숨는지 확인.
+- **Acceptance**: 경계 밴드 비주얼이 잔디/흙 아트와 이어지고, 아바타가 지형 위에 정상 렌더.
+
+
+### T5. [대기] 영지 타일 편집 — 길 파기/잔디 심기 (Phase 14-A)
+- **배경**: `game_design.md` §2.2 ① "개인 타일 편집 우선" + Phase 14-A. 신규 타일 스킴(§1.3)을 그대로 활용 — 잔디 커버를 걷으면 길이 된다.
+- **Target**: `RootDesk/MyDesk/item/DataSets/item_dataset.csv`(+RecipeDataSet), `PlayerInventory.mlua`(서버 검증), `PlayerController.mlua`(대상 셀/프리뷰), `PersistenceManager.mlua`(월드 델타 영속화), `ResourceSpawner.mlua`(점유/스폰 상호작용)
+- **Change**: ① `item_dataset`에 `TerrainEditAction` 컬럼(removeGrass/plantGrass) — 삽 도구·Grass Seed 아이템 행 추가 ② Ctrl 사용 시 대상 셀의 `RectTileMap2` SetTile/RemoveTile + 주변 8셀 프린지 재계산(`ComputeGrassTileName` 재사용) ③ 편집 델타를 설치 타일과 동일한 월드 데이터 계층으로 영속화·복원 ④ 자원/가구 점유 셀은 편집 불가(서버 검증).
+- **Acceptance**: 삽으로 판 셀이 길(Soil 노출)로 보이고 프린지가 이어짐, Seed로 복구 가능, 재접속 후 편집 상태 유지, 점유 셀 편집 거부. 빌드 로그 무에러(플레이 검증은 보스).
+
+### T6. [대기] 농사 시스템 MVP (Phase 14-B)
+- **배경**: Phase 14-B — "농장" 필러의 실체. 기존 자원 엔티티/드롭/점유 파이프라인을 최대 재사용.
+- **Target**: 신규 `CropDataSet.csv` + `Crop.mlua`(성장 컴포넌트) + `Crop_<이름>.model`, `item_dataset`/`RecipeDataSet`/상점 데이터(씨앗), `TileDurabilityManager.mlua`(수확), `PersistenceManager.mlua`(작물 상태 영속화)
+- **Change**: ① `CropDataSet`(SeedItem/GrowthStages/StageDuration/HarvestItem/MinYield/MaxYield) ② 씨앗 설치(가구 설치 경로 재사용, T5의 경작 셀 요구 여부는 보스와 합의) ③ 서버 타이머 성장(단계별 SpriteRUID 스왑) ④ 성숙 작물 채집 = 기존 `HitResource` 경로 ⑤ 작물 셀/단계/심은 시각 영속화.
+- **Acceptance**: 씨앗 구매→심기→단계 성장→수확→재파종 루프가 CSV 행 추가만으로 신규 작물 확장 가능. 재접속 시 성장 경과 반영. 빌드 로그 무에러.
+
+### T7. [대기] 연구소 가동 (Phase 14-C)
+- **배경**: Phase 14-C — town의 `Building_ResearchLab`은 배치만 됨. 사냥 전리품 사용처를 만들어 사냥터 루프를 닫는다.
+- **Target**: 신규 `ResearchDataSet.csv`, `ResearchLab` 상호작용 컴포넌트(F키 — `Furnace.mlua`/`UIChestController` 상호작용 패턴 재사용), 신규 `ResearchPopup` UI(빌더 `scripts/build_ui.js` 경유), `PersistenceManager.mlua`(해금 목록 필드), `UICraftingController.mlua`+`PlayerInventory:ServerRequestCraft`(해금 게이트)
+- **Change**: ① `ResearchDataSet`(ResearchId/InputItem/InputCount/Duration/UnlockRecipeId/DisplayName) ② 투입→타이머→완료 시 유저별 영구 해금 ③ `RecipeDataSet`에 `RequiredResearchId` 컬럼 — 미해금 레시피는 제작창 잠금 표시+서버 거부.
+- **Acceptance**: 드롭 재료 투입→연구 완료→신규 레시피 제작 가능, 재접속 후 해금 유지, 미해금 레시피 서버 거부. 빌드 로그 무에러.
+
+### T8. [대기] 침대·수면 회복 (Phase 14-D)
+- **배경**: Phase 14-D / §2.2 ① — 영지 "쉼" 축. 스탯(HP/스태미나)은 이미 영속화됨.
+- **Target**: `item_dataset`/`RecipeDataSet`(침대 가구), `Furniture_Bed` 모델 + 상호작용 컴포넌트, `PlayerController.mlua`(수면 상태), `PersistenceManager.mlua`(수면 시작 시각 저장, 로그인 시 오프라인 경과 환산)
+- **Change**: ① 침대 설치(기존 가구 경로) ② F 상호작용 → 수면 상태(이동 잠금+화면 톤) → 10분 경과 시 HP/스태미나 풀충전 ③ 수면 중 로그아웃 시각 저장 → 재접속 시 경과 ≥10분이면 풀충전 입장.
+- **Acceptance**: 수면 10분 풀충전, 수면 중 종료→10분 후 재접속 풀충전, 도중 기상 시 부분 회복 없음(또는 비례 — 보스 합의). 빌드 로그 무에러.
+
+### T9. [대기] 희귀 드롭 소스 (Phase 14-E)
+- **배경**: Phase 14-E / §3.8 — `Rarity`/`Tradable` 컬럼과 등급색 UI는 완료, 정작 희귀템 공급원이 없음.
+- **Target**: `ItemDropDataSet.csv`/`item_dataset.csv`(도안 아이템), `Monster.mlua`(보스 드롭), `ResourceSpawner.mlua`(희귀 광맥 변종·보물 상자 산포), `PlayerInventory.mlua`(도안 사용=레시피 해금 — T7의 해금 계층 재사용)
+- **Change**: ① 보스(`slime_king`) 전용 드롭 테이블에 도안(Recipe Scroll) 추가 — 사용 시 레시피 영구 해금 ② 자원 스폰 시 3% 희귀 변종(드롭 배율↑, 등급색 연출) ③ 사냥터 외곽 보물 상자 절차 배치(1회 개봉).
+- **Acceptance**: 보스 처치로 도안 획득→사용→레시피 해금 영속, 희귀 변종/보물 상자가 데이터셋 행으로 튜닝 가능. 빌드 로그 무에러.
 
 ### (신규 작업 추가 템플릿)
 ```

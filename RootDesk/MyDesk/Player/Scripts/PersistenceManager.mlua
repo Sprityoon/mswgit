@@ -207,6 +207,37 @@ script PersistenceManager extends Logic
 				pc.UnlockedWaypointsJson = data.unlockedWaypoints or "[]"
 				pc.SkillLevelsJson = data.skillLevels or "{}"
 				pc.SP = data.sp or 0
+				
+				-- Offline sleeping recovery
+				local savedIsSleeping = data.isSleeping or false
+				local savedSleepStartTimeTicks = data.sleepStartTimeTicks or "0"
+				if savedIsSleeping and savedSleepStartTimeTicks ~= "0" then
+					local success, err = pcall(function()
+						local startTime = DateTime(tonumber(savedSleepStartTimeTicks) or 0)
+						local now = DateTime.UtcNow
+						local elapsedTicks = now.Ticks - startTime.Ticks
+						local elapsedSeconds = elapsedTicks / 10000000.0
+						if elapsedSeconds > 0 then
+							local hpRecovery = (elapsedSeconds / 600.0) * player.PlayerComponent.MaxHp
+							local staminaRecovery = (elapsedSeconds / 600.0) * pc.MaxStamina
+							
+							player.PlayerComponent.Hp = math.min(player.PlayerComponent.MaxHp, player.PlayerComponent.Hp + math.floor(hpRecovery))
+							pc.Stamina = math.min(pc.MaxStamina, pc.Stamina + math.floor(staminaRecovery))
+							
+							log("PersistenceManager: Offline sleeping recovery applied. Elapsed: " .. tostring(elapsedSeconds) .. "s. HP +" .. tostring(math.floor(hpRecovery)) .. ", Stamina +" .. tostring(math.floor(staminaRecovery)))
+						end
+					end)
+					if not success then
+						log_warning("PersistenceManager: Failed to calculate offline sleep recovery: " .. tostring(err))
+					end
+					-- Reset sleep status upon login for active play
+					pc.IsSleeping = false
+					pc.SleepStartTimeTicks = "0"
+				else
+					pc.IsSleeping = false
+					pc.SleepStartTimeTicks = "0"
+				end
+				
 				log("PersistenceManager: Stats restored (Lv " .. pc.Level .. ")")
 			end
 
@@ -249,7 +280,8 @@ script PersistenceManager extends Logic
 					furnRaw = "[]"
 				else
 					furnRaw = "[{\"itemName\":\"Portal\",\"x\":-5,\"y\":0,\"destinationGroup\":\"town\",\"portalColor\":\"white\",\"targetMapName\":\"town\",\"targetPositionX\":3,\"targetPositionY\":0}," ..
-					          "{\"itemName\":\"Portal\",\"x\":-3,\"y\":0,\"destinationGroup\":\"rookie\",\"portalColor\":\"sky\",\"targetMapName\":\"\",\"targetPositionX\":0,\"targetPositionY\":0}]"
+					          "{\"itemName\":\"Portal\",\"x\":-3,\"y\":0,\"destinationGroup\":\"rookie\",\"portalColor\":\"sky\",\"targetMapName\":\"\",\"targetPositionX\":0,\"targetPositionY\":0}," ..
+					          "{\"itemName\":\"Bed\",\"x\":-1,\"y\":0}]"
 				end
 			end
 
@@ -367,6 +399,8 @@ script PersistenceManager extends Logic
 			pc.GatheringSpeed = 1.0
 			pc.SkillLevelsJson = "{}"
 			pc.SP = 0
+			pc.IsSleeping = false
+			pc.SleepStartTimeTicks = "0"
 		end
 	end
 
@@ -436,6 +470,8 @@ script PersistenceManager extends Logic
 			unlockedWaypoints = pc.UnlockedWaypointsJson or "[]",
 			skillLevels = pc.SkillLevelsJson or "{}",
 			sp = tonumber(pc.SP) or 0,
+			isSleeping = pc.IsSleeping,
+			sleepStartTimeTicks = pc.SleepStartTimeTicks,
 			posX = tonumber(posX) or 0.0,
 			posY = tonumber(posY) or 0.0,
 			homeTiles = tilesJson,

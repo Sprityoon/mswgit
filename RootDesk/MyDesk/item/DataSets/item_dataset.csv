@@ -1,4 +1,4 @@
-﻿id,Name,ModelName,EntryId,Category,ToolType,ToolPower,IconRUID,PlacedTileName,Rarity,Tradable,Description,WeaponRUID,SwingAction
+id,Name,ModelName,EntryId,Category,ToolType,ToolPower,IconRUID,PlacedTileName,Rarity,Tradable,Description,WeaponRUID,SwingAction
 wood,Wood,Item_Wood,2cb8f37e-ef6b-4e17-86fb-d940f18a7412,resource,,0,b952164321fd4c9c94cb0d3e7c73b182,,Common,true,"""A flexible wooden branch. Useful for crafting basic tools.""",,
 stone,Stone,Item_Stone,05fa541a-a48d-4f36-bf82-0c60784a4a53,resource,,0,5ed8bdcf520044c0a1660873beb30b10,,Common,true,"""A common stone found in the wild. Used in crafting tools and buildings.""",,
 copper ore,Copper Ore,Item_CopperOre,3484bbf6-1973-4b23-a720-9d1b0754aa6f,resource,,0,914eb87802b64924b5f78bb97a55faeb,,Common,true,"""A chunk of copper ore. Can be smelted into copper bars.""",,
@@ -18,3 +18,4 @@ copper_axe,Copper Axe,Item_CopperAxe,08cec3b5-eaaa-4b36-9957-0e96f0708161,tool,a
 iron_pickaxe,Iron Pickaxe,Item_IronPickaxe,0f6274e2-70fd-409b-8a20-7999c099c721,tool,pickaxe,5,thumbnail://475260585aa44acba3bca0e4b820e208,,Rare,true,"""A sturdy iron pickaxe. Required for high-tier mining.""",475260585aa44acba3bca0e4b820e208,swingT1
 iron_axe,Iron Axe,Item_IronAxe,08cec3b5-eaaa-4b36-9957-0e96f0708161,tool,axe,5,thumbnail://963cde7d88654f4a94b045e035ca1cae,,Rare,true,"""A sturdy iron axe. Required for high-tier chopping.""",963cde7d88654f4a94b045e035ca1cae,swingO2
 coin,Coin,Item_Coin,c011e001-e2b7-4a6f-b3cc-0dc9380e529b,resource,,0,408c027728b5404f8901c85f6307cfcf,,Common,true,"""In-game currency used to buy items from the shop.""",,
+bed,Bed,Item_Bed,8a8d129b-41c5-435c-997f-0cb4c9af103b,furniture,,0,22e9f409617b4e4180f9c92fb26b13f7,,Common,true,"""A comfortable wooden bed. Lie down to recover your stamina and HP.""",,

@@ -756,7 +756,7 @@ script PlayerInventory extends Component
 		local placedTileName = row:GetItem("PlacedTileName") or ""
 		local isTile = (placedTileName ~= "")
 		
-		-- Validate target base terrain (FullGrass 베이스 또는 Soil 길 타일이 밑에 있어야 설치 가능)
+		-- Validate target base terrain (Layer 1 Soil 베이스 또는 Layer 2 잔디 커버가 밑에 있어야 설치 가능 — 맵 안 판정)
 		local layer1 = currentMap:GetChildByName("RectTileMap")
 		local layer2 = currentMap:GetChildByName("RectTileMap2")
 		local hasBase = false
@@ -923,7 +923,7 @@ script PlayerInventory extends Component
 		local row = shopDs:FindRow("Name", itemName)
 		if row == nil then return end
 		
-		local buyPrice = tonumber(shopDs:GetCell(row.RowIndex, "BuyPrice")) or 0
+		local buyPrice = tonumber(row:GetItem("BuyPrice")) or 0
 		if buyPrice <= 0 then return end
 		
 		if self.Coin < buyPrice then
@@ -951,7 +951,7 @@ script PlayerInventory extends Component
 		local row = shopDs:FindRow("Name", itemName)
 		if row == nil then return end
 		
-		local sellPrice = tonumber(shopDs:GetCell(row.RowIndex, "SellPrice")) or 0
+		local sellPrice = tonumber(row:GetItem("SellPrice")) or 0
 		if sellPrice <= 0 then return end
 		
 		if self:GetItemCount(itemName) < 1 then

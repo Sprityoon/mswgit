@@ -23,27 +23,27 @@
         },
         {
           "Id": "f7be7415f7d146fe9a2bb4e69a9b58d2",
-          "Name": "SoilLT",
+          "Name": "GrassLT",
           "IsCollidable": false
         },
         {
           "Id": "aac20bb495344139939decfa732cbf89",
-          "Name": "SoilT",
+          "Name": "GrassT",
           "IsCollidable": false
         },
         {
           "Id": "c82042fd7df142289852c902a34df99a",
-          "Name": "SoilRT",
+          "Name": "GrassRT",
           "IsCollidable": false
         },
         {
           "Id": "94adcd2fd937421ea92f93a7101526a2",
-          "Name": "SoilLT2",
+          "Name": "xx",
           "IsCollidable": false
         },
         {
           "Id": "0b7ec789153a453690d29704c21814ce",
-          "Name": "SoilRT2",
+          "Name": "x",
           "IsCollidable": false
         },
         {
@@ -58,7 +58,7 @@
         },
         {
           "Id": "2dbf4313fda6415e8cac3c882d89b025",
-          "Name": "SoilL",
+          "Name": "GrassL",
           "IsCollidable": false
         },
         {
@@ -68,17 +68,17 @@
         },
         {
           "Id": "d9dafab9199248a0b5d149be04992acc",
-          "Name": "SoilR",
+          "Name": "GrassR",
           "IsCollidable": false
         },
         {
           "Id": "3e814d8cd1bc48479c53e5a98333eff3",
-          "Name": "SoilLD2",
+          "Name": "xxx",
           "IsCollidable": false
         },
         {
           "Id": "20466471b719443e9109c35dbfe494e1",
-          "Name": "SoilRD2",
+          "Name": "xxxx",
           "IsCollidable": false
         },
         {
@@ -93,17 +93,17 @@
         },
         {
           "Id": "2ccc3ad7f5a549ffbaef126fafda5bb3",
-          "Name": "SoilLD",
+          "Name": "GrassLD",
           "IsCollidable": false
         },
         {
           "Id": "efa878ae075a4bdb9b49c304adabead5",
-          "Name": "SoilD",
+          "Name": "GrassD",
           "IsCollidable": false
         },
         {
           "Id": "9858813fea4741888cd0493a68265d21",
-          "Name": "SoilRD",
+          "Name": "GrassRD",
           "IsCollidable": false
         },
         {

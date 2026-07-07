@@ -93,6 +93,12 @@ script PlayerController extends Component
 
 	property any CooldownMap = nil
 
+	@Sync
+	property boolean IsSleeping = false
+
+	@Sync
+	property string SleepStartTimeTicks = "0"
+
 	method void OnBeginPlay()
 		-- description: Initialize key and screen touch event listeners on the client.
 		self.CooldownMap = {}
@@ -129,8 +135,26 @@ script PlayerController extends Component
 			log("PlayerController initialized on server for player: " .. self.Entity.Name)
 			self._T.StaminaTimer = _TimerService:SetTimerRepeat(function()
 				if self.IsDead then return end
-				if self.Stamina < self.MaxStamina then
-					self.Stamina = math.min(self.MaxStamina, self.Stamina + 2)
+				local playerComp = self.Entity.PlayerComponent
+				if self.IsSleeping then
+					self._T.SleepHpAccum = (self._T.SleepHpAccum or 0.0) + (playerComp.MaxHp / 600.0)
+					self._T.SleepStaminaAccum = (self._T.SleepStaminaAccum or 0.0) + (self.MaxStamina / 600.0)
+					
+					local hpAdd = math.floor(self._T.SleepHpAccum)
+					if hpAdd > 0 then
+						playerComp.Hp = math.min(playerComp.MaxHp, playerComp.Hp + hpAdd)
+						self._T.SleepHpAccum = self._T.SleepHpAccum - hpAdd
+					end
+					
+					local staminaAdd = math.floor(self._T.SleepStaminaAccum)
+					if staminaAdd > 0 then
+						self.Stamina = math.min(self.MaxStamina, self.Stamina + staminaAdd)
+						self._T.SleepStaminaAccum = self._T.SleepStaminaAccum - staminaAdd
+					end
+				else
+					if self.Stamina < self.MaxStamina then
+						self.Stamina = math.min(self.MaxStamina, self.Stamina + 2)
+					end
 				end
 			end, 1.0)
 		end
@@ -236,6 +260,23 @@ script PlayerController extends Component
 
 	@ExecSpace("ClientOnly")
 	method void OnUpdate(number delta)
+		-- description: Handle updates per frame.
+		if self.IsSleeping then
+			local movement = self.Entity.MovementComponent
+			if isvalid(movement) then movement:Stop() end
+			if _InputService:IsKeyPressed(KeyboardKey.LeftArrow) or
+			   _InputService:IsKeyPressed(KeyboardKey.RightArrow) or
+			   _InputService:IsKeyPressed(KeyboardKey.UpArrow) or
+			   _InputService:IsKeyPressed(KeyboardKey.DownArrow) or
+			   _InputService:IsKeyPressed(KeyboardKey.W) or
+			   _InputService:IsKeyPressed(KeyboardKey.A) or
+			   _InputService:IsKeyPressed(KeyboardKey.S) or
+			   _InputService:IsKeyPressed(KeyboardKey.D) then
+				self:ServerRequestWakeUp()
+			end
+			return
+		end
+
 		-- Resolve any overlaps with resource colliders first
 		self:ResolveOverlaps(delta)
 
@@ -513,6 +554,11 @@ script PlayerController extends Component
 	@ExecSpace("ClientOnly")
 	method void OnKeyDown(KeyDownEvent event)
 		-- description: Handle keyboard input events on client.
+		if self.IsSleeping then
+			self:ServerRequestWakeUp()
+			return
+		end
+		
 		local key = event.key
 		
 		if key == KeyboardKey.LeftControl or key == KeyboardKey.RightControl then
@@ -580,6 +626,11 @@ script PlayerController extends Component
 				-- Estate portals open the destination list (town / hunting grounds); fixed portals in
 				-- other maps warp straight to their single target. See TryUsePortal.
 				self:TryUsePortal()
+				return
+			end
+			local nearbyBed = self:FindNearbyBed()
+			if isvalid(nearbyBed) then
+				self:ServerRequestSleep(nearbyBed.Id)
 				return
 			end
 			local nearbyFurnace = self:FindNearbyFurnace()
@@ -1871,6 +1922,106 @@ script PlayerController extends Component
 		if playerComp.Hp <= 0 then
 			self:ServerDie()
 		end
+	end
+
+	@ExecSpace("Server")
+	method void ServerRequestSleep(string bedEntityId)
+		-- description: Process player request to sleep in bed on server.
+		if self.IsDead or self.IsSleeping then return end
+		local playerComp = self.Entity.PlayerComponent
+		if playerComp == nil or senderUserId ~= playerComp.UserId then return end
+		
+		local bed = _EntityService:GetEntity(bedEntityId)
+		if not isvalid(bed) then return end
+		
+		local myPos = self.Entity.TransformComponent.WorldPosition
+		local bedPos = bed.TransformComponent.WorldPosition
+		local dist = Vector2.Distance(Vector2(myPos.x, myPos.y), Vector2(bedPos.x, bedPos.y))
+		if dist > 3.0 then return end
+		
+		local currentMap = self.Entity.CurrentMap
+		if isvalid(currentMap) and string.sub(currentMap.Name, 1, 5) == "Home_" then
+			local ownerId = string.sub(currentMap.Name, 6)
+			if _PersistenceManager and not _PersistenceManager:CheckGuestPermission(ownerId, senderUserId, "interact") then
+				self:ShowMineFeedback("이 영지의 침대를 이용할 수 있는 권한이 없습니다.")
+				return
+			end
+		end
+		
+		self.IsSleeping = true
+		self.SleepStartTimeTicks = tostring(DateTime.UtcNow.Ticks)
+		self._T.SleepHpAccum = 0.0
+		self._T.SleepStaminaAccum = 0.0
+		
+		local movement = self.Entity.MovementComponent
+		if isvalid(movement) then movement:Stop() end
+		
+		if _PersistenceManager then
+			_PersistenceManager:MarkPlayerDirty(senderUserId)
+		end
+		
+		log("[SLEEP] Player " .. self.Entity.Name .. " started sleeping in bed: " .. bedEntityId)
+		self:ClientOnSleepStart()
+	end
+
+	@ExecSpace("Server")
+	method void ServerRequestWakeUp()
+		-- description: Process player request to wake up on server.
+		if not self.IsSleeping then return end
+		local playerComp = self.Entity.PlayerComponent
+		if playerComp == nil or senderUserId ~= playerComp.UserId then return end
+		
+		self.IsSleeping = false
+		self.SleepStartTimeTicks = "0"
+		
+		if _PersistenceManager then
+			_PersistenceManager:MarkPlayerDirty(senderUserId)
+		end
+		
+		log("[SLEEP] Player " .. self.Entity.Name .. " woke up.")
+		self:ClientOnSleepEnd()
+	end
+
+	@ExecSpace("Client")
+	method void ClientOnSleepStart()
+		-- description: Handle client-side visual effects when sleeping starts.
+		_ScreenMessageLogic:PrivateMsg("수면을 시작합니다. 이동키 입력 시 깨어납니다.")
+	end
+
+	@ExecSpace("Client")
+	method void ClientOnSleepEnd()
+		-- description: Handle client-side visual effects when sleeping ends.
+		_ScreenMessageLogic:PrivateMsg("잠에서 깨어났습니다.")
+	end
+
+	@ExecSpace("ClientOnly")
+	method Entity FindNearbyBed()
+		-- description: Finds the closest bed entity within interaction distance on the client.
+		local currentMap = self.Entity.CurrentMap
+		if not isvalid(currentMap) then return nil end
+		
+		local myPos = self.Entity.TransformComponent.WorldPosition:ToVector2()
+		local closest = nil
+		local minDist = 1.5
+		
+		local bedComponents = currentMap:GetChildComponentsByTypeName("script.Furniture_Bed", true)
+		if not bedComponents then return nil end
+		
+		for _, comp in ipairs(bedComponents) do
+			if isvalid(comp) then
+				local ent = comp.Entity
+				if isvalid(ent) then
+					local fPos = ent.TransformComponent.WorldPosition:ToVector2()
+					local dist = (myPos - fPos):Magnitude()
+					if dist < minDist then
+						minDist = dist
+						closest = ent
+					end
+				end
+			end
+		end
+		
+		return closest
 	end
 
 end
