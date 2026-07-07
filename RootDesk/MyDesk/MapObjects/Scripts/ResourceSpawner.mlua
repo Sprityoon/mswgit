@@ -51,6 +51,7 @@ script ResourceSpawner extends Logic
 	-- UseChunkStreaming=false: 근접 로드/언로드 루프 정지, 맵 셋업 시 전 청크 1회 정적 로드
 	property boolean UseChunkStreaming = false
 	-- AutotileGrassOnSetup=false: 맵 셋업 시 Layer 2 잔디 커버 오토타일 런타임 재보정 안 함 (맵 = Maker 손편집 소유).
+	-- ⛔ 밀착 페어 스킴(2026-07-08)에서는 켜면 길이 FullGrass로 평탄화됨 — AutotileGrassLayer 주석 참조.
 	property boolean AutotileGrassOnSetup = false
 
 	method table GetSpawnedEntities(string mapName)
@@ -253,17 +254,27 @@ script ResourceSpawner extends Logic
 	end
 
 	method boolean IsGrassTileName(string name)
-		-- Layer 2 잔디 커버 패밀리 (2026-07-07 스킴): FullGrass(중앙) + Soil{LT..RD}(잔디 가장자리 프린지)
-		-- + Grass{LT|RT|LD|RD}Corner(오목 내부 모서리). 접두사가 Soil이라도 접미사가 붙어 있으면 잔디 에지 타일이다.
+		-- Layer 2 잔디 커버 패밀리 (2026-07-08 밀착 페어 스킴 / wall.tileset 2026-07-07 리네임):
+		-- FullGrass(중앙) + Grass{LT,T,RT,L,R,LD,D,RD}(방향 에지 — 밀착 길·프린지) + Grass{LT|RT|LD|RD}Corner(오목 모서리).
+		-- "패밀리 소속" 판정만 한다 — 길/잔디 구분은 IsGrassEdgeTileName을 함께 볼 것.
 		if name == nil then return false end
 		if name == "FullGrass" then return true end
 		if string.sub(name, 1, 5) == "Grass" then return true end
-		if string.sub(name, 1, 4) == "Soil" and string.len(name) > 4 then return true end
 		return false
 	end
 
+	method boolean IsGrassEdgeTileName(string name)
+		-- 방향 에지 Grass{LT,T,RT,L,R,LD,D,RD} = 길 (밀착 페어의 절반 — 잔디→흙 전환 타일).
+		-- FullGrass(중앙)와 Grass{..}Corner(오목 모서리 노치)는 잔디로 취급하므로 제외한다.
+		if name == nil or name == "FullGrass" then return false end
+		if string.sub(name, 1, 5) ~= "Grass" then return false end
+		if string.sub(name, -6) == "Corner" then return false end
+		return true
+	end
+
 	method boolean IsSoilTileName(string name)
-		-- 베이스 지반/길 타일 (wall 타일셋 "Soil" 단일 타일 — Layer 1 전면 깔림, 잔디가 안 덮인 곳이 길).
+		-- 베이스 지반 타일 (wall 타일셋 "Soil" 단일 타일 — Layer 1 전면 깔림).
+		-- 2026-07-08 밀착 페어 스킴: L2 홀로 Soil이 드러나는 곳 = 광장/밭 바닥. 좁은 길은 L2 방향 에지 페어.
 		return name ~= nil and name == "Soil"
 	end
 
@@ -323,10 +334,12 @@ script ResourceSpawner extends Logic
 
 	@ExecSpace("ServerOnly")
 	method void AutotileGrassLayer(Entity map)
-		-- 손디자인 맵의 잔디 커버 보정: Layer 2(RectTileMap2)에 칠해진 잔디 패밀리 타일을 읽어
-		-- 각 셀을 올바른 변형(FullGrass/Soil프린지/GrassCorner)으로 다시 칠한다. 소스 오브 트루스는 칠해진 타일.
-		-- 길 = Layer 2가 비어 Layer 1의 Soil이 드러나는 셀 — 이 패스는 잔디 셀만 다시 칠하고 길은 건드리지 않는다.
-		-- (내부 모서리 타일 Grass*Corner가 있어 별도 마스크 스무딩은 하지 않는다.)
+		-- ⚠️ 홀 문법 전용 보정 패스 (기본 OFF — AutotileGrassOnSetup=false 유지).
+		-- Layer 2(RectTileMap2)에 칠해진 잔디 패밀리 타일을 "덮임 마스크"로 읽어 각 셀을
+		-- 다시 칠한다(FullGrass/Grass{dir} 프린지/Grass*Corner). 소스 오브 트루스는 칠해진 타일.
+		-- ⛔ 2026-07-08 밀착 페어 스킴과 비호환: 밀착 길의 방향 에지 페어도 "덮임"으로 읽혀
+		-- 전부 FullGrass로 평탄화된다(길 소실). 손디자인 맵(빌드는 build_maps.cjs, 보정은 Maker 손편집)
+		-- 에서는 절대 켜지 말 것 — 홀 문법만 쓰는 마스크 페인팅 도구를 되살릴 때만 유효하다.
 		if not isvalid(map) then return end
 		local layer2Entity = map:GetChildByName("RectTileMap2")
 		if not isvalid(layer2Entity) then return end
@@ -925,23 +938,34 @@ script ResourceSpawner extends Logic
 
 				if proceduralTerrain then
 					-- (⛔ 잠금 경로 — UseProceduralBiomes 재가동 시에만 진입) 절차 지형도 wall 타일셋의
-					-- 새 문법(2026-07-07)을 따른다: Layer 1 = Soil 전면, Layer 2 = 노이즈가 잔디로 판정한
-					-- 셀에 잔디 커버 오토타일(FullGrass/Soil프린지/GrassCorner). grass가 덮지 않은 셀 = 길.
+					-- 새 문법(2026-07-08)을 따른다: Layer 1 = Soil 전면, Layer 2 = 노이즈가 잔디로 판정한
+					-- 셀에 잔디 커버 오토타일(FullGrass/Grass{dir} 프린지/Grass*Corner). 칠한 타일이 방향
+					-- 에지면 길(스폰 억제), FullGrass/Corner면 잔디 — 손디자인 맵과 동일 판정 규칙.
 					tilemap1:SetTile("Soil", x, y)
 
 					if grassCacheAt(x, y) then
-						choice = "FullGrass"
-						tilemap2:SetTile(self:ComputeGrassTileName(grassCacheAt, x, y), x, y)
+						local grassName = self:ComputeGrassTileName(grassCacheAt, x, y)
+						tilemap2:SetTile(grassName, x, y)
+						if self:IsGrassEdgeTileName(grassName) then
+							choice = "Soil"
+						else
+							choice = "FullGrass"
+						end
 					else
 						choice = "Soil"
 					end
 				else
-					-- 손디자인 지형: 타일은 다시 칠하지 않는다. 자원 배치의 RequiredTile 판정용으로만 읽는다:
-					-- Layer 2에 잔디 패밀리가 칠해져 있으면 "FullGrass"(잔디 — 자원 스폰 가능 셀),
-					-- 아니면(= 잔디가 안 덮인 곳) Layer 1 베이스가 Soil인 경우 "Soil"(길 — 자원 스폰 억제용).
+					-- 손디자인 지형: 타일은 다시 칠하지 않는다. 자원 배치의 RequiredTile 판정용으로만 읽는다
+					-- (2026-07-08 밀착 페어 스킴): Layer 2가 FullGrass/Grass*Corner면 "FullGrass"(잔디 — 스폰 가능),
+					-- 방향 에지 Grass{dir}면 "Soil"(밀착 길 — 잔디 요구 자원 스폰 억제),
+					-- Layer 2가 비고 Layer 1이 Soil이면 "Soil"(광장/밭 홀 바닥).
 					local info2 = tilemap2:GetTile(x, y)
 					if info2 ~= nil and self:IsGrassTileName(info2.Name) then
-						choice = "FullGrass"
+						if self:IsGrassEdgeTileName(info2.Name) then
+							choice = "Soil"
+						else
+							choice = "FullGrass"
+						end
 					else
 						local info1 = tilemap1:GetTile(x, y)
 						if info1 ~= nil and self:IsSoilTileName(info1.Name) then

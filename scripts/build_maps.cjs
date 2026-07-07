@@ -1,19 +1,33 @@
-// build_maps.cjs — 영지/마을/사냥터 초기 블록아웃 일괄 페인팅 (2026-07-07 컨셉)
+// build_maps.cjs — 영지/마을/사냥터 초기 블록아웃 일괄 페인팅 (2026-07-08 밀착 페어 문법)
 //
 // ⛔⛔ 맵 소유권 전환 (2026-07-04): 초기 블록아웃이 끝났고 이제 맵은 **Maker 손편집이 소스 오브 트루스**다.
 //    이 스크립트를 다시 돌리면 대상 레이어를 전부 재계산해 **사용자 손편집을 통째로 덮어쓴다**
 //    (revision 범프 때문에 refresh에서 파일이 에디터 씬을 이긴다).
 //    → 명시적 `--force` 없이는 실행을 거부한다. 사용자가 다시 블록아웃을 원할 때만 사용할 것.
 //
-// 컨셉 (2026-07-07 결정 — grass 기준 사각형 디자인, 레이어 반전):
-//   - Layer 1(base) = Soil 전면 깔림 (길 바닥이자 베이스 지반)
-//   - Layer 2 = Grass 커버 — FullGrass(중앙) + Soil{LT..RD}(잔디 가장자리 프린지) + Grass{LT|RT|LD|RD}Corner(오목 내부 모서리)
-//   - **Grass가 덮지 않은 셀 = 길** (아래 Soil이 드러남). 마스크는 rect 조합의 사각형 형태로만 디자인 (팔각형/원 폐기)
-//   - 타일 시트 = wall.tileset (2026-07-07 리네임: Soil*2 폐기 → Grass*Corner 4종 추가)
-//   - 표준 레이어: RectTileMap(SL0 Soil 베이스) / RectTileMap2(SL1 Grass 커버) / RectTileMap3(SL2 설치바닥, tile1)
-//                / RectTileMap4(SL3 Big Wall 충돌 밴드) / RectTileMap5(SL4 경계 테라스 비주얼)
-//                / MapLayer5 = 엔티티 전용 (타일 레이어 없음)
-//   - 경계: 충돌은 Big Wall(레이어4), 비주얼은 TerraceTop 링 + 북벽 CliffFace(레이어5가 위에 덮음)
+// ── 스킴 명세 (2026-07-08 확정 — 서브셀 흙 마스크 + 두 가지 문법) ──────────────────────
+//   레이어: L1 RectTileMap(SL0)=Soil 전면 / L2 RectTileMap2(SL1)=잔디 커버 / L3 RectTileMap3(SL2)=설치 바닥(런타임)
+//          / L4 RectTileMap4(SL3)=Big Wall 충돌 밴드 / L5 RectTileMap5(SL4)=경계 테라스 비주얼 / MapLayer5=엔티티 전용
+//   타일 시트 = wall.tileset (2026-07-07 리네임: 프린지 = Grass{LT,T,RT,L,R,LD,D,RD} 8방 + 오목 = Grass{LT,RT,LD,RD}Corner 4종)
+//
+//   모든 지형은 셀당 2×2 **서브셀 흙 마스크** 하나로 표현한다 (BL=(2x,2y) BR=(2x+1,2y) TL=(2x,2y+1) TR=(2x+1,2y+1)):
+//     흙 0칸 → FullGrass | 인접 2칸 → Grass{T|D|L|R} | 3칸 → 볼록 Grass{LT|RT|LD|RD} | 1칸 → 오목 Grass{..}Corner
+//     4칸 → L2 빈 칸(홀 — L1 Soil 노출) | 대각 2칸 → 무효(산출 검사에서 에러)
+//   접미사 방향 = 흙(길) 쪽. 이 매핑은 구 홀 문법의 오토타일과 완전 호환(아트 방향 T2 검증 그대로 유효).
+//
+//   문법 1 — 길 (밀착 에지 페어, L2 홀 0칸): walk() 폴리라인. 점 = 셀 경계 좌표 (bx = 셀 bx|bx+1 사이).
+//     수평 구간 → 흙 밴드 sy∈{2by+1, 2by+2} (윗줄 GrassD + 아랫줄 GrassT 밀착 페어), 수직 구간 → sx∈{2bx+1, 2bx+2}.
+//     ㄱ자 꺾임 = 바깥 볼록 Grass{diag} + 안쪽 자동, 자유 끝단 = 오목 코너 페어 캡(대각 페어 캡),
+//     광장/다른 길과의 접속 = 마스크 합집합으로 자동. 길 셀에는 홀이 절대 생기지 않는다.
+//   문법 2 — 광장/밭/아레나 (홀 유지, 에지 간격 ≥1칸): plaza() 사각형 = 셀 사각형 + ½셀 마진.
+//     내부 셀 = L2 홀(Soil 노출), 둘레 잔디 셀 = 프린지 에지, 모서리 = 오목 Grass*Corner 자동.
+//     island() = 광장 안 잔디 섬(정원) — 같은 ½ 마진 규칙으로 도려냄 (섬 둘레 광장 셀에 프린지).
+//
+//   경계: 충돌은 Big Wall(L4, max(|x|,|y|) ≥ R-2), 비주얼은 TerraceTop 링 + 북벽 CliffFace(L5가 위에 덮음).
+//   흙 마스크는 플레이어블 셀(|x|,|y| ≤ R-3)로 클립 — 벽까지 닿는 길은 밴드 밑에서 플러시하게 끊긴다.
+//
+//   런타임 대응 (ResourceSpawner/UIMinimapController): 방향 에지 Grass{dir} = 길(자원 스폰 억제, 미니맵 흙색),
+//   FullGrass·Grass*Corner = 잔디(스폰 가능, 미니맵 잔디색), L2 빈 칸+L1 Soil = 광장 바닥(흙색).
 //
 // 실행: node scripts/build_maps.cjs --force  (멱등 — 대상 레이어를 항상 새로 계산해 전체 재작성)
 "use strict";
@@ -44,9 +58,8 @@ function loadWallTileIndex() {
   return idx;
 }
 
-// ---------- 9방향 + 내부 모서리 오토타일 (ResourceSpawner:ComputeAutotileName과 동일 규칙) ----------
-// inner=true면 4방이 다 차고 대각 하나만 빈 오목 지점에 XX2 접미사를 반환한다 (Grass*Corner 매핑용).
-function autotileSuffix(maskAt, x, y, inner) {
+// ---------- 9방향 오토타일 접미사 (L5 테라스 링 전용 — 잔디 커버는 서브셀 모델 사용) ----------
+function autotileSuffix(maskAt, x, y) {
   const t = maskAt(x, y + 1), d = maskAt(x, y - 1), l = maskAt(x - 1, y), r = maskAt(x + 1, y);
   if (!t && !l) return "LT";
   if (!t && !r) return "RT";
@@ -56,53 +69,91 @@ function autotileSuffix(maskAt, x, y, inner) {
   if (!d) return "D";
   if (!l) return "L";
   if (!r) return "R";
-  if (inner) {
-    if (!maskAt(x - 1, y + 1)) return "LT2";
-    if (!maskAt(x + 1, y + 1)) return "RT2";
-    if (!maskAt(x - 1, y - 1)) return "LD2";
-    if (!maskAt(x + 1, y - 1)) return "RD2";
-  }
   return "";
 }
 
-// 잔디 커버 타일 이름 결정 (Layer 2): 중앙 = FullGrass, 가장자리 프린지 = Soil{LT..RD}(잔디→흙 전환),
-// 오목 내부 모서리 = Grass{LT|RT|LD|RD}Corner. 접미사 방향 = 마스크가 비는(=길인) 쪽.
-function grassTileName(IDX, grassAt, x, y) {
-  const s = autotileSuffix(grassAt, x, y, true);
-  if (s === "") return IDX["FullGrass"];
-  if (s.endsWith("2")) return IDX["Grass" + s.slice(0, 2) + "Corner"];
-  return IDX["Grass" + s];
-}
-
-// 대각 핀치 스무딩 (길 마스크용 — 대각 1칸 연결을 2칸 리본으로 넓힌다)
-function smoothMask(rawSet) {
-  const has = (x, y) => rawSet.has(x + "," + y);
-  const out = new Set(rawSet);
-  const candidates = new Set();
-  for (const key of rawSet) {
-    const [x, y] = key.split(",").map(Number);
-    for (let nx = x - 1; nx <= x + 1; nx++) for (let ny = y - 1; ny <= y + 1; ny++) candidates.add(nx + "," + ny);
-  }
-  for (const key of candidates) {
-    if (out.has(key)) continue;
-    const [x, y] = key.split(",").map(Number);
-    if ((has(x + 1, y) && has(x, y + 1) && !has(x + 1, y + 1)) ||
-        (has(x + 1, y) && has(x, y - 1) && !has(x + 1, y - 1)) ||
-        (has(x - 1, y) && has(x, y + 1) && !has(x - 1, y + 1)) ||
-        (has(x - 1, y) && has(x, y - 1) && !has(x - 1, y - 1))) {
-      out.add(key);
+// ---------- 서브셀 흙 마스크 빌더 ----------
+// dirt: Set("sx,sy") — 서브셀 좌표. 셀 (x,y)의 서브셀 = sx∈{2x,2x+1}, sy∈{2y,2y+1}.
+function makeDirt(bandInner) {
+  const playMax = bandInner - 1; // 흙이 존재할 수 있는 마지막 플레이어블 셀
+  const inPlay = (sx, sy) => {
+    const cx = Math.floor(sx / 2), cy = Math.floor(sy / 2);
+    return Math.abs(cx) <= playMax && Math.abs(cy) <= playMax;
+  };
+  const all = new Set();    // 전체 흙 (plaza + walk − island)
+  const plazaOnly = new Set(); // plaza 기여분만 (검증: 홀은 광장에서만 허용)
+  const walkCells = new Set(); // walk 밴드가 닿은 셀 (검증: 길 셀 L2 홀 0)
+  const addRange = (set, sx0, sx1, sy0, sy1, isWalk) => {
+    for (let sx = sx0; sx <= sx1; sx++) for (let sy = sy0; sy <= sy1; sy++) {
+      if (!inPlay(sx, sy)) continue;
+      set.add(sx + "," + sy);
+      if (isWalk) walkCells.add(Math.floor(sx / 2) + "," + Math.floor(sy / 2));
     }
-  }
-  return out;
+  };
+  return {
+    all, plazaOnly, walkCells,
+    // 문법 2: 광장/밭/아레나 — 셀 사각형 [x0..x1]×[y0..y1] + ½셀 마진
+    plaza(x0, x1, y0, y1) {
+      addRange(all, 2 * x0 - 1, 2 * x1 + 2, 2 * y0 - 1, 2 * y1 + 2, false);
+      addRange(plazaOnly, 2 * x0 - 1, 2 * x1 + 2, 2 * y0 - 1, 2 * y1 + 2, false);
+    },
+    // 광장 안 잔디 섬(정원) — 같은 ½ 마진으로 흙을 도려냄. plaza/walk 추가가 모두 끝난 뒤 호출할 것.
+    island(x0, x1, y0, y1) {
+      for (let sx = 2 * x0 - 1; sx <= 2 * x1 + 2; sx++) for (let sy = 2 * y0 - 1; sy <= 2 * y1 + 2; sy++) {
+        all.delete(sx + "," + sy);
+        plazaOnly.delete(sx + "," + sy);
+      }
+    },
+    // 문법 1: 길 — 셀 경계 좌표 폴리라인. 점 (bx,by) = 셀 bx|bx+1, by|by+1 사이의 격자 교점.
+    // 구간마다 폭 2서브셀(=시각 1셀) 흙 밴드. 자유 끝단은 오목 코너 페어로 자동 캡.
+    walk(points) {
+      for (let i = 1; i < points.length; i++) {
+        const [ax, ay] = points[i - 1], [bx, by] = points[i];
+        if (ax !== bx && ay !== by) throw new Error("walk: 구간은 수평/수직만 가능 " + JSON.stringify([points[i - 1], points[i]]));
+        if (ay === by) { // 수평
+          const x0 = Math.min(ax, bx), x1 = Math.max(ax, bx);
+          addRange(all, 2 * x0 + 1, 2 * x1 + 2, 2 * ay + 1, 2 * ay + 2, true);
+        } else {         // 수직
+          const y0 = Math.min(ay, by), y1 = Math.max(ay, by);
+          addRange(all, 2 * ax + 1, 2 * ax + 2, 2 * y0 + 1, 2 * y1 + 2, true);
+        }
+      }
+    },
+  };
 }
 
-// ---------- 마스크 빌더 (사각형 조합 전용 — disc/octagon 폐기, 2026-07-07) ----------
+// 셀 (x,y)의 2×2 서브셀 흙 패턴 → L2 타일 인덱스.
+// 반환: tileIndex(잔디 패밀리) | null(홀 — L2 빈 칸) | undefined(무효 대각 패턴)
+function cellTile(IDX, dirt, x, y) {
+  const has = (sx, sy) => dirt.has(sx + "," + sy);
+  const tl = has(2 * x, 2 * y + 1), tr = has(2 * x + 1, 2 * y + 1);
+  const bl = has(2 * x, 2 * y), br = has(2 * x + 1, 2 * y);
+  const n = (tl ? 1 : 0) + (tr ? 1 : 0) + (bl ? 1 : 0) + (br ? 1 : 0);
+  if (n === 0) return IDX["FullGrass"];
+  if (n === 4) return null;
+  if (n === 2) {
+    if (tl && tr) return IDX["GrassT"];
+    if (bl && br) return IDX["GrassD"];
+    if (tl && bl) return IDX["GrassL"];
+    if (tr && br) return IDX["GrassR"];
+    return undefined; // 대각 2칸 — 렌더 불가
+  }
+  if (n === 3) {
+    if (!br) return IDX["GrassLT"];
+    if (!bl) return IDX["GrassRT"];
+    if (!tr) return IDX["GrassLD"];
+    return IDX["GrassRD"];
+  }
+  // n === 1 — 오목 노치
+  if (tl) return IDX["GrassLTCorner"];
+  if (tr) return IDX["GrassRTCorner"];
+  if (bl) return IDX["GrassLDCorner"];
+  return IDX["GrassRDCorner"];
+}
+
+// (선택) 데코 플래토용 셀 사각형 헬퍼
 function rect(set, x0, x1, y0, y1) {
   for (let x = x0; x <= x1; x++) for (let y = y0; y <= y1; y++) set.add(x + "," + y);
-}
-function carve(set, x0, x1, y0, y1) {
-  // 마스크에서 사각 영역을 제거 (광장 안 정원 아일랜드 등)
-  for (let x = x0; x <= x1; x++) for (let y = y0; y <= y1; y++) set.delete(x + "," + y);
 }
 
 // ---------- 맵 파일 유틸 ----------
@@ -214,7 +265,9 @@ function setTiles(slot, cells) {
 // ---------- 페인터 ----------
 const DEFAULT_LAYER_NAMES = { base: "RectTileMap", grass: "RectTileMap2", floors: "RectTileMap3", walls: "RectTileMap4", deco: "RectTileMap5" };
 
-function paintMap(rel, R, pathRaw, opts) {
+// design(d): d.plaza(...)/d.walk(...)/d.island(...) 호출로 흙 마스크를 구성하는 콜백.
+// inspect: 보고용 점검 포인트 [{ kind, at, note }].
+function paintMap(rel, R, design, opts) {
   opts = opts || {};
   const IDX = loadWallTileIndex();
   const m = loadMap(rel);
@@ -222,20 +275,30 @@ function paintMap(rel, R, pathRaw, opts) {
   const L = normalizeLayers(m, opts.layerNames || DEFAULT_LAYER_NAMES, opts.forceSL);
   const bandInner = R - 2; // 3겹 경계 밴드 (ResourceSpawner.WallThickness=3과 일치)
 
-  // L1: Soil 전면 (밴드 포함 — 길 바닥이자 절벽 링 밑바탕)
+  // L1: Soil 전면 (밴드 포함 — 길/광장 바닥이자 절벽 링 밑바탕)
   const base = new Map();
   for (let x = -R; x <= R; x++) for (let y = -R; y <= R; y++) base.set(x + "," + y, IDX["Soil"]);
   setTiles(L.base, base);
 
-  // L2: Grass 커버 — 길(pathRaw 스무딩) 셀만 뚫는다. 뚫린 곳으로 L1 Soil이 드러나 길이 된다.
-  // 밴드 밖/맵 밖은 마스크상 잔디 연속으로 취급 → 맵 테두리에는 에지 타일이 생기지 않고 길 구멍 주변에만 프린지가 생긴다.
-  const path = smoothMask(pathRaw);
-  const inPlayable = (x, y) => Math.abs(x) < bandInner && Math.abs(y) < bandInner;
-  const grassAt = (x, y) => !(path.has(x + "," + y) && inPlayable(x, y));
+  // L2: 잔디 커버 — 서브셀 흙 마스크에서 셀별 패턴 → 타일. 홀(광장 내부)만 빈 칸으로 남긴다.
+  const d = makeDirt(bandInner);
+  design(d);
   const grassTiles = new Map();
+  const bad = [];        // 무효 대각 패턴
+  const pathHoles = [];  // 길(walk) 셀에 생긴 비인가 홀
+  let holeCount = 0;
   for (let x = -R; x <= R; x++) for (let y = -R; y <= R; y++) {
-    if (!grassAt(x, y)) continue;
-    grassTiles.set(x + "," + y, grassTileName(IDX, grassAt, x, y));
+    const t = cellTile(IDX, d.all, x, y);
+    if (t === undefined) { bad.push(`(${x},${y})`); continue; }
+    if (t === null) {
+      holeCount++;
+      // 검증: 홀은 광장 기여만으로도 홀이어야 한다 (길 밴드가 홀을 만들면 안 됨)
+      if (d.walkCells.has(x + "," + y) && cellTile(IDX, d.plazaOnly, x, y) !== null) {
+        pathHoles.push(`(${x},${y})`);
+      }
+      continue;
+    }
+    grassTiles.set(x + "," + y, t);
   }
   setTiles(L.grass, grassTiles);
 
@@ -273,86 +336,94 @@ function paintMap(rel, R, pathRaw, opts) {
   }
   setTiles(L.deco, deco);
 
+  // 산출 검사 (Acceptance: 길 셀 L2 홀 0건 · 무효 타일 0건)
+  if (bad.length > 0) throw new Error(`${rel}: 무효 대각 흙 패턴 ${bad.length}건 — ${bad.slice(0, 8).join(" ")}`);
+  if (pathHoles.length > 0) throw new Error(`${rel}: 길 셀 L2 홀 ${pathHoles.length}건 — ${pathHoles.slice(0, 8).join(" ")}`);
   fs.writeFileSync(m.path, JSON.stringify(m.json, null, 2));
-  console.log(`  saved: base=${base.size} grass=${grassTiles.size} wall=${walls.size} deco=${deco.size}`);
+  console.log(`  saved: base=${base.size} grass=${grassTiles.size} holes=${holeCount} wall=${walls.size} deco=${deco.size}`);
+  console.log(`  검사: 무효 타일 0건, 길 셀 L2 홀 0건 (길 셀 ${d.walkCells.size}개)`);
+  if (opts.inspect) for (const p of opts.inspect) console.log(`  점검: [${p.kind}] (${p.at}) ${p.note}`);
 }
 
 // ================= 맵별 디자인 =================
 
 // --- 영지 map01 (R=30, MyMap.png 레퍼런스): 중앙 우물 광장 + 굽이치는 북쪽 길 + 남서 밭 단지 ---
-// 마스크 = 길(grass가 안 덮이는 셀). 사각형 조합으로만 구성 (2026-07-07 grass 기준 디자인).
-{
-  const s = new Set();
-  rect(s, -3, 3, -3, 3);              // 우물 광장 (7x7 사각형 — MyMap 중앙 우물 자리)
-  // 굽이치는 북쪽 길 (S자 커브, 전 구간 폭 2)
-  rect(s, -1, 0, 3, 9);               //   ↑ 광장에서 북으로
-  rect(s, -6, 0, 9, 10);              //   ← 서쪽 꺾임
-  rect(s, -6, -5, 10, 18);            //   ↑
-  rect(s, -6, 2, 18, 19);             //   → 동쪽 꺾임
-  rect(s, 1, 2, 19, 27);              //   ↑ 북쪽 경계까지
-  rect(s, 3, 27, -1, 0);              // 동쪽 길 (강가 방면)
-  rect(s, -1, 0, -12, -3);            // 남쪽 길
-  rect(s, -2, 2, -16, -12);           // 남쪽 끝 마당 (5x5 사각형, 닭장 자리)
-  rect(s, -9, -3, -1, 0);             // 서쪽 길 (밭 방면)
-  rect(s, -9, -8, -12, -1);           // 밭 진입로 (남쪽으로)
-  // 남서 밭 단지 (MyMap 좌하단 경작지 — 고랑 느낌으로 3구획)
-  rect(s, -23, -18, -8, -3);          // 밭 A
-  rect(s, -16, -10, -8, -3);          // 밭 B (진입로에 접함)
-  rect(s, -23, -10, -15, -11);        // 밭 C (아래 가로 구획)
-  paintMap("map/map01.map", 30, s, {
-    // map01 레이어는 Maker에서 표준명으로 정규화 저장됨 (2026-07-04 사용자 작업):
-    // RectTileMap(SL0)/RectTileMap2(SL1)/RectTileMap3(SL3)/RectTileMap4(SL2)/RectTileMap5(SL4)/RectTileMap6(SL5)
-    // → 기본 매핑 사용 (deco=RectTileMap5). SL 값은 건드리지 않음 (렌더 순서 동작에 문제 없음).
-  });
-}
+// 광장/밭/마당 = 문법 2(홀), 길 = 문법 1(밀착 페어 폭 1). walk 점 = 셀 경계 좌표.
+paintMap("map/map01.map", 30, d => {
+  d.plaza(-3, 3, -3, 3);          // 우물 광장 (7x7 홀 — MyMap 중앙 우물 자리)
+  d.plaza(-2, 2, -16, -12);       // 남쪽 끝 마당 (5x5 홀, 닭장 자리)
+  d.plaza(-23, -19, -8, -3);      // 밭 A (B와의 고랑 잔디 스트립 2칸 확보 — 페어 문법 최소 폭)
+  d.plaza(-16, -10, -8, -3);      // 밭 B (진입로에 접함)
+  d.plaza(-23, -10, -15, -11);    // 밭 C (아래 가로 구획)
+  d.walk([[-1, 3], [-1, 9], [-6, 9], [-6, 18], [1, 18], [1, 27]]); // 북쪽 S자 길 (광장→북벽)
+  d.walk([[3, -1], [27, -1]]);    // 동쪽 길 (광장→동벽, 강가 방면)
+  d.walk([[-1, -4], [-1, -12]]);  // 남쪽 길 (광장→마당)
+  d.walk([[-4, -1], [-10, -1], [-10, -12]]); // 서쪽 길 (광장→밭 B 동변→밭 C)
+}, {
+  // map01 레이어는 Maker에서 표준명으로 정규화 저장됨 (2026-07-04 사용자 작업) → 기본 매핑 사용.
+  inspect: [
+    { kind: "꺾임", at: "-1,9 / -6,9 / -6,18 / 1,18", note: "북쪽 S자 길 볼록/오목 코너 4곳" },
+    { kind: "꺾임", at: "-10,-1", note: "서쪽 길 남향 꺾임" },
+    { kind: "접속", at: "-1,3 · 3,-1 · -1,-4 · -4,-1", note: "우물 광장 4방 길 접속부" },
+    { kind: "접속", at: "-1,-12", note: "남쪽 길→마당 북변" },
+    { kind: "접속", at: "-10,-4 ~ -10,-12", note: "서쪽 길이 밭 B 동변을 따라 내려가 밭 C에 합류" },
+    { kind: "플러시", at: "1,27 · 27,-1", note: "북벽/동벽 밑 플러시 끊김 (절벽/테라스가 덮음)" },
+  ],
+});
 
 // --- 마을 town (R=35, Town.png 레퍼런스): 대형 석재 광장 + 4분면 정원 아일랜드 + 십자 대로 ---
-// 레퍼런스에서 제외(오브젝트/타일 부재): 분수, 울타리/생울타리, 꽃밭, 벤치, 가로등, 거목 상점
+// 대로는 폭 5의 넓은 흙 회랑 → 문법 2(홀 유지)로 유지. 정원 = island 도려냄.
 // 기존 엔티티 유지: House(-5,5)·ResearchLab(5,5)는 북쪽 정원 위, Merchant(-3,2)·Portal(5,0)·Spawn(0,-1)은 광장 위
-{
-  const s = new Set();
-  rect(s, -14, 14, -13, 9);           // 대광장 (석재 바닥 전체)
-  // 4분면 정원 아일랜드 (광장에서 잔디로 도려냄 — Town.png의 화단 구역)
-  carve(s, -11, -4, 2, 6);            // 북서 정원 (House가 위에 얹힘)
-  carve(s, 4, 11, 2, 6);              // 북동 정원 (ResearchLab)
-  carve(s, -11, -4, -10, -5);         // 남서 정원
-  carve(s, 4, 11, -10, -5);           // 남동 정원
-  // 십자 대로 (광장 → 사방 경계)
-  rect(s, -2, 2, 9, 32);              // 북쪽 대로 (건물 사이)
-  rect(s, -2, 2, -32, -13);           // 남쪽 대로
-  rect(s, 14, 32, -2, 2);             // 동쪽 대로
-  rect(s, -32, -14, -2, 2);           // 서쪽 대로
-  paintMap("map/town.map", 35, s);
-}
+paintMap("map/town.map", 35, d => {
+  d.plaza(-14, 14, -13, 9);       // 대광장 (석재 바닥 전체)
+  d.plaza(-2, 2, 9, 32);          // 북쪽 대로 (건물 사이)
+  d.plaza(-2, 2, -32, -13);       // 남쪽 대로
+  d.plaza(14, 32, -2, 2);         // 동쪽 대로
+  d.plaza(-32, -14, -2, 2);       // 서쪽 대로
+  // 4분면 정원 아일랜드 (광장에서 잔디로 도려냄 — Town.png의 화단 구역) — plaza 뒤에 호출
+  d.island(-11, -4, 2, 6);        // 북서 정원 (House가 위에 얹힘)
+  d.island(4, 11, 2, 6);          // 북동 정원 (ResearchLab)
+  d.island(-11, -4, -10, -5);     // 남서 정원
+  d.island(4, 11, -10, -5);       // 남동 정원
+}, {
+  inspect: [
+    { kind: "접속", at: "±2,9 · ±2,-13 · 14,±2 · -14,±2", note: "대광장↔십자 대로 4곳 어깨 (홀-홀 병합)" },
+    { kind: "정원", at: "북서/북동/남서/남동 정원 12개 모서리", note: "광장 쪽 볼록 코너 프린지 방향 확인" },
+    { kind: "플러시", at: "대로 4방 끝 (±32)", note: "벽 밴드 밑 플러시 끊김" },
+  ],
+});
 
-// --- 사냥터 template_field (R=30): 공터 3곳 + 연결 길 + NE 플래토 데코 (전부 사각형) ---
-{
-  const s = new Set();
-  rect(s, -5, 5, -5, 5);              // 중앙 공터 (11x11, 귀환 포탈 (0,-3) 포함)
-  rect(s, -13, -7, -3, 3);            // 서쪽 포탈 패드 (7x7)
-  rect(s, 7, 13, -3, 3);              // 동쪽 포탈 패드 (7x7)
-  rect(s, -10, 10, -1, 0);            // 동서 연결 길
-  rect(s, -21, -11, 9, 19);           // 북서 공터 (11x11)
-  rect(s, -1, 0, 4, 14);              // 북쪽 길
-  rect(s, -16, -1, 13, 14);           // 북서 연결
-  rect(s, 8, 20, -19, -7);            // 남동 공터 (13x13)
-  rect(s, 13, 14, -13, -1);           // 남동 연결
-  paintMap("map/template_field.map", 30, s, {
-    // 기존 6레이어 이름=표준, SL도 이미 0~5 순차 — 그대로 사용 (RectTileMap5=SL4가 데코)
-    layerNames: { base: "RectTileMap", grass: "RectTileMap2", floors: "RectTileMap3", walls: "RectTileMap4", deco: "RectTileMap5" },
-    plateau: { x0: 17, x1: 24, y0: 15, y1: 20 },
-  });
-}
+// --- 사냥터 template_field (R=30): 공터 3곳 + 포탈 패드 2곳(문법 2) + 연결 길(문법 1) + NE 플래토 데코 ---
+paintMap("map/template_field.map", 30, d => {
+  d.plaza(-5, 5, -5, 5);          // 중앙 공터 (11x11, 귀환 포탈 (0,-3) 포함)
+  d.plaza(-13, -7, -3, 3);        // 서쪽 포탈 패드 (7x7)
+  d.plaza(7, 13, -3, 3);          // 동쪽 포탈 패드 (7x7)
+  d.plaza(-21, -11, 9, 19);       // 북서 공터 (11x11)
+  d.plaza(8, 20, -19, -7);        // 남동 공터 (13x13)
+  d.walk([[-8, -1], [8, -1]]);    // 동서 연결 길 (서패드→중앙→동패드)
+  d.walk([[-1, 4], [-1, 13], [-13, 13]]); // 북쪽 길 → 북서 공터
+  d.walk([[13, -1], [13, -8]]);   // 남동 연결 (동패드 남변→남동 공터)
+}, {
+  layerNames: { base: "RectTileMap", grass: "RectTileMap2", floors: "RectTileMap3", walls: "RectTileMap4", deco: "RectTileMap5" },
+  plateau: { x0: 17, x1: 24, y0: 15, y1: 20 },
+  inspect: [
+    { kind: "꺾임", at: "-1,13", note: "북쪽 길 서향 꺾임" },
+    { kind: "접속", at: "-8,-1 · 8,-1 (패드) · -1,4 (중앙) · -13,13 (북서) · 13,-1 · 13,-8 (남동)", note: "길↔공터/패드 접속 6곳" },
+    { kind: "통과", at: "중앙 공터 (-5..5, -1..0)", note: "동서 길이 중앙 홀을 관통 — 홀 합류 확인" },
+  ],
+});
 
-// --- 보스 아레나 template_boss (R=15): 사각 아레나 + 남쪽 포탈 회랑 ---
-{
-  const s = new Set();
-  rect(s, -7, 7, -5, 9);              // 아레나 (보스 (0,2) 중심, 15x15 사각형)
-  rect(s, -1, 1, -10, -3);            // 남쪽 포탈 회랑 ((0,-8),(0,-7) 포함)
-  paintMap("map/template_boss.map", 15, s, {
-    // 기존 RectTileMap(SL4)/RectTileMap2(SL5)는 SL만 교정 (컴포넌트 필드 변경은 증분 적용 가능)
-    forceSL: { RectTileMap: "MapLayer0", RectTileMap2: "MapLayer1" },
-  });
-}
+// --- 보스 아레나 template_boss (R=15): 사각 아레나 + 남쪽 포탈 회랑 (둘 다 문법 2 — 회랑은 셀 중심 대칭 유지) ---
+paintMap("map/template_boss.map", 15, d => {
+  d.plaza(-7, 7, -5, 9);          // 아레나 (보스 (0,2) 중심, 15x15 홀)
+  d.plaza(-1, 1, -10, -3);        // 남쪽 포탈 회랑 ((0,-8),(0,-7) 포함, 아레나 남변과 겹쳐 병합)
+}, {
+  // 기존 RectTileMap(SL4)/RectTileMap2(SL5)는 SL만 교정 (컴포넌트 필드 변경은 증분 적용 가능)
+  forceSL: { RectTileMap: "MapLayer0", RectTileMap2: "MapLayer1" },
+  inspect: [
+    { kind: "접속", at: "±1,-5 부근", note: "회랑↔아레나 어깨 (홀-홀 병합) 오목 코너" },
+    { kind: "끝단", at: "-1..1,-10", note: "회랑 남쪽 끝 프린지/코너" },
+  ],
+});
 
-console.log("done. 다음: Maker refresh -> play 검증");
+console.log("done. 다음: Maker refresh -> 빌드 로그 확인 (플레이 검증은 보스)");

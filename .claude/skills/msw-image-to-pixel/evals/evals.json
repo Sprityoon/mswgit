@@ -1,0 +1,24 @@
+{
+  "skill_name": "msw-image-to-pixel",
+  "notes": "This skill's output is subjective art + interactive elicitation, so automated assertions are limited to process compliance (brief written, elicitation or stated defaults, composition line, PNG rendered, no raw color sampling). Visual quality needs human review. Each eval requires a source image in files[].",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "여기 여우 그림이야 (evals/fixtures/source_fox.png). 이 여우를 우리 게임에 NPC로 넣고 싶어. 메이플 느낌으로 귀엽게 만들어줘.",
+      "expected_output": "Conversion Brief written first; elicitation asks about view/composition (side-view full body vs portrait) and usage since only style(maple)+type(NPC)이 지정됨; final PNG is a redrawn chibi-proportioned sprite with the fox's identity anchors (orange fur, cream muzzle/chest, red scarf, dark-tipped ears, white-tipped tail), feet on baseline, transparent background — NOT a downscaled copy. Reference example: evals/fixtures/example_output_fox_sprite.png (smoke-test output, autonomous defaults: maple / side-view facing left / 128×128).",
+      "files": ["evals/fixtures/source_fox.png"]
+    },
+    {
+      "id": 2,
+      "prompt": "이 회사 로고 이미지(logo.png)를 64x64 아이템 아이콘으로 바꿔줘. 8비트 레트로 느낌으로.",
+      "expected_output": "Style(chunky)/size(64)/type(icon)이 모두 지정되었으므로 질문은 로고 텍스트 유지 여부 정도만(또는 생략+명시된 기본값); centered 70-80% layout, restricted palette, sharp edges no AA; lettering either simplified to readable pixel letterforms or dropped with user confirmation.",
+      "files": ["logo.png"]
+    },
+    {
+      "id": 3,
+      "prompt": "screenshot_character.png 이 캐릭터 정면 일러스트를 우리 사이드뷰 맵에서 쓸 몬스터 스프라이트로 변환해줘. 알아서 예쁘게 부탁해.",
+      "expected_output": "'알아서' → elicitation skipped, defaults stated explicitly before drawing (maple style, side-view full body facing left, 128×128); front→side view conversion means re-imagined pose from identity anchors, never a traced/mirrored front view; self-check confirms baseline and silhouette readability.",
+      "files": ["screenshot_character.png"]
+    }
+  ]
+}

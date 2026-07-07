@@ -23,30 +23,30 @@
 4. 아이템 식별자는 `item_dataset`의 `Name` 컬럼 값(표시명 키)이다. 소문자 `id`와 혼동 금지.
 5. 런타임 검증 없이 "동작함"이라고 보고 금지. Maker MCP(`refresh`→`play`→`logs`→`stop`)를 못 쓰는 환경이면 "코드 수정 완료, 런타임 검증 보류"로 정확히 보고.
 
-### 1.3 ⚖️ 현행 타일 스킴 (2026-07-07 확정 — 이 문서의 최우선 배경지식)
+### 1.3 ⚖️ 현행 타일 스킴 (2026-07-08 밀착 페어 확정 — 이 문서의 최우선 배경지식)
 
-**grass 기준 사각형 디자인, 레이어 반전.** 이전 스킴(Layer 1 = FullGrass 전면, Layer 2 = Soil 길)은 폐기됐다.
+**grass 기준 사각형 디자인 + 서브셀 흙 마스크, 밀착 페어 문법.** 이전 스킴(좁은 길 = L2 홀)은 2026-07-08 폐기 — 좁은 길은 이제 **L2가 덮인 방향 에지 페어**다(길 셀에 L2 홀 0칸).
 
 | 레이어 | 엔티티 이름 | 내용 |
 |---|---|---|
-| Layer 1 (SL0) | `RectTileMap` | **`Soil` 전면 깔림** (길 바닥이자 베이스 지반) |
-| Layer 2 (SL1) | `RectTileMap2` | **잔디 커버** — `FullGrass`(중앙) + `Soil{LT,T,RT,L,R,LD,D,RD}`(잔디 가장자리 프린지) + `Grass{LT,RT,LD,RD}Corner`(오목 내부 모서리) |
+| Layer 1 (SL0) | `RectTileMap` | **`Soil` 전면 깔림** (광장/밭 바닥이자 베이스 지반) |
+| Layer 2 (SL1) | `RectTileMap2` | **잔디 커버** — `FullGrass`(중앙) + `Grass{LT,T,RT,L,R,LD,D,RD}`(방향 에지 — 밀착 길·프린지) + `Grass{LT,RT,LD,RD}Corner`(오목 모서리) |
 | Layer 3 (SL2) | `RectTileMap3` | 설치 바닥 (런타임 전용, tile1) |
 | Layer 4 (SL3) | `RectTileMap4` | `Big Wall` 충돌 밴드 (경계 3겹) |
 | Layer 5 (SL4) | `RectTileMap5` | 경계 테라스 비주얼 (TerraceTop 링 + 북벽 CliffFace) |
 | MapLayer5 | (엔티티 전용) | 몬스터·NPC·자원·가구·드롭 |
 
-- **잔디(Layer 2)가 덮지 않은 셀 = 길/광장** — 아래 Layer 1의 `Soil`이 드러난다. 길/광장 마스크는 **사각형(rect) 조합으로만** 디자인한다 (팔각형/원 폐기).
-- **에지 간격에 따른 두 가지 문법 규칙**:
-  1. **길 (에지 간격 0칸 - 밀착 문법)**: 폭이 좁은 길의 경우, 마주보는 잔디의 에지(프린지) 타일들이 서로 맞붙어서 흙 길(Soil)을 구성하는 밀착 문법을 사용한다.
-  2. **광장/밭/보스 아레나 (에지 간격 ≥1칸 - 홀 유지 문법)**: 넓은 흙 영역(우물 광장 7x7, 밭, 보스 아레나 등)의 경우, 둘레에만 잔디 에지(프린지) 타일을 배치하고, 안쪽은 L2 빈 칸(L1 Soil 그대로 노출) 상태로 흙 홀(Hole)을 유지한다.
-- `wall.tileset`은 2026-07-07 리네임으로 `Soil*2`(구 내부 모서리)가 사라지고 `Grass*Corner` 4종이 추가됐다.
+- **서브셀 흙 마스크 (단일 표현)**: 모든 지형 문법은 셀당 2×2 서브셀 흙 마스크 하나로 통일. 셀 패턴 → 타일: 흙 0칸=`FullGrass` / 인접 2칸=`Grass{T|D|L|R}` / 3칸=볼록 `Grass{LT|RT|LD|RD}` / 1칸=오목 `Grass*Corner` / 4칸=L2 홀(L1 Soil 노출) / 대각 2칸=무효(산출 검사 에러). 접미사 방향 = 흙(길) 쪽.
+- **문법 1 — 길 (밀착 에지 페어, L2 홀 0칸)**: 셀 경계 좌표 중심선 폴리라인에서 폭 2서브셀(시각 1셀) 흙 밴드를 파생. 수평 길 = `GrassT|GrassD` 밀착 페어, 수직 길 = `GrassR|GrassL` 페어. ㄱ자 꺾임(바깥 오목 캡+안쪽 볼록), 막다른 끝(오목 코너 페어 캡), 길↔광장 접속은 마스크 합집합으로 전부 자동.
+- **문법 2 — 광장/밭/보스 아레나 (홀 유지)**: 셀 사각형 + ½셀 마진. 내부 = L2 홀, 둘레 잔디 셀 = 프린지 에지, 모서리 = 오목 `Grass*Corner`. 광장 안 잔디 섬(정원)은 island 도려냄(같은 ½ 마진 규칙).
+- ⚠️ **잔디 스트립 최소 2칸**: 두 흙 영역 사이 잔디가 1칸이면 양쪽 ½마진이 겹쳐 흙으로 병합된다 (map01 밭 고랑이 이 규칙으로 2칸 확보됨 — 밭 A `[-23,-19]`).
+- `wall.tileset`은 2026-07-07 리네임으로 프린지가 `Soil{dir}` → **`Grass{dir}` 8종**으로 바뀌었고, `Soil*2`(구 내부 모서리) 폐기 + `Grass*Corner` 4종 추가. L2 잔디 패밀리 = `FullGrass` + `Grass{dir}` 8 + `Grass*Corner` 4 = 13종.
 - **기록/구현 위치**:
-  - 블록아웃 생성기 `scripts/build_maps.cjs` (헤더 주석 = 스킴 명세. `grassTileName()`이 이름 매핑 단일 소스. `--force` 필수 — 손편집 전량 덮어씀)
-  - 런타임 `RootDesk/MyDesk/MapObjects/Scripts/ResourceSpawner.mlua` — `IsGrassTileName`(Layer 2 잔디 패밀리 판정) / `IsSoilTileName`(정확히 `"Soil"`) / `ComputeGrassTileName` / `AutotileGrassLayer`(기본 OFF, 프로퍼티 `AutotileGrassOnSetup`) / 자원 스폰 `RequiredTile` 판정(잔디 패밀리 → `"FullGrass"`, 잔디 없음+Soil → `"Soil"`)
-  - 미니맵 `RootDesk/MyDesk/UI/Scripts/UIMinimapController.mlua` `TileColor` — `Soil`(정확 일치)=흙색, `Soil{dir}`/`Grass*`/`FullGrass`=잔디색
+  - 블록아웃 생성기 `scripts/build_maps.cjs` (헤더 주석 = 스킴 명세. `makeDirt`(walk/plaza/island)+`cellTile`이 문법 단일 소스. `--force` 필수 — 손편집 전량 덮어씀. 산출 검사 내장: 무효 타일/길 셀 L2 홀 발견 시 즉시 실패)
+  - 런타임 `RootDesk/MyDesk/MapObjects/Scripts/ResourceSpawner.mlua` — `IsGrassTileName`(잔디 패밀리) / **`IsGrassEdgeTileName`(방향 에지=길 판정)** / `IsSoilTileName`(정확히 `"Soil"`) / `ComputeGrassTileName` / 자원 스폰 `RequiredTile` 판정: `FullGrass`·`Grass*Corner` → `"FullGrass"`(스폰 가능), 방향 에지 → `"Soil"`(길 — 잔디 요구 자원 억제), L2 홀+L1 Soil → `"Soil"`(광장 바닥) / `AutotileGrassLayer`(⛔ 홀 문법 전용 — 밀착 페어 길을 FullGrass로 평탄화하므로 `AutotileGrassOnSetup` 기본 OFF 절대 유지)
+  - 미니맵 `RootDesk/MyDesk/UI/Scripts/UIMinimapController.mlua` `TileColor` — 방향 에지·`Soil`(정확 일치)=흙색, `FullGrass`/`Grass*Corner`=잔디색
   - 설계 기록 `game_design.md` §3.5 "지형 (TileMap)" 불릿
-- `BiomeResourceDataSet.csv`의 `RequiredTile=FullGrass` 행(Tree/GrownGrass)은 그대로 유효 — 잔디 커버 셀에서만 스폰, 길에서는 억제.
+- `BiomeResourceDataSet.csv`의 `RequiredTile=FullGrass` 행(Tree/GrownGrass)은 그대로 유효 — `FullGrass`/`Grass*Corner` 셀에서만 스폰, 길(방향 에지)·광장 홀에서는 억제.
 
 ### 1.4 검증 프로토콜 (Maker MCP)
 
@@ -68,6 +68,16 @@
   4. `game_design.md` §3.5 지형 불릿 + `PlayerInventory.mlua` 설치 검증 주석 갱신.
   5. `node scripts/build_maps.cjs --force`로 맵 4종(map01/town/template_field/template_boss) 재페인팅. 산출 검증: 전 맵 L1=`Soil` 전면(카운트 정확), L2 잔디 패밀리 13종만 사용, 무효 tileIndex 0건.
 - **남은 검증**: §3 T1 참조.
+
+### T0b. 밀착 페어 타일 문법 전환 (2026-07-08) — **코드/맵 수정 완료 + refresh 빌드 로그 무에러, 플레이 육안 검증은 보스**
+
+- 보스의 wall.tileset 리네임(`Grass{dir}` 8방) 후속으로 §1.3 밀착 페어 스킴 전면 전환:
+  1. `scripts/build_maps.cjs` — 서브셀 흙 마스크 모델로 재작성(`makeDirt`/`walk`/`plaza`/`island`/`cellTile`). 4맵 디자인을 길=중심선 폴리라인, 광장·밭·아레나=플라자 사각형으로 변환. 산출 검사 내장(무효 대각 패턴/길 셀 L2 홀 → 즉시 실패). town 대로(폭 5)는 문법 2 유지, template_boss 회랑(폭 3)은 셀 중심 대칭 위해 문법 2 유지.
+  2. `ResourceSpawner.mlua` — `IsGrassEdgeTileName` 신설, RequiredTile 판정 재정의(방향 에지=길→`"Soil"`), 절차 지형 브랜치도 동일 규칙(칠한 타일명으로 판정), `IsGrassTileName`의 사어 `Soil{dir}` 브랜치 제거, `AutotileGrassLayer`에 페어 비호환 ⛔ 경고 주석.
+  3. `UIMinimapController.mlua` — `TileColor`: 방향 에지=흙색(밀착 길이 미니맵에 흙 선으로 표시), `FullGrass`/`Grass*Corner`=잔디색, 사어 `Soil{dir}` 브랜치 제거.
+  4. `node scripts/build_maps.cjs --force` 4맵 재페인팅 — 전 맵 산출 검사 통과(무효 0건·길 L2 홀 0건), 표본 좌표 대조로 페어/꺾임/캡/접속 문법 정합 확인. 밭 A를 `[-23,-19]`로 1칸 축소(잔디 스트립 2칸 규칙).
+  5. Maker `refresh` → 빌드 로그 **에러 0건** (Warning 2건은 기존 `slime_king` `BossDropMin/Max` LWA-4012 — 본 작업 무관. T1에서 발견됐던 MerchantInteract LEA-1102도 현 로그에 없음).
+- 남은 검증: Play 육안(보스) — 꺾임/캡/접속 점검 포인트는 `build_maps.cjs` 실행 로그의 "점검:" 줄 참조.
 
 ---
 
@@ -140,6 +150,12 @@
 - **Target**: `ItemDropDataSet.csv`/`item_dataset.csv`(도안 아이템), `Monster.mlua`(보스 드롭), `ResourceSpawner.mlua`(희귀 광맥 변종·보물 상자 산포), `PlayerInventory.mlua`(도안 사용=레시피 해금 — T7의 해금 계층 재사용)
 - **Change**: ① 보스(`slime_king`) 전용 드롭 테이블에 도안(Recipe Scroll) 추가 — 사용 시 레시피 영구 해금 ② 자원 스폰 시 3% 희귀 변종(드롭 배율↑, 등급색 연출) ③ 사냥터 외곽 보물 상자 절차 배치(1회 개봉).
 - **Acceptance**: 보스 처치로 도안 획득→사용→레시피 해금 영속, 희귀 변종/보물 상자가 데이터셋 행으로 튜닝 가능. 빌드 로그 무에러.
+
+### T10. [대기] 인벤토리→퀵슬롯 드래그&드롭
+- **배경**: 퀵슬롯↔퀵슬롯 D&D 인프라는 이미 구현되어 있음. 인벤토리 슬롯에서 퀵슬롯으로 직접 끌어 등록하는 UX 보강 (보스 지시, 2026-07-08).
+- **Target**: `RootDesk/MyDesk/UI/Scripts/UIInventoryController.mlua`(인벤 슬롯 드래그 시작), 기존 퀵슬롯 D&D 구현 파일(드롭 수신), 필요 시 `PlayerInventory.mlua`(서버 검증)
+- **Change**: 인벤 슬롯 드래그 → 퀵슬롯 드롭: ① 빈 퀵슬롯이면 신규 등록 ② 점유 퀵슬롯이면 교체. 기존 퀵슬롯↔퀵슬롯 D&D 인프라·아이템 종류 참조·중복 등록 규칙을 그대로 재사용 (신규 규칙 발명 금지).
+- **Acceptance**: 인벤→퀵슬롯 등록/교체 동작, 동일 아이템 중복 등록 규칙 유지, 기존 퀵슬롯↔퀵슬롯 D&D 회귀 없음, 빌드 로그 무에러.
 
 ### (신규 작업 추가 템플릿)
 ```
