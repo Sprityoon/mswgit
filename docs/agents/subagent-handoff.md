@@ -79,6 +79,16 @@
   5. Maker `refresh` → 빌드 로그 **에러 0건** (Warning 2건은 기존 `slime_king` `BossDropMin/Max` LWA-4012 — 본 작업 무관. T1에서 발견됐던 MerchantInteract LEA-1102도 현 로그에 없음).
 - 남은 검증: Play 육안(보스) — 꺾임/캡/접속 점검 포인트는 `build_maps.cjs` 실행 로그의 "점검:" 줄 참조.
 
+### T0c. 곡괭이 swingT1 무기 미표시 수정 — 양손 슬롯 정합 (2026-07-08) — **코드/데이터 수정 완료 + refresh 빌드 무에러, 스윙 육안 검증은 보스(T3)**
+
+- **원인**: 곡괭이 3종의 `WeaponRUID`가 전부 한손(`weapon`) 아바타 아이템(호스맨즈/황금 곡괭이/다이아 곡괭이)이라 두손 액션 `swingT1`의 무기 파츠 프레임이 없음 → 스윙 중 도구만 미렌더. 도끼(`swingO2`=한손 액션)는 정상이었던 이유도 동일 규칙.
+- **수정 (액션 계열 ↔ 장착 슬롯 정합)**:
+  1. `item_dataset.csv` — `WeaponSlot` 컬럼 신설(공란=한손 기본). 곡괭이 3종 `WeaponSlot=twohand` + `WeaponRUID`를 양손(`twohandweapon`) 곡괭이 아이템으로 교체: stone=`곡괭이`(18a44a9f39a94633b56902492e5b7da6) / copper=`Golden Pickaxe`(1d9a1f0f8a004cce8938dff567313743, 기존 황금=구리 선례 유지) / iron=`Pickaxe`(54a842df20b94f37b0d7bdbc0c1d2acd). copper/iron `IconRUID`도 `thumbnail://<신규 RUID>`로 동기화(stone은 전용 아이콘 유지).
+  2. `PlayerInventory.mlua` `ApplyHeldToolCostume` — `WeaponSlot=twohand`면 `TwoHandedWeapon` 슬롯 장착, 아니면 `OneHandedWeapon` 장착. 양손이 한손+보조 슬롯을 점유하는 상호 배타 규칙에 따라 **반대 슬롯은 항상 해제**. `WeaponSlot` 컬럼 미리프레시 대비 pcall 가드(한손 폴백). 장착/해제/영속 복원 전 경로가 이 메서드 단일 지점 경유 확인.
+  3. `MineState.mlua` — "한손 액션만 가능" 사어 주석을 정합 규칙(swingO*↔공란 / swingT*↔twohand)으로 갱신. 폴백(swingO1/swingO2)은 컬럼 미존재 시에만 작동 — 그 경우 슬롯도 한손 폴백이라 정합 유지.
+- refresh → 빌드 로그 에러 0건 (Warning 2건은 기존 slime_king LWA-4012 — 무관).
+- **곡괭이 티어별 룩 배정은 이름 기준 추정** — 썸네일 API 미제공으로 육안 미확인. 보스가 T3 검증 중 룩이 어긋나면 CSV `WeaponRUID`/`IconRUID` 셀만 교체하면 됨.
+
 ---
 
 ## 3. 작업 큐 (하위 에이전트 위임 대상)
@@ -108,11 +118,11 @@
 - **Change**: T1의 육안 확인 중 프린지 8방향 + 코너 4종이 길 방향과 일치하는지 대조. 어긋난 방향만 매핑 교정 후 `node scripts/build_maps.cjs --force` 재실행.
 - **Acceptance**: 전 방향 프린지/코너가 길 쪽을 향해 자연스럽게 이어짐 (map01 우물 광장 + S자 길에서 확인).
 
-### T3. [대기] 도구 스윙 모션 런타임 검증 (이월)
-- **배경**: 스윙 액션은 `item_dataset.csv`의 `SwingAction` 컬럼이 1순위 데이터 소스 (`MineState.mlua`가 조회, 폴백 pickaxe→`swingO1`/axe→`swingO2`, 기본 `stabO2`). 보스 지시로 곡괭이 3종은 `swingT1`(양손) — 한손 슬롯이라 스윙 중 무기 미표시를 **보스가 인지하고 선택**한 값이니 임의로 되돌리지 말 것. 도끼는 `swingO2`.
-- **Target**: 코드 변경 없음. 모션이 어색하면 CSV `SwingAction` 값만 교체 (보스 확인 후).
-- **Change**: Play → 곡괭이/도끼 장착 → Ctrl 스윙 → 모션·도구 렌더 확인, logs 무에러.
-- **Acceptance**: 곡괭이=`swingT1` 몸 모션 재생, 도끼=`swingO2` 전 구간 도구 렌더, SwingAction 관련 Error 없음.
+### T3. [대기] 도구 스윙 모션 런타임 검증 (이월 — 2026-07-08 양손 슬롯 수정 반영)
+- **배경**: 스윙 액션은 `item_dataset.csv`의 `SwingAction` 컬럼이 1순위 데이터 소스 (`MineState.mlua`가 조회, 폴백 pickaxe→`swingO1`/axe→`swingO2`, 기본 `stabO2`). 곡괭이 3종=`swingT1`(양손), 도끼=`swingO2`(한손). **2026-07-08 보스 지시로 swingT1 중 곡괭이 미표시 수정 완료(§2 T0c)** — 액션 계열과 장착 슬롯 정합 규칙: `swingO*/stabO*` ↔ `WeaponSlot` 공란(한손), `swingT*/stabT*` ↔ `WeaponSlot=twohand`(양손 아바타 아이템 필수). 신규 도구 추가 시 이 짝을 지킬 것.
+- **Target**: 코드 변경 없음. 모션/도구 룩이 어색하면 CSV `SwingAction`/`WeaponRUID`/`WeaponSlot` 값만 교체 (보스 확인 후).
+- **Change**: Play → 곡괭이/도끼 장착 → Ctrl 스윙 → 모션·전 구간 도구 렌더 확인(곡괭이 티어별 3종 모두), 대기/이동 중 들고 있는 모습, 도끼↔곡괭이 교체 시 반대 슬롯 잔상 없음, logs 무에러.
+- **Acceptance**: 곡괭이=`swingT1` 몸 모션 + 스윙 전 구간 곡괭이 렌더, 도끼=`swingO2` 전 구간 도구 렌더, 장착 교체/해제 시 슬롯 충돌 없음, SwingAction/WeaponSlot 관련 Error 없음.
 
 ### T4. [대기] 경계 테라스/절벽 아트 정리
 - **배경**: `TerraceTop`/`CliffFace`/`Big Wall`은 이전 스킴의 임시 아트 그대로다. 신규 grass 기준 아트와 톤이 안 맞을 수 있고, 상위 레이어 테라스 타일이 깔린 뒤 플레이어 아바타 SortingLayer 최종 판정도 미완(`docs/design/skill-tree-plan.md` §5 4번).

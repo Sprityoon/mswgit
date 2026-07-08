@@ -10,9 +10,10 @@ script MineState extends StateType
 		local entity = self.ParentComponent.Entity
 		
 		-- Pick the swing animation from the equipped tool (item_dataset, data-driven).
-		-- 도구는 CostumeManager의 OneHandedWeapon 슬롯에 장착되므로, 한손(*O*) 계열 액션만
-		-- 무기 파츠 프레임이 존재한다. swingT*(두손) 액션을 재생하면 몸은 움직여도 무기
-		-- 프레임이 없어 모션 중 도구가 사라진다(과거 swingT1 버그의 원인).
+		-- 액션 계열과 장착 슬롯은 반드시 일치해야 한다: swingO*/stabO*(한손) ↔ WeaponSlot 공란(한손 슬롯),
+		-- swingT*/stabT*(두손) ↔ WeaponSlot=twohand(양손 아바타 아이템 + TwoHandedWeapon 슬롯 —
+		-- PlayerInventory:ApplyHeldToolCostume가 분기). 계열이 어긋나면 몸은 움직여도 해당 액션의
+		-- 무기 파츠 프레임이 없어 모션 중 도구가 사라진다(과거 곡괭이 swingT1 미표시 버그의 원인).
 		local animName = "stabO2"
 		local inv = entity:GetComponent("script.PlayerInventory")
 		if isvalid(inv) and inv.EquippedTool ~= "" then

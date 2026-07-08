@@ -1,15 +1,21 @@
 ---
 name: image-to-pixel
-description: "Convert a user-provided source image (photo, drawing, screenshot, logo, AI art) into pixel-game-ready art — a concept-driven REDRAW, not naive pixelation/downscaling. Engine-agnostic: works for any pixel/retro game project and any AI coding agent. Use whenever the user attaches or points to an image and wants it turned into a game asset: character / NPC / monster sprite, item icon, tile, background prop, or UI icon. Includes a built-in elicitation step that asks the user for concept, style, composition/view, and size BEFORE drawing. Triggers: '이 이미지를 픽셀로', '이 사진으로 캐릭터/스프라이트 만들어줘', '이 그림을 게임에 넣게 변환해줘', '이 로고를 아이콘으로', 'convert this image to pixel art', 'turn this photo into a sprite', 'pixelize this image', 'make a game sprite from this picture', image attachment + game asset request."
+description: "Convert a user-provided source image (photo, drawing, screenshot, logo, AI art) into pixel-game-ready art — a concept-driven REDRAW, not naive pixelation/downscaling. Engine-agnostic: works for any pixel/retro game project and any AI coding agent. Use whenever the user attaches or points to an image and wants it turned into a game asset: character / NPC / monster sprite, item icon, tile, background prop, or UI icon. Also applies when the source is given as a platform asset identifier (asset ID / RUID) the agent can resolve to an image via platform tools. Supports both chunky low-res (upscaled dots) and high-resolution 1:1 pixel densities (100–300px+ sprites, modern 2D-game look), drawing from a bundled preset library (palettes, proportions, technique parameters) in a text-grid medium with a mandatory self-critique loop. Triggers: '이 이미지를 픽셀로', '이 사진으로 캐릭터/스프라이트 만들어줘', '이 그림을 게임에 넣게 변환해줘', '이 로고를 아이콘으로', 'convert this image to pixel art', 'turn this photo into a sprite', 'pixelize this image', 'make a game sprite from this picture', image attachment + game asset request."
 ---
 
 # Image-to-Pixel
 
-Convert a **source image the user provides** into a pixel-art game asset, in the style, composition, and size the user asks for. The deliverable is a PNG (plus the drawing code that produced it) — engine integration is out of scope, so the result works for any game project.
+Convert a **source image the user provides** into a pixel-art game asset, in the style, composition, and size the user asks for. The deliverable is a PNG plus its `.pxg` source — engine integration is out of scope, so the result works for any game project.
 
-**The one rule that defines this skill: never pixelate — reinterpret.** Mechanically downscaling or posterizing a photo produces a muddy, unreadable blob that clashes with every hand-made sprite around it. Instead, treat the source image as a *reference for identity* (what makes the subject recognizable) and **redraw the subject from scratch** on a pixel grid. The source tells you *what* to draw; the user's concept tells you *how*.
+**The one rule that defines this skill: never pixelate — reinterpret.** Mechanically downscaling or posterizing a photo produces a muddy, unreadable blob that clashes with every hand-made sprite around it. Treat the source image as a *reference for identity* (what makes the subject recognizable) and **redraw the subject from scratch** on a pixel grid. The source tells you *what* to draw; the user's concept tells you *how*.
 
-**Agent portability.** This skill assumes only three capabilities, phrased generically throughout: *view an image* (file read / attachment), *ask the user* (use the agent's structured multiple-choice question UI if it has one, otherwise a compact numbered list in chat), and *run a shell command* (to rasterize SVG to PNG — with fallbacks if no rasterizer exists). No agent-specific or engine-specific tools are required.
+**How quality is produced** — three mechanisms, all mandatory:
+
+1. **Presets, not improvisation** ([presets/index.md](presets/index.md)) — every drawing starts from a preset: concrete palette ramps, proportion numbers, and technique parameters distilled from strong pixel art, per asset type × density.
+2. **Text-grid medium** ([references/pxg-format.md](references/pxg-format.md)) — draw in `.pxg`, where one character = one pixel and the sprite is visible in the text while you draw. Never draw in SVG/vector shapes: shape-thinking produces "vector art snapped to a grid", which is exactly the alien, low-quality look this skill exists to avoid.
+3. **Self-critique loop** — render, view, critique against the brief, edit, re-render; minimum 2 rounds before the user sees anything.
+
+**Agent portability.** Assumed capabilities, phrased generically: *view an image*, *ask the user* (structured question UI if available, else numbered list in chat), *run a shell command* (Python 3 for the bundled `scripts/pixeltool.py`, stdlib only — no installs; if no Python exists, port its trivial render loop to any available runtime).
 
 ---
 
@@ -18,7 +24,7 @@ Convert a **source image the user provides** into a pixel-art game asset, in the
 | Situation | Action |
 |-----------|--------|
 | User attached / referenced an image AND wants it as game art (sprite, icon, tile, …) | **This skill** |
-| User wants pixel art but has NO source image | Out of scope as a conversion — but the bundled style references still govern from-scratch drawing (or hand off to a dedicated painter skill if the project has one) |
+| User wants pixel art but has NO source image | Out of scope as a conversion — but the presets + style references still govern from-scratch drawing (or hand off to a dedicated painter skill if the project has one) |
 | User wants to re-style an image for non-game use (avatar, emote, wallpaper) | This skill still applies; only the composition recipe changes |
 
 ---
@@ -30,115 +36,91 @@ Convert a **source image the user provides** into a pixel-art game asset, in the
 | 1 | **Locate & view the source image** | below |
 | 2 | **Analyze** → write a Conversion Brief | [references/analysis.md](references/analysis.md) |
 | 3 | **Elicit missing specs** from the user (one question round) | [references/elicitation.md](references/elicitation.md) |
-| 4 | **Plan composition** for the target asset type & view | [references/composition.md](references/composition.md) |
-| 5 | **Redraw** per the chosen style's rules | [references/style-retro.md](references/style-retro.md) / [references/style-cartoon.md](references/style-cartoon.md) |
-| 6 | **Render → self-check → show the user → iterate** | below |
-| 7 | **Deliver** the PNG (and code) where the user wants it | below |
+| 4 | **Pick the preset + plan composition** | [presets/index.md](presets/index.md), [references/composition.md](references/composition.md) |
+| 5 | **Draw in .pxg** per preset + style rules | [references/pxg-format.md](references/pxg-format.md), [references/style-retro.md](references/style-retro.md) / [references/style-cartoon.md](references/style-cartoon.md) |
+| 6 | **Render → self-critique loop → show the user → iterate** | [references/pxg-format.md](references/pxg-format.md) §self-critique |
+| 7 | **Deliver** the PNG + .pxg where the user wants them | below |
 
 ### Step 1 — Locate & view the source image
 
 - Image pasted into chat → it is already visible; use it directly.
 - File path given → open/view it with the agent's image-reading capability.
+- **Platform resource identifier given instead of a file** (an asset ID / RUID / asset-store URL from a game platform) → resolve it to an image first using that platform's available tools: a thumbnail or metadata API, downloading the returned URL, or rendering the asset in the platform's editor and screenshotting it. Save the result as a local image and use it as the source. A thumbnail-quality source is fine — this skill redraws from identity anchors; it doesn't trace pixels. If no available tool can resolve the identifier, say so instead of guessing what the asset looks like.
 - Multiple images → confirm which is the *subject* and whether others are *style references* (see elicitation).
 - No image found anywhere → this is not a conversion task; say so instead of guessing.
 
 ### Step 2 — Analyze
 
-Read [references/analysis.md](references/analysis.md) and write a **Conversion Brief** in the conversation *before* asking questions or drawing. The brief pins down: subject, 3–5 identity anchors, source palette → target ramps, source composition vs target composition, and what must be re-imagined. Writing it first matters twice over: it gives the elicitation step image-informed context ("the source is a front-facing photo, so a side-view sprite means re-imagining the pose"), and it becomes the checklist the self-check in step 6 verifies against.
+Read [references/analysis.md](references/analysis.md) and write a **Conversion Brief** in the conversation *before* asking questions or drawing. The brief pins down: subject, 3–5 identity anchors, source palette → target ramps, source composition vs target composition, and what must be re-imagined. It gives elicitation image-informed context, and it is the checklist the self-critique loop verifies against. `analyze`-ing the source with pixeltool (`python scripts/pixeltool.py analyze source.png`) gives objective palette data to quantize from.
 
 ### Step 3 — Elicit
 
-Read [references/elicitation.md](references/elicitation.md). The spec has five slots — **asset type, style/concept, composition/view, size, identity anchors**. Fill every slot you can from the user's request and the brief; ask about the rest in **one** question round (≤4 questions), with a recommended default presented first. This skill was explicitly designed to ask rather than guess — composition especially must be *the user's* choice, because a wrong view means a full redraw. If the user says "just decide" / "알아서 해줘" or is unavailable, proceed with the recommended defaults and state them explicitly before drawing.
+Read [references/elicitation.md](references/elicitation.md). The spec has five slots — **asset type, style/concept, composition/view, size & pixel density, identity anchors**. Fill every slot you can from the user's request and the brief; ask about the rest in **one** question round (≤4 questions), recommended default first. Composition especially must be *the user's* choice — a wrong view means a full redraw. If the user says "just decide" / "알아서 해줘" or is unavailable, proceed with the recommended defaults and state them explicitly before drawing.
 
-### Step 4 — Plan composition
+### Step 4 — Pick the preset + plan composition
 
-Read [references/composition.md](references/composition.md) and pick the recipe for the chosen asset type + view: feet-on-baseline for side-view characters, centered-with-padding for icons, edge-to-edge seamless for tiles, and explicit view conversion (front photo → side-view sprite = re-pose from anchors, never trace). State the chosen recipe in one line before writing drawing code — that line is what the self-check compares the render against.
+Map the locked slots to a preset via [presets/index.md](presets/index.md) — the preset supplies palette ramps, proportions, and technique parameters, which the brief's target ramps then *re-hue* to the subject's colors (structure from the preset, identity from the source). If inspiration images are available (user-provided or project sprites), run `pixeltool analyze` on them and prefer their measured palette/ramp data over the preset's defaults — and consider authoring a new preset (see index.md §authoring).
 
-### Step 5 — Redraw
+Then read [references/composition.md](references/composition.md), pick the recipe for asset type + view, and state it as a **numeric composition contract** before drawing (`구도: 측면 전신, 왼쪽 향함 | baseline-gap 2..4, height-occ 0.82..0.92, center-x ±2`). The numbers are enforced with `pixeltool check` at the silhouette-pass gate and at every render; the view itself is verified against composition.md's facing-cues table.
 
-Follow the chosen style reference **exactly**:
+**Size & density defaults** (when the user doesn't specify):
 
-- `retro` (8/16-bit, icons/tiles/simple props) → [references/style-retro.md](references/style-retro.md)
-- `cartoon` (soft, character/creature-friendly) → [references/style-cartoon.md](references/style-cartoon.md)
+| Use | Chunky output (retro grid / cartoon grid) | Hi-res 1:1 grid = output (cartoon only) |
+|---|---|---|
+| Icon / button | 48–64 px (16 / 24–32) | 64–128 px |
+| Character / item / NPC / monster | 96–128 px (16–32 / 48–64) | 128–300 px |
+| Tile / floor / block | 64–128 px (16–32 / 32–64) | 128–256 px |
+| Background / large object | 256 px+ (32–64 / 128) | 512 px+ (only on request) |
 
-Both styles ban curve APIs, gradient APIs, blur/shadow filters, and fractional coordinates — every pixel is a deliberate placement on the logical grid. Colors come from the **target ramps in the Conversion Brief** — quantized and style-shifted, never sampled raw from the photo.
+Match the density of the project's existing sprites when visible — one chunky sprite in a hi-res game (or vice versa) sticks out more than any color mismatch.
 
-**Size defaults** (when the user doesn't specify):
+### Step 5 — Draw in .pxg
 
-| Use | Output size | Logical grid (retro) | Logical grid (cartoon) |
-|---|---|---|---|
-| Icon / button | 48–64 px | 16×16 | 24–32 |
-| Character / item / NPC / monster | 96–128 px | 16–32 | 48–64 |
-| Tile / floor / block | 64–128 px | 16–32 | 32–64 |
-| Background / large object | 256 px+ (only on request) | 32–64 | 128 |
+Read [references/pxg-format.md](references/pxg-format.md) and draw in **passes**: silhouette → surfaces → shading → outline/detail, rendering between passes. Style rules come from [references/style-retro.md](references/style-retro.md) or [references/style-cartoon.md](references/style-cartoon.md); concrete numbers come from the preset. Grid strategy: hand-write ≤48 grids; generate the first pass programmatically for 96+ / hi-res grids, then refine by hand (pxg-format.md §grid size strategy).
 
-Cartoon style needs a logical grid of ~48+ (output 64 px+) to fit outlines, shading, and facial features; below that, use retro.
-
-### Step 6 — Render, self-check, show, iterate
-
-**Preferred medium: SVG** — it is plain text, every agent can write it, and many tools can rasterize it.
-
-```xml
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="128" height="128"
-     shape-rendering="crispEdges" style="image-rendering: pixelated;">
-  <rect x="6" y="2" width="1" height="1" fill="#4A90D9"/>
-  <!-- one 1×1 rect per logical pixel; runs may be merged into wider rects -->
-</svg>
-```
-
-- `viewBox` = the logical grid; `width`/`height` attributes = the output pixel size (an **integer multiple** of the grid, or edges blur).
-- `shape-rendering="crispEdges"` prevents anti-aliasing seams between rects.
-- Alternative medium: HTML5 Canvas JS (helpful for procedural loops) if the environment has a JS runtime + headless browser to screenshot it.
-
-**Rasterize with whatever the environment has** (first match wins):
+### Step 6 — Render, self-critique, show, iterate
 
 ```bash
-resvg in.svg out.png                                  # resvg
-rsvg-convert -w 128 -h 128 in.svg -o out.png          # librsvg
-magick -background none in.svg out.png                # ImageMagick 7
-inkscape in.svg -w 128 -h 128 -o out.png              # Inkscape
-# or a headless browser (puppeteer / playwright) screenshotting the SVG
+python scripts/pixeltool.py render sprite.pxg -o out.png --preview 4
+python scripts/pixeltool.py check sprite.pxg --baseline 2..4 --height-occ 0.82..0.92 --center-x 2   # the contract numbers
 ```
 
-If no rasterizer is available, deliver the `.svg` itself and say so — the drawing is complete either way. Write working files to a temp/working directory, not the project's asset folders, until the user approves.
+Run the **self-critique loop** from pxg-format.md: view the preview, check the 7-point list (squint test, composition contract via `check` + facing cues, anchors, banding, mush, orphans, style compliance), edit the .pxg, re-render. **Minimum 2 rounds; never show the user a first render.** Work in a temp/working directory until approved.
 
-Then **view the output** and check it against the Conversion Brief before showing the user:
+Then show the result and invite corrections. On feedback, update only the affected region/pass — don't re-run elicitation for a tweak.
 
-1. Composition matches the requested view/layout (not the source's)?
-2. All identity anchors visible and recognizable?
-3. Silhouette readable at 100% scale (squint test)?
-4. Style rules honored (retro: sharp edges, zero AA / cartoon: colored outlines, no pure black)?
-5. Background transparent (unless the asset is a tile/background), canvas fully and intentionally used?
-
-Show the image to the user and invite corrections. On feedback, update only the affected part of the brief and redraw — don't re-run the full elicitation for a tweak.
+**Optional accelerator**: if the agent has an image-generation tool, the intermediate-generation path in [references/imagegen-path.md](references/imagegen-path.md) can produce the first-pass .pxg (especially valuable at hi-res); the cleanup and critique loop stay identical.
 
 ### Step 7 — Deliver
 
-Save the approved PNG (and the SVG/code alongside it) to the path the user names, or ask where it should go if the project has an obvious asset convention. If the project has its own asset-registration pipeline (a game-engine importer, an upload skill), hand off there — registering assets is outside this skill.
+Save the approved PNG **and its .pxg source** (the editable master — future edits start from it) to the path the user names, or ask where if the project has an obvious asset convention. If the project has its own asset-registration pipeline (engine importer, upload skill), hand off there — registering assets is outside this skill.
 
 ---
 
 ## Report format
 
 ```
-Output: <file path(s)>
-Style: <retro | cartoon> / Size: <W×H> (grid <G×G>) / View: <composition>
+Output: <png path> (+ <pxg path>)
+Preset: <preset id> / Style: <retro | cartoon> / Size: <W×H> (grid <G×G>, density <chunky ×N | hi-res 1:1>) / View: <composition>
 Source: <one-line description of the original image>
 Kept: <identity anchors that survived>
 Reinterpreted: <what was changed from the source and why>
+Critique rounds: <N>
 ```
 
 ---
 
 ## Common pitfalls
 
-- **Sampling colors straight from a photo** → muddy, desaturated sprite that matches nothing in-game. Always quantize into style ramps (analysis.md).
-- **Tracing the source composition when the user asked for a different view** → the #1 failure mode. A front-facing photo cannot be traced into a side-view sprite; re-pose from identity anchors (composition.md).
-- **Skipping elicitation because the request "seems obvious"** → wrong asset type or view = full redraw. One question round is cheaper.
-- **Asking about slots the user already answered** → noise. Fill from the request first; ask only about genuinely empty slots.
-- **Reproducing photographic lighting/gradients** → banned APIs and the wrong aesthetic. Depth comes from stepped ramps (+ dithering, cartoon style only).
-- **Keeping the source's background** → default is transparent; backgrounds only when the asset type is a background/tile or the user asks.
-- **Trying to keep every detail at a small grid** → the detail budget shrinks with grid size; anchors survive, everything else simplifies (analysis.md).
-- **Non-integer scale between logical grid and output size** → blurry or seamed pixels. Output = grid × whole number, always.
-- **SVG rasterized at its intrinsic size when a different output was wanted** → set `width`/`height` attributes explicitly, and pass `-w`/`-h` to the rasterizer when it supports it.
-- **Delivering before the user has seen the render** → preview → approve → deliver. Saving into the project is the *last* step.
+- **Drawing in SVG/vector shapes "just this once"** → shape-thinking is the root cause of the alien look. The .pxg medium is not optional.
+- **Skipping the preset and improvising a palette** → inconsistent results between assets. Start from the preset; re-hue to the subject.
+- **Sampling colors straight from a photo** → lighting-contaminated mud. Quantize + style-shift into ramps (analysis.md).
+- **Tracing the source composition when the user asked for a different view** → re-pose from identity anchors (composition.md); never trace.
+- **Composition verified only at the end** → the gate lives at the silhouette pass: contract numbers via `pixeltool check` + facing cues, before any surface/shading work. A composition FAIL discovered after shading means the gate was skipped.
+- **Showing the user the first render** → the loop exists because first renders are always fixable. Two rounds minimum.
+- **Delivering the @Nx preview as the asset** → the deliverable is the 1:1 render (chunky output = logical grid × its intended scale, produced by rendering at that scale — still not the critique preview).
+- **Skipping elicitation because the request "seems obvious"** / **asking about slots already answered** → one round, only for empty slots.
+- **Keeping the source's background** → transparent by default; backgrounds only for background/tile assets or on request.
+- **Density mismatch with neighboring assets** → check existing project sprites before defaulting.
+- **Hand-enumerating a 200×200 grid character by character** → generate the first pass programmatically, refine by hand (pxg-format.md).
+- **Patching the same defect twice** → the error is one pass earlier (wrong silhouette can't be fixed with shading); redo that pass.

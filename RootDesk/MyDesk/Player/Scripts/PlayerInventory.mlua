@@ -378,13 +378,18 @@ script PlayerInventory extends Component
 
 	@ExecSpace("ServerOnly")
 	method void ApplyHeldToolCostume()
-		-- Mirrors EquippedTool onto the avatar's one-handed weapon slot so the character
-		-- visibly holds the tool. WeaponRUID comes from item_dataset (data-driven); an empty
-		-- value (non-tool or unequipped) clears the slot back to bare hands.
+		-- Mirrors EquippedTool onto the avatar's weapon slot so the character visibly holds
+		-- the tool. WeaponRUID/WeaponSlot come from item_dataset (data-driven); an empty
+		-- WeaponRUID (non-tool or unequipped) clears both slots back to bare hands.
+		-- WeaponSlot=twohand인 도구(양손 아바타 아이템)는 TwoHandedWeapon 슬롯에 장착해야
+		-- swingT* 등 두손 액션에서 무기 파츠 프레임이 렌더된다 — 한손 슬롯에 장착하면
+		-- 두손 모션 중 도구가 손에서 사라진다(과거 곡괭이 swingT1 미표시 버그의 원인).
+		-- 양손 무기는 한손+보조 슬롯을 점유하므로(상호 배타) 반대쪽 슬롯은 항상 비운다.
 		local costume = self.Entity.CostumeManagerComponent
 		if not isvalid(costume) then return end
-		
+
 		local weaponRuid = ""
+		local weaponSlot = ""
 		local baseName = self:GetBaseItemName(self.EquippedTool)
 		if baseName ~= "" then
 			local ds = _DataService:GetTable("item_dataset")
@@ -392,11 +397,21 @@ script PlayerInventory extends Component
 				local row = ds:FindRow("Name", baseName)
 				if row ~= nil then
 					weaponRuid = row:GetItem("WeaponRUID") or ""
+					-- pcall 가드: 데이터셋이 아직 리프레시되지 않아 WeaponSlot 컬럼이 없어도
+					-- 한손 폴백으로 동작 (MineState의 SwingAction 가드와 동일 패턴).
+					local ok, v = pcall(function() return row:GetItem("WeaponSlot") end)
+					if ok and v ~= nil then weaponSlot = v end
 				end
 			end
 		end
-		
-		costume:SetEquip(MapleAvatarItemCategory.OneHandedWeapon, weaponRuid)
+
+		if weaponSlot == "twohand" then
+			costume:SetEquip(MapleAvatarItemCategory.TwoHandedWeapon, weaponRuid)
+			costume:SetEquip(MapleAvatarItemCategory.OneHandedWeapon, "")
+		else
+			costume:SetEquip(MapleAvatarItemCategory.OneHandedWeapon, weaponRuid)
+			costume:SetEquip(MapleAvatarItemCategory.TwoHandedWeapon, "")
+		end
 	end
 
 	@ExecSpace("Server")

@@ -484,6 +484,7 @@ graph TD
   - [x] 신규 채집용 철광석 노드 (`Iron Node`) 추가: 바위(Rocky), 사막(Desert), 설원(Snowfield) 바이옴에 절차적으로 스폰되도록 연동.
   - [x] 신규 장비 4종 추가: 구리 곡괭이/도끼 (Tier 3), 철 곡괭이/도끼 (Tier 4) 및 성능/도구 효율 반영.
   - [x] 등급 잠금(Tech Lock) 적용: `Iron Node` 채광 시 구리 곡괭이(Tier 3, ToolPower 3) 이상의 도구 장착 필수 조건 부여 (낮은 등급의 도구 사용 시 내구도 데미지 0 처리 및 "You need a stronger Pickaxe to gather this!" 말풍선 출력).
+  - [x] **도구 스윙 모션·장착 슬롯 정합 (2026-07-08)**: 스윙 모션은 `item_dataset.SwingAction` 컬럼이 단일 소스(`MineState`가 조회 — 곡괭이 `swingT1`, 도끼 `swingO2`). 곡괭이가 `swingT1`(두손 액션) 재생 중 손에서 사라지던 문제 수정 — 원인은 곡괭이 `WeaponRUID`가 한손(weapon) 아바타 아이템이라 두손 액션의 무기 파츠 프레임이 없던 것. `WeaponSlot` 컬럼 신설(`twohand`면 `PlayerInventory:ApplyHeldToolCostume`가 TwoHandedWeapon 슬롯에 장착하고 반대 슬롯은 해제 — 액션 계열과 슬롯이 항상 일치)하고 곡괭이 3종 `WeaponRUID`를 양손(twohandweapon) 곡괭이 아이템으로 교체(stone=`곡괭이`·copper=`Golden Pickaxe`·iron=`Pickaxe`, copper/iron `IconRUID`도 `thumbnail://` 동기화). refresh 빌드 무에러 — 스윙 중 도구 렌더 육안 검증은 제작자.
   - [x] **바이옴별 드롭 차등화**: 자원이 파괴되는 위치의 바이옴 ID를 동적으로 판별하고, 해당 바이옴에 특화된 드롭 아이템 및 확률로 드롭 롤링이 진행되도록 구현 (예: Rocky 바이옴의 Big Stone 채집 시 Stone 대신 더 높은 확률의 Copper/Iron Ore 드롭).
 - [ ] **탑다운 격자형 몬스터 AI 및 전투 통합** (🔶 진행 중):
   - ✅ M1 완료: 제네릭 몬스터 행동 스크립트 3종(`Monster`/`MonsterAI`/`MonsterMeleeAttack`, `RootDesk/MyDesk/Monster/Scripts/`), `Slime.model`(Pattern A·RectTile·Kinematicbody, modelId `slime`, 녹색 슬라임 `mob/0210100.img`), map01 테스트 배치(SlimeTest01). 빌드 클린.
