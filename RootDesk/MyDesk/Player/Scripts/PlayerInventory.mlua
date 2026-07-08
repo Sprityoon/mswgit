@@ -869,29 +869,13 @@ script PlayerInventory extends Component
 				end
 				log("[PLACE] Spawned furniture " .. itemName .. " at cell " .. tostring(cellPos))
 				
-				-- If the placed furniture is a Wooden Chest, attach script.Chest
-				if itemName == "Wooden Chest" then
-					local chestComp = spawnedEntity:GetComponent("script.Chest")
-					if not isvalid(chestComp) then
-						spawnedEntity:AddComponent("script.Chest")
-						log("[PLACE] Attached script.Chest component to placed Wooden Chest.")
-					end
-				end
 
-				-- If the placed furniture is a Portal, attach/initialize PortalGate
-				if itemName == "Portal" then
-					local portalGate = spawnedEntity:GetComponent("script.PortalGate")
-					if not isvalid(portalGate) then
-						spawnedEntity:AddComponent("script.PortalGate")
-						portalGate = spawnedEntity:GetComponent("script.PortalGate")
-					end
-					if isvalid(portalGate) then
-						portalGate.TargetMapName = "town"
-						portalGate.TargetPosition = Vector2(3, 0)
-						log("[PLACE] Attached and initialized PortalGate on placed Portal.")
-					end
-				end
-				
+
+				-- NOTE: portals need no placement-time initialization. Furniture_Portal.model carries
+				-- script.PortalGate itself, and portals placed on estate (Home_*) maps are universal:
+				-- they always open the full destination list popup (see PlayerController:TryUsePortal),
+				-- so TargetMapName/DestinationGroup are irrelevant here (C-1 design).
+
 				resourceSpawner:AddPlacedFurniture(currentMap.Name, itemName, cellPos.x, cellPos.y, spawnedEntity)
 			else
 				log_error("Failed to spawn furniture entity: " .. itemName)

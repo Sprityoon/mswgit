@@ -1,6 +1,6 @@
 ---
 name: msw-ui-system
-description: "MSW `.ui` single entry point — design + component API + builder + runtime. Anchor/pivot/RectTransform, UIGroup/CanvasGroup hierarchy, layout recipes (HUD/popup/toast/menu/inventory/scroll-list), full API tables for ButtonComponent/TextComponent/SpriteGUIRendererComponent/ScrollLayoutGroup/GridView/TextInput/Slider/Mask/AvatarGUIRenderer + UI enums (AlignmentType/OverflowType/ImageType/FillAmount), `.mlua` runtime patterns (popup open-close, toast, HP bar, GridView, drag, tab, cooldown, world nametag), UI-client-only caveats (nil on server, no RPC), `.ui`↔`.mlua` UUID auto-binding (write+injectBindings), resolution/safe-area/touch. UIBuilder (msw_ui_builder.cjs): all node types (panel/text/sprite/button/slider/scrollLayout/textInput/group/mask/gridView/avatar/skeleton etc.), component add/replace/patch/remove, 13 anchor presets+stretch, auto-inject .mlua UUID bindings after write."
+description: "MSW `.ui` single entry point — design + component API + builder + runtime + visual aesthetics. Use for ANY UI build or restyle, including 'make it pretty', bland/monotonous UI complaints, choosing backgrounds/frames/colors, and judging UI quality (design tokens, panel anatomy, palette rules, aesthetic self-review rubric in references/ui-aesthetics.md). Anchor/pivot/RectTransform, UIGroup/CanvasGroup hierarchy, layout recipes (HUD/popup/toast/menu/inventory/scroll-list), full API tables for ButtonComponent/TextComponent/SpriteGUIRendererComponent/ScrollLayoutGroup/GridView/TextInput/Slider/Mask/AvatarGUIRenderer + UI enums (AlignmentType/OverflowType/ImageType/FillAmount), `.mlua` runtime patterns (popup open-close, toast, HP bar, GridView, drag, tab, cooldown, world nametag), UI-client-only caveats (nil on server, no RPC), `.ui`↔`.mlua` UUID auto-binding (write+injectBindings), resolution/safe-area/touch. UIBuilder (msw_ui_builder.cjs): all node types (panel/text/sprite/button/slider/scrollLayout/textInput/group/mask/gridView/avatar/skeleton etc.), component add/replace/patch/remove, 13 anchor presets+stretch, auto-inject .mlua UUID bindings after write."
 ---
 
 # msw-ui-system
@@ -26,7 +26,8 @@ Branch to sub-references based on request keywords.
 | "mobile", "safe area", "1920", "MobileOnly", "ActivePlatform", "touch size", "PC reserved zone", "font size by device" | [`references/ui-fundamentals.md`](references/ui-fundamentals.md) §9 |
 | "UIGroup", "above popup", "z-order", "displayOrder", "CanvasGroup", "opacity propagation", "Enable vs Visible" | [`references/ui-hierarchy.md`](references/ui-hierarchy.md); for runtime sibling reorder also read [`references/runtime-patterns.md`](references/runtime-patterns.md) §7 |
 | "which component", "Sprite vs Text vs Button", "9-slice", "scroll list", "GridView vs ScrollLayoutGroup" | [`references/component-api.md`](references/component-api.md) §"Component Selection Guide" |
-| "make a HUD", "popup placement", "toast", "menu", "inventory grid", "scroll list" | [`references/layout-recipes.md`](references/layout-recipes.md) |
+| "make a HUD", "popup placement", "toast", "menu", "inventory grid", "scroll list" | [`references/layout-recipes.md`](references/layout-recipes.md) **+ [`references/ui-aesthetics.md`](references/ui-aesthetics.md) (recipes are wireframes — the aesthetics doc styles them)** |
+| Choosing any color / background / frame / font size, "make it pretty", "looks bland/plain/monotonous", "예쁘게", "밝게/어둡게", theme, mood, polish, "how do I judge if this UI looks good" — **and every player-facing UI build, even when the user doesn't mention looks** | [`references/ui-aesthetics.md`](references/ui-aesthetics.md) |
 | "connect .mlua after building with .ui builder", "property default UUID", "binding without drag" | [`../msw-general/references/builder-protocol.md`](../msw-general/references/builder-protocol.md) §3.6 Binding Injection (unified entry point) |
 | Runtime UI component field read/write, component property name/type (`ButtonComponent.Colors`, `TextComponent.Overflow`, `SpriteGUIRendererComponent.FillAmount`…) | [`references/component-api.md`](references/component-api.md) **required before every `.mlua` access to UI component fields** |
 | Enum values (`AlignmentType`, `OverflowType`, `ImageType`, `UIBasicParticleType`…) | [`references/component-api.md`](references/component-api.md) §Enums |
@@ -39,16 +40,18 @@ Branch to sub-references based on request keywords.
 ## 1. Basic Workflow
 
 ```
-(1) Clarify intent       Layout sketch (ASCII or verbal) + which group to attach to
-(2) Check design guide   Match at least one of ui-fundamentals / ui-hierarchy / component-api §Component Selection Guide
-(3) Builder Preflight    Read ../msw-general/references/builder-protocol.md §3 (unified call-protocol entry point)
-(4) Match recipe          Select the closest template from layout-recipes.md
-(5) Invoke builder        Create/patch via scripts/msw_ui_builder.cjs (protocol: builder-protocol.md §3)
-(6) Inject bindings       Auto-inject .mlua property default UUIDs via b.write(path, { bind: {...} }) or b.injectBindings(...) (builder-protocol.md §3.6 Binding Injection)
-(7) Self-verify           write() auto-runs scripts/ui_lint.cjs (strict ON by default)
-(8) Preview               Visual check via scripts/preview_ui_layout.cjs
-(9) Sound pass            For any interactive button, offer click/hover SFX wiring (references/ui-sound.md)
-(10) Maker Refresh         Apply to engine
+(1) Clarify intent        Layout sketch (ASCII or verbal) + which group to attach to
+(2) Check design guide    Match at least one of ui-fundamentals / ui-hierarchy / component-api §Component Selection Guide
+(3) Visual identity       Lock the style source + design-token block (references/ui-aesthetics.md §1–§2) BEFORE any color/background/font decision — deciding visuals mid-build is how gray-box UI happens
+(4) Builder Preflight     Read ../msw-general/references/builder-protocol.md §3 (unified call-protocol entry point)
+(5) Match recipe          Select the closest template from layout-recipes.md — recipes are structural wireframes; style every surface with the identity from (3)
+(6) Invoke builder        Create/patch via scripts/msw_ui_builder.cjs (protocol: builder-protocol.md §3)
+(7) Inject bindings       Auto-inject .mlua property default UUIDs via b.write(path, { bind: {...} }) or b.injectBindings(...) (builder-protocol.md §3.6 Binding Injection)
+(8) Self-verify           write() auto-runs scripts/ui_lint.cjs (strict ON by default)
+(9) Preview               Visual check via scripts/preview_ui_layout.cjs
+(10) Aesthetic review     Run the PASS/FAIL rubric in references/ui-aesthetics.md §7 against the BUILT file (read back via UIBuilder); fix every FAIL before reporting done
+(11) Sound pass           For any interactive button, offer click/hover SFX wiring (references/ui-sound.md)
+(12) Maker Refresh        Apply to engine
 ```
 
 ## 2. Global Rules
@@ -70,6 +73,7 @@ Branch to sub-references based on request keywords.
 6. Verify text `Alignment` default is `UpperLeft(0)` — 95% of "I centered it but it sticks to the left" issues
 7. Button touch target ≥ 88×88 (mobile support)
 8. **After creating any interactive button** — proactively suggest wiring click/hover SFX via [`references/ui-sound.md`](references/ui-sound.md) (default UI SFX RUIDs available). Skip only if the user explicitly opts out or the button is purely decorative.
+9. **Player-facing UI must look designed, not just work** — read [`references/ui-aesthetics.md`](references/ui-aesthetics.md) before choosing any color/background/frame, and run its §7 self-review rubric after preview. Passing lint with flat unframed gray panels ("Gray Box Syndrome") does not count as done. Only skip when the user explicitly asks for a bare-bones/debug UI.
 
 ---
 
@@ -78,7 +82,8 @@ Branch to sub-references based on request keywords.
 - [`references/ui-fundamentals.md`](references/ui-fundamentals.md) — Coordinate system, RectTransform 3 elements, anchor mode determination (§1–§8) + Resolution·safe area·PC reserved zones·touch targets·font sizes·platform separation (§9)
 - [`references/ui-hierarchy.md`](references/ui-hierarchy.md) — UIGroup / displayOrder / CanvasGroup / Enable vs Visible
 - [`references/component-api.md`](references/component-api.md) — §"Component Selection Guide" (which/when/why) + full component property/method/event tables (what) + all UI-related enum values (§Enums)
-- [`references/layout-recipes.md`](references/layout-recipes.md) — Layout template collection
+- [`references/layout-recipes.md`](references/layout-recipes.md) — Layout template collection (structural wireframes — pair with ui-aesthetics.md)
+- [`references/ui-aesthetics.md`](references/ui-aesthetics.md) — Visual design: identity/design tokens, background & panel anatomy (frame RUID → msw-search → msw-painter → flat composite), palette/typography/spacing rules, decoration minimums, **mandatory §7 aesthetic self-review rubric**
 - [`references/runtime-patterns.md`](references/runtime-patterns.md) — `.mlua` runtime patterns (popup/toast/HP/grid/drag…) + Runtime UI Caveats
 - [`references/ui-sound.md`](references/ui-sound.md) — UI sound integration (`_SoundService:PlaySound`, click/hover hook, default UI SFX RUIDs)
 - [`../msw-general/references/builder-protocol.md`](../msw-general/references/builder-protocol.md) §3 — **`.ui` CJS builder call protocol (unified entry point)** — same document as `.map` MapBuilder / `.model` ModelBuilder. panel / text / sprite / button / slider / scroll / script / group / mask / grid / avatar / touchReceive / skeleton / areaParticle / basicParticle, component CRUD, anchor presets, write auto-lint, and `.mlua` property UUID auto-binding all live in §3 + §3.6.

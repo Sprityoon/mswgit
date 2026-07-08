@@ -1568,28 +1568,37 @@ script ResourceSpawner extends Logic
 		
 		local gridToEntity = self:GetGridToEntity(mapName)
 		local spawnedEntities = self:GetSpawnedEntities(mapName)
+		local furnitureJson = self:GetPlacedFurnitureJson(mapName)
 
-		-- Idempotency guard: remove any previously reconstructed placements (furniture entities
-		-- and painted construction tiles) before respawning, so a second call on a map that
-		-- already has its placements cannot create duplicate entities (e.g. duplicate Portal).
-		-- Resource entities (no isTile/isFurniture flag) are left untouched.
+		-- 1. Idempotency guard: remove any previously reconstructed tiles and furniture from the map.
 		local staleKeys = {}
 		for gKey, gData in pairs(gridToEntity) do
-			if gData.isFurniture == true then
+			if gData.isTile == true then
+				if layer3Tilemap then
+					layer3Tilemap:RemoveTile(math.floor(gData.pivotX), math.floor(gData.pivotY))
+				end
+				table.insert(staleKeys, gKey)
+			elseif gData.isFurniture == true then
 				if isvalid(gData.entity) then
 					gData.entity:Destroy()
 				end
 				spawnedEntities[gKey] = nil
 				table.insert(staleKeys, gKey)
-			elseif gData.isTile == true then
-				if layer3Tilemap then
-					layer3Tilemap:RemoveTile(math.floor(gData.pivotX), math.floor(gData.pivotY))
-				end
-				table.insert(staleKeys, gKey)
 			end
 		end
 		for _, sKey in ipairs(staleKeys) do
 			gridToEntity[sKey] = nil
+		end
+
+		-- 2. Destroy any existing Maker-placed PlaceableFurniture that are not in gridToEntity
+		-- (This ensures the map is clean before we reconstruct from JSON)
+		local placeableComps = map:GetChildComponentsByTypeName("script.PlaceableFurniture", true)
+		if placeableComps then
+			for _, comp in ipairs(placeableComps) do
+				if isvalid(comp.Entity) then
+					comp.Entity:Destroy()
+				end
+			end
 		end
 
 		local tilesJson = self:GetPlacedTilesJson(mapName)
@@ -1603,7 +1612,6 @@ script ResourceSpawner extends Logic
 			gridToEntity[key] = { entity = nil, pivotX = tx, pivotY = ty, isTile = true, tileName = t.tileName }
 		end
 		
-		local furnitureJson = self:GetPlacedFurnitureJson(mapName)
 		local placedFurniture = (furnitureJson ~= nil and furnitureJson ~= "") and _HttpService:JSONDecode(furnitureJson) or {}
 		for _, f in ipairs(placedFurniture) do
 			local fx, fy = math.floor(f.x), math.floor(f.y)
@@ -1624,24 +1632,26 @@ script ResourceSpawner extends Logic
 						sprite.OrderInLayer = math.max(_RenderLayers.MinEntityOrder, math.floor((self.MapRadius - fy) * 100))
 					end
 					
-					-- If the spawned entity is a Wooden Chest, attach script.Chest
-					if f.itemName == "Wooden Chest" then
-						local chestComp = spawnedEntity:GetComponent("script.Chest")
-						if not isvalid(chestComp) then
-							spawnedEntity:AddComponent("script.Chest")
-							log("ResourceSpawner: Attached script.Chest component to reconstructed Wooden Chest.")
-						end
-					end
 
-					-- If the spawned entity has script.PortalGate, make sure it is initialized
+
+					-- Restore PortalGate state saved with the furniture. On estate (Home_*) maps these
+					-- values are informational only: estate portals always open the full destination
+					-- list regardless of TargetMapName/DestinationGroup (C-1 design), so stale group
+					-- values in old saves are harmless and need no migration. Fields absent from older
+					-- saves simply keep the Furniture_Portal.model defaults.
 					local portalGate = spawnedEntity:GetComponent("script.PortalGate")
 					if isvalid(portalGate) then
-						portalGate.TargetMapName = f.targetMapName or "town"
-						portalGate.TargetPosition = Vector2(f.targetPositionX or 3, f.targetPositionY or 0)
-						portalGate.DestinationGroup = f.destinationGroup or "town"
-						portalGate.PortalColor = f.portalColor or "white"
-						if not self:IsServer() then
-							portalGate:ApplyPortalColor()
+						if f.targetMapName ~= nil then
+							portalGate.TargetMapName = f.targetMapName
+						end
+						if f.targetPositionX ~= nil or f.targetPositionY ~= nil then
+							portalGate.TargetPosition = Vector2(f.targetPositionX or 0, f.targetPositionY or 0)
+						end
+						if f.destinationGroup ~= nil then
+							portalGate.DestinationGroup = f.destinationGroup
+						end
+						if f.portalColor ~= nil then
+							portalGate.PortalColor = f.portalColor
 						end
 					end
 

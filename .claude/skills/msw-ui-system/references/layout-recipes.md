@@ -4,6 +4,8 @@ A collection of layout templates based on this skill's CJS UIBuilder (`scripts/m
 
 Each recipe is copy-ready from file creation to placement. In actual use, change only path / size / color / RUID values to match your project.
 
+> ⚠️ **Recipes are structural wireframes, not finished designs.** The flat hex colors (`#2C2C2C`, `#1A1A1A`, …) and default buttons below exist to show geometry and component wiring — shipping them verbatim produces "Gray Box Syndrome". Before building, lock a visual identity (style bundle / project style / tokens), and after building run the aesthetic self-review rubric — both in [`ui-aesthetics.md`](ui-aesthetics.md). See its §8 for a worked wireframe→designed conversion of Recipe 2.
+
 ---
 
 ## Common Preparation
@@ -373,8 +375,9 @@ After running any recipe:
 
 1. **Binding Injection** — Auto-inject entity UUIDs into the corresponding `.mlua` property defaults via `b.write(filepath, { bind: { mlua, props } })` or `b.injectBindings(mlua_path, props)`. See [`../../msw-general/references/builder-protocol.md`](../../msw-general/references/builder-protocol.md) §3.6 Binding Injection for details.
 2. **Preview Check** — Visualize the layout with `scripts/preview_ui_layout.cjs`
-3. **Maker Refresh** — Reflect changes in the engine via MCP refresh
-4. **Play Mode Verification** — Verify on actual resolution and mobile scale
+3. **Aesthetic Review** — Run the PASS/FAIL rubric in [`ui-aesthetics.md`](ui-aesthetics.md) §7 against the built file (frame RUIDs applied? palette ≤6 with one accent? header zone? type hierarchy?). Fix every FAIL before reporting done.
+4. **Maker Refresh** — Reflect changes in the engine via MCP refresh
+5. **Play Mode Verification** — Verify on actual resolution and mobile scale
 
 Snapshot:
 

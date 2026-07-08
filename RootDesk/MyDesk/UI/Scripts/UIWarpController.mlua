@@ -1,16 +1,30 @@
 @Component
 script UIWarpController extends Component
 
-	-- Estate "list portal" popup: interacting with the portal in a personal estate opens this and
-	-- lets the player pick a destination (town / hunting grounds). Destinations are data-driven via
-	-- PortalDestinationDataSet (add a CSV row to add a destination). game_design.md §2.2 / Phase 12-C.
+	-- Estate universal-portal popup: every portal placed on a Home_* estate opens this popup with
+	-- the FULL destination list, rendered as a single vertical list with per-group section headers
+	-- (C-1 design). Both the destinations (PortalDestinationDataSet) and the section headers
+	-- (PortalGroupDataSet: GroupId/DisplayName/SortOrder) are data-driven — adding a destination
+	-- or a whole group is a CSV row edit only, no code changes. Locked waypoint destinations are
+	-- shown grayed out with a "[잠김]" prefix and give feedback when clicked.
 
 	property Entity btnClose = "23f03517-14f6-4f18-9265-ce78e9df7f71"
-	property integer SlotCount = 6
+
+	-- UI pool sizes (must match the Header1..N / Slot1..N entities under /ui/PopupGroup/WarpPopup/Bg).
+	property integer SlotCount = 10
+	property integer HeaderCount = 3
+
+	-- Layout metrics (UI pixels; rows are stacked top-down at runtime via anchoredPosition).
+	property number TopPadding = 80
+	property number BottomPadding = 32
+	property number HeaderRowHeight = 32
+	property number SlotRowHeight = 40
+	property number RowSpacing = 8
+	property number TitleOffsetY = 40
 
 	-- Runtime state (client-only).
-	property table destinations = {}   -- slotIndex -> { mapName, x, y }
-	property table slotHandlers = {}   -- slotIndex -> { entity, handler }
+	property table destinations = {}   -- slotIndex -> { destId, mapName, x, y, isUnlocked, displayName }
+	property table slotHandlers = {}   -- slotIndex -> { entity, eventHandler }
 
 	@ExecSpace("ClientOnly")
 	method void OnBeginPlay()
@@ -40,9 +54,9 @@ script UIWarpController extends Component
 	end
 
 	@ExecSpace("ClientOnly")
-	method void Open(string group)
-		-- Show the popup and (re)fill destination slots from the dataset.
-		self:PopulateDestinations(group or "rookie")
+	method void Open()
+		-- Show the popup with the full grouped destination list (estate universal portal, C-1).
+		self:PopulateDestinations()
 		self.Entity.Enable = true
 	end
 
@@ -53,67 +67,183 @@ script UIWarpController extends Component
 	end
 
 	@ExecSpace("ClientOnly")
-	method void PopulateDestinations(string group)
-		-- Fill the slot buttons from PortalDestinationDataSet filtered by group.
+	method void PopulateDestinations()
+		-- Fill the header/slot pools with ALL rows of PortalDestinationDataSet, grouped under the
+		-- section headers defined in PortalGroupDataSet and stacked top-down. Groups missing from
+		-- PortalGroupDataSet are appended at the end (their GroupId doubles as the display name).
 		self.destinations = {}
-		local ds = _DataService:GetTable("PortalDestinationDataSet")
+
+		local destDs = _DataService:GetTable("PortalDestinationDataSet")
 		local rowCount = 0
-		if ds ~= nil then
-			rowCount = ds:GetRowCount()
+		if destDs ~= nil then
+			rowCount = destDs:GetRowCount()
 		end
-		
+
+		-- 1) Ordered group definitions from PortalGroupDataSet.
+		local groupOrder = {}   -- array of { id, displayName, sortOrder }
+		local groupIndex = {}   -- groupId -> entry
+		local groupDs = _DataService:GetTable("PortalGroupDataSet")
+		if groupDs ~= nil then
+			for i = 1, groupDs:GetRowCount() do
+				local gid = groupDs:GetCell(i, "GroupId")
+				if gid ~= nil and gid ~= "" and groupIndex[gid] == nil then
+					local entry = {
+						id = gid,
+						displayName = groupDs:GetCell(i, "DisplayName") or gid,
+						sortOrder = tonumber(groupDs:GetCell(i, "SortOrder")) or 999
+					}
+					table.insert(groupOrder, entry)
+					groupIndex[gid] = entry
+				end
+			end
+		end
+		table.sort(groupOrder, function(a, b) return a.sortOrder < b.sortOrder end)
+
+		-- 2) Bucket destination rows per group (CSV row order preserved within a group).
 		local localPlayer = _UserService.LocalPlayer
 		local pc = isvalid(localPlayer) and localPlayer:GetComponent("script.PlayerController") or nil
-		
-		local activeSlotIndex = 0
+		local buckets = {}   -- groupId -> array of destination records
 		for i = 1, rowCount do
-			local destGroup = ds:GetCell(i, "Group") or "rookie"
-			if destGroup == group then
-				local destId = ds:GetCell(i, "DestinationId")
-				local mapName = ds:GetCell(i, "MapName")
-				local displayName = ds:GetCell(i, "DisplayName")
-				local ax = tonumber(ds:GetCell(i, "ArriveX")) or 0
-				local ay = tonumber(ds:GetCell(i, "ArriveY")) or 0
-				local unlockType = ds:GetCell(i, "UnlockType") or "always"
-				
-				local isUnlocked = true
-				if unlockType == "waypoint" then
-					if isvalid(pc) then
-						---@type PlayerController
-						local c = pc
-						isUnlocked = c:IsWaypointUnlocked(destId)
-					else
-						isUnlocked = false
-					end
+			local gid = destDs:GetCell(i, "Group")
+			if gid == nil then gid = "" end
+			if groupIndex[gid] == nil then
+				-- Group not declared in PortalGroupDataSet: append after the declared ones.
+				local entry = { id = gid, displayName = gid, sortOrder = 100000 }
+				table.insert(groupOrder, entry)
+				groupIndex[gid] = entry
+			end
+
+			local destId = destDs:GetCell(i, "DestinationId")
+			local unlockType = destDs:GetCell(i, "UnlockType") or "always"
+			local isUnlocked = true
+			if unlockType == "waypoint" then
+				if isvalid(pc) then
+					---@type PlayerController
+					local c = pc
+					isUnlocked = c:IsWaypointUnlocked(destId)
+				else
+					isUnlocked = false
 				end
-				
-				activeSlotIndex = activeSlotIndex + 1
-				if activeSlotIndex <= self.SlotCount then
-					local slot = _EntityService:GetEntityByPath("/ui/PopupGroup/WarpPopup/Bg/Slot" .. activeSlotIndex)
-					if isvalid(slot) then
-						self.destinations[activeSlotIndex] = { destId = destId, mapName = mapName, x = ax, y = ay, isUnlocked = isUnlocked, displayName = displayName }
-						
-						if isvalid(slot.TextComponent) then
-							if isUnlocked then
-								slot.TextComponent.Text = displayName
-								if isvalid(slot.SpriteGUIRendererComponent) then
-									slot.SpriteGUIRendererComponent.Color = Color.white
-								end
-							else
-								slot.TextComponent.Text = "[잠김] " .. displayName
-								if isvalid(slot.SpriteGUIRendererComponent) then
-									slot.SpriteGUIRendererComponent.Color = Color(0.5, 0.5, 0.5, 1.0)
-								end
-							end
+			end
+
+			if buckets[gid] == nil then buckets[gid] = {} end
+			table.insert(buckets[gid], {
+				destId = destId,
+				mapName = destDs:GetCell(i, "MapName"),
+				x = tonumber(destDs:GetCell(i, "ArriveX")) or 0,
+				y = tonumber(destDs:GetCell(i, "ArriveY")) or 0,
+				isUnlocked = isUnlocked,
+				displayName = destDs:GetCell(i, "DisplayName")
+			})
+		end
+
+		-- 3) Flatten to display rows (header row per non-empty group, then its slots),
+		--    truncating to the UI pool sizes with a warning.
+		local displayRows = {}
+		local headersNeeded = 0
+		local slotsNeeded = 0
+		for _, g in ipairs(groupOrder) do
+			local list = buckets[g.id]
+			if list ~= nil and #list > 0 then
+				if headersNeeded >= self.HeaderCount then
+					log_warning("UIWarpController: header pool exhausted; group '" .. g.id .. "' skipped. Add Header entities and raise HeaderCount.")
+				else
+					headersNeeded += 1
+					table.insert(displayRows, { kind = "header", text = g.displayName })
+					for _, d in ipairs(list) do
+						if slotsNeeded >= self.SlotCount then
+							log_warning("UIWarpController: slot pool exhausted; destination '" .. tostring(d.displayName) .. "' skipped. Add Slot entities and raise SlotCount.")
+						else
+							slotsNeeded += 1
+							table.insert(displayRows, { kind = "slot", dest = d })
 						end
-						slot.Enable = true
 					end
 				end
 			end
 		end
-		
-		-- Hide remaining unused slots
-		for i = activeSlotIndex + 1, self.SlotCount do
+
+		-- 4) Compute total popup height and fit the background + title/close to it.
+		local contentH = 0
+		for _, row in ipairs(displayRows) do
+			if row.kind == "header" then
+				contentH += self.HeaderRowHeight + self.RowSpacing
+			else
+				contentH += self.SlotRowHeight + self.RowSpacing
+			end
+		end
+		if contentH > 0 then
+			contentH -= self.RowSpacing
+		end
+		local totalH = self.TopPadding + contentH + self.BottomPadding
+
+		local bg = _EntityService:GetEntityByPath("/ui/PopupGroup/WarpPopup/Bg")
+		if isvalid(bg) and isvalid(bg.UITransformComponent) then
+			local bgSize = bg.UITransformComponent.RectSize
+			bg.UITransformComponent.RectSize = Vector2(bgSize.x, totalH)
+		end
+		local title = _EntityService:GetEntityByPath("/ui/PopupGroup/WarpPopup/Bg/Title")
+		if isvalid(title) and isvalid(title.UITransformComponent) then
+			title.UITransformComponent.anchoredPosition = Vector2(0, totalH / 2 - self.TitleOffsetY)
+		end
+		if isvalid(self.btnClose) and isvalid(self.btnClose.UITransformComponent) then
+			local closeX = self.btnClose.UITransformComponent.anchoredPosition.x
+			self.btnClose.UITransformComponent.anchoredPosition = Vector2(closeX, totalH / 2 - self.TitleOffsetY)
+		end
+
+		-- 5) Position and fill the pooled header/slot entities top-down.
+		local headerUsed = 0
+		local slotUsed = 0
+		local yCursor = self.TopPadding
+		for _, row in ipairs(displayRows) do
+			if row.kind == "header" then
+				headerUsed += 1
+				local headerEntity = _EntityService:GetEntityByPath("/ui/PopupGroup/WarpPopup/Bg/Header" .. headerUsed)
+				if isvalid(headerEntity) then
+					if isvalid(headerEntity.TextComponent) then
+						headerEntity.TextComponent.Text = "─  " .. (row.text or "") .. "  ─"
+					end
+					if isvalid(headerEntity.UITransformComponent) then
+						headerEntity.UITransformComponent.anchoredPosition = Vector2(0, totalH / 2 - yCursor - self.HeaderRowHeight / 2)
+					end
+					headerEntity.Enable = true
+				end
+				yCursor += self.HeaderRowHeight + self.RowSpacing
+			else
+				slotUsed += 1
+				local slot = _EntityService:GetEntityByPath("/ui/PopupGroup/WarpPopup/Bg/Slot" .. slotUsed)
+				if isvalid(slot) then
+					local d = row.dest
+					self.destinations[slotUsed] = d
+					if isvalid(slot.TextComponent) then
+						if d.isUnlocked then
+							slot.TextComponent.Text = d.displayName
+							if isvalid(slot.SpriteGUIRendererComponent) then
+								slot.SpriteGUIRendererComponent.Color = Color.white
+							end
+						else
+							slot.TextComponent.Text = "[잠김] " .. d.displayName
+							if isvalid(slot.SpriteGUIRendererComponent) then
+								slot.SpriteGUIRendererComponent.Color = Color(0.5, 0.5, 0.5, 1.0)
+							end
+						end
+					end
+					if isvalid(slot.UITransformComponent) then
+						slot.UITransformComponent.anchoredPosition = Vector2(0, totalH / 2 - yCursor - self.SlotRowHeight / 2)
+					end
+					slot.Enable = true
+				end
+				yCursor += self.SlotRowHeight + self.RowSpacing
+			end
+		end
+
+		-- 6) Hide unused pool entities.
+		for i = headerUsed + 1, self.HeaderCount do
+			local headerEntity = _EntityService:GetEntityByPath("/ui/PopupGroup/WarpPopup/Bg/Header" .. i)
+			if isvalid(headerEntity) then
+				headerEntity.Enable = false
+			end
+		end
+		for i = slotUsed + 1, self.SlotCount do
 			local slot = _EntityService:GetEntityByPath("/ui/PopupGroup/WarpPopup/Bg/Slot" .. i)
 			if isvalid(slot) then
 				slot.Enable = false
@@ -126,7 +256,7 @@ script UIWarpController extends Component
 		-- Warp the local player to the chosen destination via the server, then close.
 		local dest = self.destinations[slotIndex]
 		if dest == nil then return end
-		
+
 		if not dest.isUnlocked then
 			local localPlayer = _UserService.LocalPlayer
 			if isvalid(localPlayer) then
@@ -139,7 +269,7 @@ script UIWarpController extends Component
 			end
 			return
 		end
-		
+
 		local localPlayer = _UserService.LocalPlayer
 		if isvalid(localPlayer) then
 			local pc = localPlayer:GetComponent("script.PlayerController")

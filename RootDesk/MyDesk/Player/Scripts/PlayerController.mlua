@@ -1163,21 +1163,22 @@ script PlayerController extends Component
 
 	@ExecSpace("ClientOnly")
 	method void TryUsePortal()
+		-- Portals placed on estate (Home_*) maps are universal: they always open the full,
+		-- grouped destination list popup, regardless of any TargetMapName/DestinationGroup values
+		-- the PortalGate may carry (C-1 design; also means old saves need no group migration).
+		-- Fixed portals on non-estate maps (town/hunt) keep their immediate warp behavior.
 		if not isvalid(self.ActivePortal) then return end
 		local currentMap = self.Entity.CurrentMap
-		
+
 		local portalGate = self.ActivePortal:GetComponent("script.PortalGate")
 		if isvalid(portalGate) and isvalid(currentMap) and string.sub(currentMap.Name, 1, 5) == "Home_" then
-			local group = portalGate.DestinationGroup or "town"
-			if group == "town" then
-				self:ServerRequestWarp()
-			else
-				local popup = _EntityService:GetEntityByPath("/ui/PopupGroup/WarpPopup")
-				if isvalid(popup) then
-					local ctrl = popup:GetComponent("script.UIWarpController")
-					if isvalid(ctrl) then
-						ctrl:Open(group)
-					end
+			local popup = _EntityService:GetEntityByPath("/ui/PopupGroup/WarpPopup")
+			if isvalid(popup) then
+				local ctrl = popup:GetComponent("script.UIWarpController")
+				if isvalid(ctrl) then
+					---@type UIWarpController
+					local warpCtrl = ctrl
+					warpCtrl:Open()
 				end
 			end
 		else
