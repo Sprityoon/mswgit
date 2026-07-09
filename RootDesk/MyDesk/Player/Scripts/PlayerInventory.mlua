@@ -887,6 +887,94 @@ script PlayerInventory extends Component
 			_ActionSignals:EmitToPlayer(self.Entity, _ActionEnum.Place, itemName, 1)
 		end
 	end
+
+	@ExecSpace("Server")
+	method void ServerRequestTerrainEdit(string itemName, integer cellX, integer cellY)
+		-- 삽(잔디 제거→길)/씨앗(잔디 심기)으로 영지 지형을 편집한다. 데이터 주도: 활성 아이템의
+		-- item_dataset.TerrainEditAction 컬럼(removeGrass/plantGrass)이 동작을 결정한다(이름 분기 없음).
+		local playerComp = self.Entity.PlayerComponent
+		if playerComp == nil or senderUserId ~= playerComp.UserId then
+			return
+		end
+
+		local currentMap = self.Entity.CurrentMap
+		if not isvalid(currentMap) then return end
+		local mapName = currentMap.Name
+		local pc = self.Entity:GetComponent("script.PlayerController")
+
+		-- 지형 편집은 개인 영지(Home_*)에서만 허용. 마을/사냥터에서는 거부.
+		if string.sub(mapName, 1, 5) ~= "Home_" then
+			if isvalid(pc) then pc:ShowMineFeedback("여기서는 지형을 편집할 수 없습니다.") end
+			return
+		end
+		-- 손님 권한 검증 (설치 권한 재사용).
+		local ownerId = string.sub(mapName, 6)
+		if _PersistenceManager and not _PersistenceManager:CheckGuestPermission(ownerId, playerComp.UserId, "place") then
+			if isvalid(pc) then pc:ShowMineFeedback("이 영지를 편집할 권한이 없습니다.") end
+			return
+		end
+
+		-- 아이템 소유 확인 + 편집 동작 조회 (데이터 주도).
+		if not self:HasItem(itemName, 1) then
+			log_warning("Player " .. self.Entity.Name .. " does not own " .. itemName)
+			return
+		end
+		local baseName = self:GetBaseItemName(itemName)
+		local ds = _DataService:GetTable("item_dataset")
+		if ds == nil then return end
+		local row = ds:FindRow("Name", baseName)
+		if row == nil then return end
+		local action = ""
+		-- pcall 가드: 데이터셋 미리프레시로 TerrainEditAction 컬럼이 없어도 조용히 무동작.
+		local ok, v = pcall(function() return row:GetItem("TerrainEditAction") end)
+		if ok and v ~= nil then action = v end
+		if action == "" then return end   -- 편집 도구/아이템이 아님
+
+		-- 사거리 검증 (설치와 동일: 체비쇼프 거리 ≤ 4).
+		local tilemap = currentMap:GetFirstChildComponentByTypeName("RectTileMapComponent", true)
+		if not isvalid(tilemap) then return end
+		local playerCell = tilemap:ToCellPosition(self.Entity.TransformComponent.WorldPosition)
+		if playerCell == nil then return end
+		local dist = math.max(math.abs(cellX - playerCell.x), math.abs(cellY - playerCell.y))
+		if dist > 4 then
+			log_warning("Terrain edit distance too far: " .. dist)
+			return
+		end
+
+		-- 점유 셀(자원/가구/설치 타일) 편집 불가.
+		local resourceSpawner = _ResourceSpawner
+		if resourceSpawner == nil then return end
+		local key = cellX .. "_" .. cellY
+		local occ = resourceSpawner:GetGridToEntity(mapName)[key]
+		if occ ~= nil and (occ.isTile == true or occ.isFurniture == true or isvalid(occ.entity)) then
+			if isvalid(pc) then pc:ShowMineFeedback("자원이나 설치물이 있어 편집할 수 없습니다.") end
+			return
+		end
+
+		-- 지형 편집 적용 (Layer2 변형 + 이웃 8셀 프린지 재계산 + 영속 델타 기록).
+		local success = resourceSpawner:ApplyTerrainEdit(mapName, currentMap, action, cellX, cellY, true)
+		if not success then
+			if isvalid(pc) then
+				if action == "removeGrass" then
+					pc:ShowMineFeedback("이미 길입니다.")
+				else
+					pc:ShowMineFeedback("여기엔 잔디를 심을 수 없습니다.")
+				end
+			end
+			return
+		end
+
+		-- plantGrass는 씨앗 1개 소비 (removeGrass는 재사용 도구라 소비 없음).
+		if action == "plantGrass" then
+			self:RemoveItem(itemName, 1)
+		end
+
+		-- 편집 델타 영속화 트리거 (60초 주기/퇴장 시 플러시).
+		if _PersistenceManager then
+			_PersistenceManager:MarkPlayerDirty(playerComp.UserId)
+		end
+	end
+
 	method string SafeEncodeJson(table tbl, string defaultVal)
 		if tbl == nil or next(tbl) == nil then
 			return defaultVal or "{}"

@@ -59,35 +59,10 @@
 
 ## 2. 완료된 작업 기록
 
-### T0. 타일 스킴 전환 (2026-07-07) — **코드/맵 수정 완료, 런타임 검증 보류**
-
-- §1.3의 신규 스킴으로 전면 전환:
-  1. `scripts/build_maps.cjs` — 헤더 스킴 명세 갱신, `grassTileName()` 신설(FullGrass/Soil프린지/Grass*Corner 매핑), 페인터 반전(L1=Soil 전면, L2=잔디 커버에서 길 마스크만 뚫음), `disc`/`octagon` 제거 및 전 디자인 rect 전환, 레이어 슬롯 `soil`→`grass` 리네임.
-  2. `ResourceSpawner.mlua` — `IsGrassTileName`/`IsSoilTileName` 재정의, `ComputeGrassTileName` 신설, `AutotileSoilLayer`→`AutotileGrassLayer`(스무딩 제거 — Grass*Corner가 있어 불필요), 프로퍼티 `AutotileSoilOnSetup`→`AutotileGrassOnSetup`(기본 false 유지), 절차 지형 잠금 경로 및 손디자인 `RequiredTile` 판정 반전.
-  3. `UIMinimapController.mlua` — `TileColor`: `Soil` 정확 일치=흙색, `Soil{dir}` 프린지/`Grass*`=잔디색.
-  4. `game_design.md` §3.5 지형 불릿 + `PlayerInventory.mlua` 설치 검증 주석 갱신.
-  5. `node scripts/build_maps.cjs --force`로 맵 4종(map01/town/template_field/template_boss) 재페인팅. 산출 검증: 전 맵 L1=`Soil` 전면(카운트 정확), L2 잔디 패밀리 13종만 사용, 무효 tileIndex 0건.
-- **남은 검증**: §3 T1 참조.
-
-### T0b. 밀착 페어 타일 문법 전환 (2026-07-08) — **코드/맵 수정 완료 + refresh 빌드 로그 무에러, 플레이 육안 검증은 보스**
-
-- 보스의 wall.tileset 리네임(`Grass{dir}` 8방) 후속으로 §1.3 밀착 페어 스킴 전면 전환:
-  1. `scripts/build_maps.cjs` — 서브셀 흙 마스크 모델로 재작성(`makeDirt`/`walk`/`plaza`/`island`/`cellTile`). 4맵 디자인을 길=중심선 폴리라인, 광장·밭·아레나=플라자 사각형으로 변환. 산출 검사 내장(무효 대각 패턴/길 셀 L2 홀 → 즉시 실패). town 대로(폭 5)는 문법 2 유지, template_boss 회랑(폭 3)은 셀 중심 대칭 위해 문법 2 유지.
-  2. `ResourceSpawner.mlua` — `IsGrassEdgeTileName` 신설, RequiredTile 판정 재정의(방향 에지=길→`"Soil"`), 절차 지형 브랜치도 동일 규칙(칠한 타일명으로 판정), `IsGrassTileName`의 사어 `Soil{dir}` 브랜치 제거, `AutotileGrassLayer`에 페어 비호환 ⛔ 경고 주석.
-  3. `UIMinimapController.mlua` — `TileColor`: 방향 에지=흙색(밀착 길이 미니맵에 흙 선으로 표시), `FullGrass`/`Grass*Corner`=잔디색, 사어 `Soil{dir}` 브랜치 제거.
-  4. `node scripts/build_maps.cjs --force` 4맵 재페인팅 — 전 맵 산출 검사 통과(무효 0건·길 L2 홀 0건), 표본 좌표 대조로 페어/꺾임/캡/접속 문법 정합 확인. 밭 A를 `[-23,-19]`로 1칸 축소(잔디 스트립 2칸 규칙).
-  5. Maker `refresh` → 빌드 로그 **에러 0건** (Warning 2건은 기존 `slime_king` `BossDropMin/Max` LWA-4012 — 본 작업 무관. T1에서 발견됐던 MerchantInteract LEA-1102도 현 로그에 없음).
-- 남은 검증: Play 육안(보스) — 꺾임/캡/접속 점검 포인트는 `build_maps.cjs` 실행 로그의 "점검:" 줄 참조.
-
-### T0c. 곡괭이 swingT1 무기 미표시 수정 — 양손 슬롯 정합 (2026-07-08) — **코드/데이터 수정 완료 + refresh 빌드 무에러, 스윙 육안 검증은 보스(T3)**
-
-- **원인**: 곡괭이 3종의 `WeaponRUID`가 전부 한손(`weapon`) 아바타 아이템(호스맨즈/황금 곡괭이/다이아 곡괭이)이라 두손 액션 `swingT1`의 무기 파츠 프레임이 없음 → 스윙 중 도구만 미렌더. 도끼(`swingO2`=한손 액션)는 정상이었던 이유도 동일 규칙.
-- **수정 (액션 계열 ↔ 장착 슬롯 정합)**:
-  1. `item_dataset.csv` — `WeaponSlot` 컬럼 신설(공란=한손 기본). 곡괭이 3종 `WeaponSlot=twohand` + `WeaponRUID`를 양손(`twohandweapon`) 곡괭이 아이템으로 교체: stone=`곡괭이`(18a44a9f39a94633b56902492e5b7da6) / copper=`Golden Pickaxe`(1d9a1f0f8a004cce8938dff567313743, 기존 황금=구리 선례 유지) / iron=`Pickaxe`(54a842df20b94f37b0d7bdbc0c1d2acd). copper/iron `IconRUID`도 `thumbnail://<신규 RUID>`로 동기화(stone은 전용 아이콘 유지).
-  2. `PlayerInventory.mlua` `ApplyHeldToolCostume` — `WeaponSlot=twohand`면 `TwoHandedWeapon` 슬롯 장착, 아니면 `OneHandedWeapon` 장착. 양손이 한손+보조 슬롯을 점유하는 상호 배타 규칙에 따라 **반대 슬롯은 항상 해제**. `WeaponSlot` 컬럼 미리프레시 대비 pcall 가드(한손 폴백). 장착/해제/영속 복원 전 경로가 이 메서드 단일 지점 경유 확인.
-  3. `MineState.mlua` — "한손 액션만 가능" 사어 주석을 정합 규칙(swingO*↔공란 / swingT*↔twohand)으로 갱신. 폴백(swingO1/swingO2)은 컬럼 미존재 시에만 작동 — 그 경우 슬롯도 한손 폴백이라 정합 유지.
-- refresh → 빌드 로그 에러 0건 (Warning 2건은 기존 slime_king LWA-4012 — 무관).
-- **곡괭이 티어별 룩 배정은 이름 기준 추정** — 썸네일 API 미제공으로 육안 미확인. 보스가 T3 검증 중 룩이 어긋나면 CSV `WeaponRUID`/`IconRUID` 셀만 교체하면 됨.
+> 완료 항목은 `game_design.md`에 반영 완료 — 상세 코드/데이터 이력은 git 로그 참조. 이 문서에는 요약 포인터만 남긴다.
+>
+> - **타일 스킴 전환(2026-07-07) + 밀착 페어 문법(2026-07-08)** → `game_design.md` §3.5 지형(TileMap) 불릿. 생성기 `scripts/build_maps.cjs`, 런타임 `ResourceSpawner.mlua`(`IsGrassEdgeTileName`/`ComputeGrassTileName` 등), 미니맵 `UIMinimapController.mlua` 반영. **스킴 명세의 최신 단일 소스는 이 문서 §1.3**.
+> - **곡괭이 swingT1 무기 미표시 수정 — 양손 슬롯 정합(2026-07-08)** → `game_design.md` Phase 5. `item_dataset.csv` `WeaponSlot` 컬럼 신설, `PlayerInventory.ApplyHeldToolCostume`(twohand→`TwoHandedWeapon` 슬롯·반대 슬롯 해제), `MineState.mlua` 주석 갱신. (스윙 중 도구 렌더 육안 재확인은 §3 T3.)
 
 ---
 
@@ -96,27 +71,9 @@
 > 상태: `[대기]` / `[진행]` / `[완료]` / `[보류]`
 > 각 항목은 **Target(파일) / Change(변경) / Acceptance(완료 기준)** 3요소를 반드시 채운다.
 
-### T1. [검증 PASS — 2026-07-07 에이전트 보스 지시로 수행] 신규 타일 스킴 런타임 검증
-- ✅ **2026-07-07 런타임 검증 결과 (보스가 play/캡처/logs 허용해 직접 수행)**: 현재 디스크 상태 기준 `refresh`→`play`→`logs`→`stop` 완주.
-  - ① `ResourceSpawner`/`UIMinimapController` Error 0건. 런타임 로그 441줄 전부 Info(에러/워닝 0). `UIMinimapController: Tilemap layers cached ... map01/Home` 정상, ResourceSpawner가 hunt01~04·Home 청크/포탈/보스 무에러 셋업.
-  - ② map01 = 십자 Soil 길이 잔디 관통, 가장자리 grass→dirt 프린지 자연스럽게 연결.
-  - ③ Home 맵에서 나무/덤불/풀 전부 잔디 위에만, 흙 길·밴드는 자원 없이 비어 있음.
-  - ④ 미니맵에 흙색 길이 녹색 잔디 위로 뚜렷이 표시(`TileColor`: `Soil`정확=(0.76,0.60,0.42) vs 잔디군=(0.39,0.60,0.13)로 구분).
-  - ⑤ 🔶 시스템 PASS(`Reconstructed ... 2 furniture entities` — 가구 재구성 동작). **인터랙티브 실제 설치**는 이번 세션 미조작.
-  - ⚠️ 검증은 **현재 디스크 상태** 기준. 보스가 `wall.tileset` 타일명을 재정리(GrassR/L/T/D 등)하거나 길 폭을 바꾸면 **재검증 필요**.
-  - ⚠️ **범위 외 신규 발견 (타일 스킴과 무관)**: `RootDesk/MyDesk/NPC/Scripts/MerchantInteract.mlua`의 `OnBeginPlay` line 2~3에서 빌드 에러 `[LEA-1102] EventHandlerBase ConnectEvent(Type eventType, func eventHandler)` 2건 — `ConnectEvent` 호출 시그니처/인자 문제로 추정. 상점 NPC 이벤트 연결이 조용히 안 걸릴 수 있으니 별도 수정 필요.
-- ⚠️ **2026-07-07 보스 인수**: 맵/타일 작업(길 폭 축소 포함)은 보스가 Maker에서 직접 진행 중. 하위 에이전트는 착수 금지 — 보스 맵 작업 중 `wall.tileset` 타일명이 재정리될 수 있으니(예: `GrassR/GrassL/GrassT/GrassD` 계열 언급됨), **타일 관련 코드 작업 전 반드시 wall.tileset 이름을 재확인**할 것.
-- **배경**: §2 T0. 맵 4종이 새 스킴으로 재페인팅됐고 `.mlua` 3종이 수정됐으나 Maker 미기동 상태라 런타임 미검증.
-- **Target**: 코드 변경 없음 (검증 전용; 실패 시에만 §1.3 기재 파일 수정)
-- **Change**: §1.4 절차로 `refresh` → `play`. ① 빌드 로그에 `ResourceSpawner`/`UIMinimapController` 관련 Error 없음 확인 ② map01에서 길(잔디 구멍)이 Soil로 보이고 잔디 프린지/코너 아트가 이어지는지 육안 확인 ③ 자원(나무/풀)이 잔디 위에만 스폰되고 길 위에 스폰 안 되는지 ④ 미니맵에서 길=흙색, 잔디=녹색으로 나오는지 ⑤ 가구 설치가 잔디/길 양쪽에서 동작하는지.
-- **Acceptance**: 위 5개 항목 Play 모드 통과 + `logs` 무에러. 실패 항목은 원인 파일과 함께 §3에 신규 T항목으로 보고.
-
-### T2. [검증 PASS — 2026-07-07] 잔디 프린지/코너 아트 방향 확인
-- ✅ **검증 결과**: map01 십자 길 + Home 맵 좌측 세로 길·하단 흙 밴드에서 grass→dirt 프린지가 **거울상/역방향 심(seam) 없이 길 쪽을 향해 매끄럽게 연결**됨. `build_maps.cjs grassTileName()`과 `ResourceSpawner ComputeGrassTileName`이 동일 규칙이라 아트가 현재 이름과 정합. ⚠️ 단, **보스가 wall.tileset을 리네임/재정리 중이면** 아트-이름 정합이 깨질 수 있으니 그 작업 후 재확인 필요.
-- **배경**: 접미사 컨벤션은 "방향 = 길(마스크가 비는) 쪽"으로 구현했다 (`SoilT` = 위쪽이 길). 새로 리네임된 wall.tileset 아트가 이 방향과 거울상이면 프린지가 반대로 보인다.
-- **Target**: (방향이 맞으면 변경 없음) 어긋나면 `scripts/build_maps.cjs`의 `grassTileName()` + `ResourceSpawner.mlua`의 `ComputeGrassTileName`의 접미사 매핑만 스왑 — 두 곳이 동일 규칙이어야 한다.
-- **Change**: T1의 육안 확인 중 프린지 8방향 + 코너 4종이 길 방향과 일치하는지 대조. 어긋난 방향만 매핑 교정 후 `node scripts/build_maps.cjs --force` 재실행.
-- **Acceptance**: 전 방향 프린지/코너가 길 쪽을 향해 자연스럽게 이어짐 (map01 우물 광장 + S자 길에서 확인).
+### T1–T2. [완료 — 검증 PASS(2026-07-07), game_design.md §3.5 반영] 타일 스킴 런타임·프린지 검증
+- 보스가 직접 `refresh`→`play`→`logs`→`stop` 완주: 자원=잔디 위에만 스폰·길=Soil 노출·미니맵 흙/잔디 색 구분·프린지 방향 정합(거울상 심 없음)·`ResourceSpawner`/`UIMinimapController` 무에러 확인. 이후 07-08 밀착 페어 리네임분은 refresh 빌드 클린(플레이 육안은 제작자).
+- ⚠️ **타일 관련 코드 작업(T4/T5) 착수 전 `wall.tileset` 타일명을 반드시 재확인**할 것 — 밀착 페어 리네임으로 `Grass{dir}` 8 + `Grass*Corner` 4 체계(§1.3이 단일 소스). T1에서 발견됐던 MerchantInteract `LEA-1102`는 이후 로그에서 소거됨.
 
 ### T3. [대기] 도구 스윙 모션 런타임 검증 (이월 — 2026-07-08 양손 슬롯 수정 반영)
 - **배경**: 스윙 액션은 `item_dataset.csv`의 `SwingAction` 컬럼이 1순위 데이터 소스 (`MineState.mlua`가 조회, 폴백 pickaxe→`swingO1`/axe→`swingO2`, 기본 `stabO2`). 곡괭이 3종=`swingT1`(양손), 도끼=`swingO2`(한손). **2026-07-08 보스 지시로 swingT1 중 곡괭이 미표시 수정 완료(§2 T0c)** — 액션 계열과 장착 슬롯 정합 규칙: `swingO*/stabO*` ↔ `WeaponSlot` 공란(한손), `swingT*/stabT*` ↔ `WeaponSlot=twohand`(양손 아바타 아이템 필수). 신규 도구 추가 시 이 짝을 지킬 것.
@@ -131,11 +88,18 @@
 - **Acceptance**: 경계 밴드 비주얼이 잔디/흙 아트와 이어지고, 아바타가 지형 위에 정상 렌더.
 
 
-### T5. [대기] 영지 타일 편집 — 길 파기/잔디 심기 (Phase 14-A)
+### T5. [코드 완료 — LSP 진단 무에러, 런타임 검증 보류(Maker 미기동)] 영지 타일 편집 — 길 파기/잔디 심기 (Phase 14-A)
 - **배경**: `game_design.md` §2.2 ① "개인 타일 편집 우선" + Phase 14-A. 신규 타일 스킴(§1.3)을 그대로 활용 — 잔디 커버를 걷으면 길이 된다.
-- **Target**: `RootDesk/MyDesk/item/DataSets/item_dataset.csv`(+RecipeDataSet), `PlayerInventory.mlua`(서버 검증), `PlayerController.mlua`(대상 셀/프리뷰), `PersistenceManager.mlua`(월드 델타 영속화), `ResourceSpawner.mlua`(점유/스폰 상호작용)
-- **Change**: ① `item_dataset`에 `TerrainEditAction` 컬럼(removeGrass/plantGrass) — 삽 도구·Grass Seed 아이템 행 추가 ② Ctrl 사용 시 대상 셀의 `RectTileMap2` SetTile/RemoveTile + 주변 8셀 프린지 재계산(`ComputeGrassTileName` 재사용) ③ 편집 델타를 설치 타일과 동일한 월드 데이터 계층으로 영속화·복원 ④ 자원/가구 점유 셀은 편집 불가(서버 검증).
-- **Acceptance**: 삽으로 판 셀이 길(Soil 노출)로 보이고 프린지가 이어짐, Seed로 복구 가능, 재접속 후 편집 상태 유지, 점유 셀 편집 거부. 빌드 로그 무에러(플레이 검증은 보스).
+- **✅ 2026-07-09 구현 (6파일)**:
+  1. `item_dataset.csv` — `TerrainEditAction` 컬럼 신설(공란=일반). 데이터 주도 2행 추가: `Shovel`(tool/ToolType=shovel/`removeGrass`, 아바타·아이콘은 스톤 곡괭이 RUID 재사용=placeholder / EntryId도 곡괭이 모델 재사용→드롭 무에러) + `Grass Seed`(resource/`plantGrass`, 아이콘·EntryId는 Grass 아이템 재사용). `RecipeDataSet.csv`에 두 제작 레시피 추가(Shovel=Wood2+Stone1, Grass Seed=Grass1).
+  2. `ResourceSpawner.mlua` — `TerrainEditsJsonMap` 프로퍼티 + `Get/SetTerrainEditsJson`(설치 타일 JSON과 동일 패턴), **`ApplyTerrainEdit(mapName,map,action,x,y,persist)`**(잔디 셀 마스크 판정→`RectTileMap2` SetTile/RemoveTile→이웃 8셀 `ComputeGrassTileName` 재계산→persist 시 델타 append), `ReconstructTerrainEditsForMap`(순서 재생, 멱등). `ReconstructWorldPlacementsForMap` 말미에서 호출.
+  3. `PlayerInventory.mlua` — `ServerRequestTerrainEdit`(@Server): senderUserId·영지(Home_*)·손님 place권한·소유·사거리(≤4)·점유(자원/가구/타일) 5중 검증 → `ApplyTerrainEdit(persist=true)` → plantGrass만 씨앗 1소비 → `MarkPlayerDirty`. 동작은 `TerrainEditAction` 컬럼값으로만 분기(이름 하드코딩 없음).
+  4. `PlayerController.mlua` `TryMine` — 활성 퀵슬롯 아이템의 `TerrainEditAction`이 있으면 설치/채광보다 우선 dispatch. removeGrass는 `MINE` 상태로 삽 스윙 모션 재생(MineState는 애니 전용 확인), 대상 셀 프리뷰는 기존 `UpdateMineReticle`이 자동 처리.
+  5. `PersistenceManager.mlua` — save `data.homeTerrainEdits` 추가, load(기존/신규 유저 양쪽) `SetTerrainEditsJson` 주입(구세이브는 `or "[]"` 폴백=마이그레이션 불필요), Reconstruct가 재생.
+- **검증 상태**: 매 편집 LSP `mlua-diagnose` errors=0/warnings=0(Info는 전부 기존 LIA-1114 크로스스크립트 noise). Maker 미기동으로 `refresh`/빌드 로그/Play **미실행 — 런타임 검증 보류**.
+- **설계 근거 메모(재확인용)**: 영지(비절차 경로)는 청크 로딩이 `RectTileMap2`를 **읽기만** 하고 재페인팅 안 함(`ResourceSpawner` L957-975) → 편집이 청크 리로드로 지워지지 않고, 자원 스폰 억제도 편집된 타일 상태에서 emergent(별도 점유 불필요). 이웃 재계산은 편집 셀 인접 8칸만 → 항상 흙 이웃 1칸↑ 보유해 FullGrass 평탄화 안 됨(전맵 `AutotileGrassLayer` 문제와 무관).
+- **남은 검증(제작자)**: Maker 기동 후 `refresh`→빌드 로그 무에러 확인 → Play: 삽 장착 Ctrl로 잔디 셀 파기(Soil 노출·프린지 연결), 씨앗 퀵슬롯 등록 후 Ctrl로 복구, 자원/가구 셀에서 거부 메시지, 재접속 후 편집 상태 유지.
+- **알려진 한계/후속**: ① Shovel/Grass Seed 아트가 placeholder(곡괭이/풀 RUID 재사용) — 전용 스프라이트는 CSV `IconRUID`/`WeaponRUID`/`EntryId` 셀 교체만으로 반영(msw-painter). ② Grass Seed는 `resource`라 제작 시 퀵슬롯 자동등록 안 됨(수동 드래그 1회 필요) — 필요 시 `PlayerInventory.mlua` 크래프트 자동등록 분기(현 tool/furniture)에 조건 추가. ③ 인접한 손디자인 밀착 페어 길 옆을 파면 접합부가 셀단위 문법으로 재계산돼 미세 심 가능(설계상 "마스크 합집합 자동" 허용 범위).
 
 ### T6. [대기] 농사 시스템 MVP (Phase 14-B)
 - **배경**: Phase 14-B — "농장" 필러의 실체. 기존 자원 엔티티/드롭/점유 파이프라인을 최대 재사용.

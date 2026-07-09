@@ -6,6 +6,10 @@ script ResourceSpawner extends Logic
 	property table DestroyedResourcesMap = {}
 	property table PlacedTilesJsonMap = {}
 	property table PlacedFurnitureJsonMap = {}
+	-- 지형 편집 델타(삽으로 잔디 제거 / 씨앗으로 잔디 심기)를 설치 타일과 동일한 월드 데이터
+	-- 계층으로 보존한다. 각 항목 { action="removeGrass"|"plantGrass", x, y }. 맵 로드 시 베이스
+	-- 지형 위에 순서대로 재생(replay)해 편집 상태를 복원한다 (T5 / Phase 14-A).
+	property table TerrainEditsJsonMap = {}
 	property table LoadedChunksMap = {}
 	-- Per-map generation overrides keyed by map name. Estates use the singleton defaults
 	-- (PrngSeed / ForceBiomeId = green_island); hunting maps set their own seed (rotated on a
@@ -89,6 +93,92 @@ script ResourceSpawner extends Logic
 
 	method void SetPlacedFurnitureJson(string mapName, string jsonStr)
 		self.PlacedFurnitureJsonMap[mapName] = jsonStr
+	end
+
+	method string GetTerrainEditsJson(string mapName)
+		-- 지형 편집 델타 JSON 배열을 반환 (없으면 "[]").
+		return self.TerrainEditsJsonMap[mapName] or "[]"
+	end
+
+	method void SetTerrainEditsJson(string mapName, string jsonStr)
+		-- PersistenceManager가 로드 시 세이브값을 주입하는 진입점 (설치 타일 JSON과 동일 패턴).
+		self.TerrainEditsJsonMap[mapName] = jsonStr
+	end
+
+	@ExecSpace("ServerOnly")
+	method boolean ApplyTerrainEdit(string mapName, Entity map, string action, integer x, integer y, boolean persist)
+		-- 대상 셀의 잔디 커버(Layer 2 / RectTileMap2)를 편집하고 이웃 8셀 프린지를 재계산한다.
+		-- action="removeGrass": 잔디 제거 → L2 홀(아래 L1 Soil 노출 = 길). "plantGrass": 빈 셀에 잔디 심기.
+		-- 성공 시 true. persist=true면 편집 델타를 TerrainEditsJson에 기록한다.
+		-- ⚠️ 셀 단위 잔디 마스크(홀 문법)로 재계산 — 편집 인접 8셀은 방금 판/심은 흙 셀을 1칸 이상
+		-- 이웃으로 가지므로 FullGrass로 평탄화되지 않는다(AutotileGrassLayer 전맵 평탄화 문제와 무관).
+		if not isvalid(map) then return false end
+		local layer2Entity = map:GetChildByName("RectTileMap2")
+		if not isvalid(layer2Entity) then return false end
+		local tilemap2 = layer2Entity.RectTileMapComponent
+		if not isvalid(tilemap2) then return false end
+
+		-- 현재 칠해진 타일을 읽어 "잔디 여부"를 판정하는 마스크 (편집 진행 중 실시간 갱신됨).
+		local function grassAt(ax, ay)
+			local info = tilemap2:GetTile(ax, ay)
+			return info ~= nil and self:IsGrassTileName(info.Name)
+		end
+
+		if action == "removeGrass" then
+			if not grassAt(x, y) then return false end   -- 이미 길/흙 → 팔 것이 없음
+			tilemap2:RemoveTile(x, y)
+		elseif action == "plantGrass" then
+			if grassAt(x, y) then return false end        -- 이미 잔디 → 심을 필요 없음
+			-- L1 베이스(Soil)가 있어야(= 맵 안·벽 밴드 밖) 심을 수 있다.
+			local layer1Entity = map:GetChildByName("RectTileMap")
+			local baseOk = false
+			if isvalid(layer1Entity) and isvalid(layer1Entity.RectTileMapComponent) then
+				baseOk = layer1Entity.RectTileMapComponent:GetTile(x, y) ~= nil
+			end
+			if not baseOk then return false end
+			tilemap2:SetTile(self:ComputeGrassTileName(grassAt, x, y), x, y)
+		else
+			return false
+		end
+
+		-- 이웃 8셀 중 잔디인 셀만 프린지 재계산 (편집으로 흙/잔디 경계가 바뀐 곳 보정).
+		for dx = -1, 1 do
+			for dy = -1, 1 do
+				if dx ~= 0 or dy ~= 0 then
+					local nx, ny = x + dx, y + dy
+					if grassAt(nx, ny) then
+						tilemap2:SetTile(self:ComputeGrassTileName(grassAt, nx, ny), nx, ny)
+					end
+				end
+			end
+		end
+
+		if persist then
+			local json = self:GetTerrainEditsJson(mapName)
+			local edits = (json ~= nil and json ~= "") and _HttpService:JSONDecode(json) or {}
+			table.insert(edits, { action = action, x = x, y = y })
+			self:SetTerrainEditsJson(mapName, _HttpService:JSONEncode(edits))
+		end
+		return true
+	end
+
+	@ExecSpace("ServerOnly")
+	method void ReconstructTerrainEditsForMap(Entity map)
+		-- 저장된 지형 편집 델타를 베이스 지형 위에 삽입 순서대로 재생한다. 각 편집이 tilemap을 변형하고
+		-- 이웃을 재계산하므로 순서 재생이 최종 상태를 결정론적으로 복원한다 (재생 자체는 persist=false).
+		if not isvalid(map) then return end
+		local mapName = map.Name
+		local json = self:GetTerrainEditsJson(mapName)
+		local edits = (json ~= nil and json ~= "") and _HttpService:JSONDecode(json) or {}
+		local applied = 0
+		for _, e in ipairs(edits) do
+			if e.action ~= nil and e.x ~= nil and e.y ~= nil then
+				if self:ApplyTerrainEdit(mapName, map, e.action, math.floor(e.x), math.floor(e.y), false) then
+					applied = applied + 1
+				end
+			end
+		end
+		log("ResourceSpawner: Replayed " .. applied .. "/" .. #edits .. " terrain edits in map " .. mapName)
 	end
 
 	method number Hash2D(number x, number y, number seed)
@@ -1663,6 +1753,9 @@ script ResourceSpawner extends Logic
 			end
 		end
 		log("ResourceSpawner: Reconstructed " .. #placedTiles .. " tiles and " .. #placedFurniture .. " furniture entities in map " .. mapName)
+
+		-- 설치물 재구성 후 지형 편집 델타(삽/씨앗)를 베이스 잔디 위에 재생해 편집 상태를 복원한다.
+		self:ReconstructTerrainEditsForMap(map)
 	end
 
 	@ExecSpace("ServerOnly")

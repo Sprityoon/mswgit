@@ -519,6 +519,7 @@ script PlayerController extends Component
 		local targetCell = Vector2Int(playerCell.x + self.LastDirectionX, playerCell.y + self.LastDirectionY)
 		
 		local isPlaceable = false
+		local terrainAction = ""
 		local activeItem = ""
 		local inv = self.Entity:GetComponent("script.PlayerInventory")
 		if isvalid(inv) then
@@ -529,13 +530,30 @@ script PlayerController extends Component
 				local ds = _DataService:GetTable("item_dataset")
 				if ds ~= nil then
 					local row = ds:FindRow("Name", baseName)
-					if row ~= nil and row:GetItem("Category") == "furniture" then
-						isPlaceable = true
+					if row ~= nil then
+						-- 데이터 주도: TerrainEditAction 컬럼(removeGrass/plantGrass)이 있으면 지형 편집 우선.
+						local ok, v = pcall(function() return row:GetItem("TerrainEditAction") end)
+						if ok and v ~= nil then terrainAction = v end
+						if row:GetItem("Category") == "furniture" then
+							isPlaceable = true
+						end
 					end
 				end
 			end
 		end
-		
+
+		if terrainAction ~= nil and terrainAction ~= "" then
+			-- 삽(removeGrass)=장착된 양손 도구라 스윙 모션 재생 / 씨앗(plantGrass)은 애니 없이 심기.
+			if terrainAction == "removeGrass" then
+				local state = self.Entity.StateComponent
+				if isvalid(state) then
+					state:ChangeState("MINE")
+				end
+			end
+			inv:ServerRequestTerrainEdit(activeItem, targetCell.x, targetCell.y)
+			return
+		end
+
 		if isPlaceable then
 			log("[PLACE] Requesting placement of " .. activeItem .. " at cell (" .. targetCell.x .. ", " .. targetCell.y .. ")")
 			inv:ServerRequestPlace(activeItem, targetCell.x, targetCell.y)

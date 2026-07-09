@@ -264,10 +264,11 @@ script PersistenceManager extends Logic
 				log("PersistenceManager: Inventory restored.")
 			end
 
-			-- Restore Placed Tiles, Furniture, and Destroyed Resources for player's home map
+			-- Restore Placed Tiles, Furniture, Destroyed Resources, and Terrain Edits for player's home map
 			local tilesRaw = data.homeTiles or "[]"
 			local furnRaw = data.homeFurniture
 			local destRaw = data.homeDestroyedResources or "[]"
+			local editsRaw = data.homeTerrainEdits or "[]"
 			
 			if furnRaw == nil or furnRaw == "" then
 				furnRaw = self:GetDefaultFurnitureJson(inv)
@@ -297,6 +298,7 @@ script PersistenceManager extends Logic
 
 			_ResourceSpawner:SetPlacedTilesJson(mapName, tilesRaw)
 			_ResourceSpawner:SetPlacedFurnitureJson(mapName, furnRaw)
+			_ResourceSpawner:SetTerrainEditsJson(mapName, editsRaw)
 			_ResourceSpawner:LoadDestroyedResourcesFromJson(mapName, destRaw)
 			_ResourceSpawner:ReconstructWorldPlacementsForMap(map)
 
@@ -346,7 +348,8 @@ script PersistenceManager extends Logic
 			local inv = player:GetComponent("script.PlayerInventory")
 			local defaultFurn = self:GetDefaultFurnitureJson(inv)
 			_ResourceSpawner:SetPlacedFurnitureJson(mapName, defaultFurn)
-			
+			_ResourceSpawner:SetTerrainEditsJson(mapName, "[]")
+
 			_ResourceSpawner:LoadDestroyedResourcesFromJson(mapName, "[]")
 			_ResourceSpawner:ReconstructWorldPlacementsForMap(map)
 		end
@@ -450,6 +453,7 @@ script PersistenceManager extends Logic
 			posY = tonumber(posY) or 0.0,
 			homeTiles = tilesJson,
 			homeFurniture = furnJson,
+			homeTerrainEdits = _ResourceSpawner:GetTerrainEditsJson(mapName),
 			homeDestroyedResources = destJson,
 			guestPermissions = permJson
 		}

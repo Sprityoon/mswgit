@@ -69606,7 +69606,7 @@
       {
         "id": "45cc45e0-3337-4639-a2bb-fca3266cca27",
         "path": "/maps/map01/TownPortal",
-        "componentNames": "MOD.Core.TransformComponent,MOD.Core.SpriteRendererComponent,MOD.Core.TriggerComponent,script.PortalGate",
+        "componentNames": "MOD.Core.TransformComponent,MOD.Core.SpriteRendererComponent,MOD.Core.TriggerComponent,script.PortalGate,script.PlaceableFurniture",
         "jsonString": {
           "name": "TownPortal",
           "path": "/maps/map01/TownPortal",
@@ -69656,66 +69656,10 @@
             {
               "@type": "script.PortalGate",
               "Enable": true
-            }
-          ],
-          "@version": 1
-        }
-      },
-      {
-        "id": "566c615f-2a82-4c9f-85ac-f11cdee1b69a",
-        "path": "/maps/map01/RookiePortal",
-        "componentNames": "MOD.Core.TransformComponent,MOD.Core.SpriteRendererComponent,MOD.Core.TriggerComponent,script.PortalGate",
-        "jsonString": {
-          "name": "RookiePortal",
-          "path": "/maps/map01/RookiePortal",
-          "nameEditable": true,
-          "enable": true,
-          "visible": true,
-          "localize": false,
-          "displayOrder": 15,
-          "pathConstraints": "///",
-          "revision": 1,
-          "origin": {
-            "type": "Model",
-            "entry_id": "f2d3a4b5-67c8-49d0-bfd1-ebd3c4a2a1b1",
-            "sub_entity_id": null,
-            "root_entity_id": "566c615f-2a82-4c9f-85ac-f11cdee1b69a",
-            "replaced_model_id": null
-          },
-          "modelId": "f2d3a4b5-67c8-49d0-bfd1-ebd3c4a2a1b1",
-          "@components": [
-            {
-              "@type": "MOD.Core.TransformComponent",
-              "Position": {
-                "x": 2.85199118,
-                "y": 1.97512472,
-                "z": 999.999
-              },
-              "QuaternionRotation": {
-                "x": 0.0,
-                "y": 0.0,
-                "z": 0.0,
-                "w": 1.0
-              },
-              "Enable": true
             },
             {
-              "@type": "MOD.Core.SpriteRendererComponent",
-              "ActionSheet": {},
-              "RenderSetting": 0,
-              "SortingLayer": "MapLayer0",
+              "@type": "script.PlaceableFurniture",
               "Enable": true
-            },
-            {
-              "@type": "MOD.Core.TriggerComponent",
-              "IsLegacy": false,
-              "Enable": true
-            },
-            {
-              "@type": "script.PortalGate",
-              "Enable": true,
-              "TargetMapName": "hunt01",
-              "DestinationGroup": "rookie"
             }
           ],
           "@version": 1
