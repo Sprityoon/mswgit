@@ -531,11 +531,18 @@ script PlayerController extends Component
 				if ds ~= nil then
 					local row = ds:FindRow("Name", baseName)
 					if row ~= nil then
-						-- 데이터 주도: TerrainEditAction 컬럼(removeGrass/plantGrass)이 있으면 지형 편집 우선.
+						-- 데이터 주도: TerrainEditAction 컬럼이 있으면 지형 편집 우선.
 						local ok, v = pcall(function() return row:GetItem("TerrainEditAction") end)
 						if ok and v ~= nil then terrainAction = v end
 						if row:GetItem("Category") == "furniture" then
 							isPlaceable = true
+						end
+						-- 스윙 모션은 액션 이름이 아니라 Category=="tool" 여부 (삽·괭이 공통, 씨앗 무모션).
+						if terrainAction ~= nil and terrainAction ~= "" and row:GetItem("Category") == "tool" then
+							local state = self.Entity.StateComponent
+							if isvalid(state) then
+								state:ChangeState("MINE")
+							end
 						end
 					end
 				end
@@ -543,14 +550,7 @@ script PlayerController extends Component
 		end
 
 		if terrainAction ~= nil and terrainAction ~= "" then
-			-- 삽(removeGrass)=장착된 양손 도구라 스윙 모션 재생 / 씨앗(plantGrass)은 애니 없이 심기.
-			if terrainAction == "removeGrass" then
-				local state = self.Entity.StateComponent
-				if isvalid(state) then
-					state:ChangeState("MINE")
-				end
-			end
-			inv:ServerRequestTerrainEdit(activeItem, targetCell.x, targetCell.y)
+			inv:ServerRequestTerrainEdit(activeItem, targetCell.x, targetCell.y, self.LastDirectionX, self.LastDirectionY)
 			return
 		end
 

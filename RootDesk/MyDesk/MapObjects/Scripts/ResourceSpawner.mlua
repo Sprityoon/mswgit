@@ -6,9 +6,10 @@ script ResourceSpawner extends Logic
 	property table DestroyedResourcesMap = {}
 	property table PlacedTilesJsonMap = {}
 	property table PlacedFurnitureJsonMap = {}
-	-- 지형 편집 델타(삽으로 잔디 제거 / 씨앗으로 잔디 심기)를 설치 타일과 동일한 월드 데이터
-	-- 계층으로 보존한다. 각 항목 { action="removeGrass"|"plantGrass", x, y }. 맵 로드 시 베이스
-	-- 지형 위에 순서대로 재생(replay)해 편집 상태를 복원한다 (T5 / Phase 14-A).
+	-- 지형 편집 델타(삽 digPath / 괭이 digHole / 씨앗 plantGrass)를 설치 타일과 동일한 월드 데이터
+	-- 계층으로 보존한다. 각 항목 { action, x, y, axis?, side? }. 맵 로드 시 베이스 지형 위에
+	-- 순서대로 재생(replay)해 편집 상태를 복원한다 (T11 / Phase 14-A v2 — 서브셀 마스크 밀착 페어).
+	-- 레거시 removeGrass 델타는 Reconstruct 시 digHole로 매핑한다.
 	property table TerrainEditsJsonMap = {}
 	property table LoadedChunksMap = {}
 	-- Per-map generation overrides keyed by map name. Estates use the singleton defaults
@@ -105,58 +106,333 @@ script ResourceSpawner extends Logic
 		self.TerrainEditsJsonMap[mapName] = jsonStr
 	end
 
+	-- ── T11 서브셀 흙 마스크 유틸 (build_maps.cjs cellTile 미러) ──────────────────
+	-- 비트: BL=1, BR=2, TL=4, TR=8. 셀 (x,y) 서브셀 = sx∈{2x,2x+1}, sy∈{2y,2y+1}.
+	-- 접미사 방향 = 흙(길) 쪽. 0=FullGrass / 15=L2 홀 / 대각 2칸(6=TL+BR, 9=TR+BL)=무효→보정.
+
+	method integer FixDiagonalMask(integer mask, string axis)
+		-- 추가 연산용: 대각 2칸 무효 마스크를 3칸 볼록으로 승격 (결정론). axis "h"=같은 행, "v"=같은 열 우선.
+		-- ⚠️ plantGrass 감산 경로에서는 절대 호출하지 말 것 — FixDiagonalMaskSubtract 사용.
+		local n = 0
+		if (mask & 1) ~= 0 then n = n + 1 end
+		if (mask & 2) ~= 0 then n = n + 1 end
+		if (mask & 4) ~= 0 then n = n + 1 end
+		if (mask & 8) ~= 0 then n = n + 1 end
+		if n ~= 2 then return mask end
+		-- TL+BR=6, TR+BL=9 만 대각
+		if mask ~= 6 and mask ~= 9 then return mask end
+		if axis == "v" then
+			if mask == 6 then return mask | 1 end  -- TL+BR → +BL = GrassLD
+			return mask | 2                       -- TR+BL → +BR = GrassRD
+		end
+		if mask == 6 then return mask | 8 end      -- TL+BR → +TR = GrassRT
+		return mask | 4                           -- TR+BL → +TL = GrassLT
+	end
+
+	method integer FixDiagonalMaskSubtract(integer mask, integer dx, integer dy)
+		-- 감산 연산용: 대각 2칸(6=TL|BR, 9=TR|BL)을 1칸 오목 코너로 강등 (결정론).
+		-- 이웃 셀 기준 (dx,dy)=대상 대비 이웃 오프셋. 대상에서 먼 쪽 비트만 보존.
+		-- dx≠0이면 x축(열) 우선, dx=0이면 dy로 y축(행) 판정. 추가식 FixDiagonalMask와 분리.
+		if mask ~= 6 and mask ~= 9 then return mask end
+		if dx ~= 0 then
+			if dx > 0 then
+				-- 이웃이 대상 동쪽 → 대상은 서쪽 → 먼 쪽=오른열(BR,TR)
+				if mask == 6 then return 2 end  -- keep BR
+				return 8                        -- keep TR
+			end
+			-- 이웃이 대상 서쪽 → 먼 쪽=왼열(BL,TL)
+			if mask == 6 then return 4 end      -- keep TL
+			return 1                            -- keep BL
+		end
+		if dy > 0 then
+			-- 이웃이 대상 북쪽 → 먼 쪽=윗줄(TL,TR)
+			if mask == 6 then return 4 end      -- keep TL
+			return 8                            -- keep TR
+		end
+		-- 이웃이 대상 남쪽 → 먼 쪽=아랫줄(BL,BR)
+		if mask == 6 then return 2 end          -- keep BR
+		return 1                                -- keep BL
+	end
+
+	method table GetTerrainFringeTable()
+		-- digHole ½셀 프린지 / plantGrass 대칭 감산 단일 소스.
+		-- {dx, dy, bits}: 상하좌우=대상 쪽 행·열 2칸, 대각=대상 쪽 모서리 1칸.
+		return {
+			{ 0, 1, 3 },   -- N: BL|BR
+			{ 0, -1, 12 }, -- S: TL|TR
+			{ 1, 0, 5 },   -- E: BL|TL
+			{ -1, 0, 10 }, -- W: BR|TR
+			{ 1, 1, 1 },   -- NE: BL
+			{ -1, 1, 2 },  -- NW: BR
+			{ 1, -1, 4 },  -- SE: TL
+			{ -1, -1, 8 }, -- SW: TR
+		}
+	end
+
+	method integer TileNameToMask(string name)
+		-- L2 잔디 패밀리 타일명 → 2×2 흙 마스크. 미지 타일은 -1.
+		if name == nil or name == "" then return -1 end
+		if name == "FullGrass" then return 0 end
+		if name == "GrassT" then return 12 end       -- TL|TR
+		if name == "GrassD" then return 3 end        -- BL|BR
+		if name == "GrassL" then return 5 end        -- TL|BL
+		if name == "GrassR" then return 10 end       -- TR|BR
+		if name == "GrassLT" then return 13 end      -- !BR
+		if name == "GrassRT" then return 14 end      -- !BL
+		if name == "GrassLD" then return 7 end       -- !TR
+		if name == "GrassRD" then return 11 end      -- !TL
+		if name == "GrassLTCorner" then return 4 end -- TL
+		if name == "GrassRTCorner" then return 8 end -- TR
+		if name == "GrassLDCorner" then return 1 end -- BL
+		if name == "GrassRDCorner" then return 2 end -- BR
+		return -1
+	end
+
+	method string MaskToTileName(integer mask)
+		-- 마스크 → L2 타일명. 15(홀)은 "" (호출측 RemoveTile). cellTile()과 동일 매핑.
+		if mask == 0 then return "FullGrass" end
+		if mask == 15 then return "" end
+		if mask == 12 then return "GrassT" end
+		if mask == 3 then return "GrassD" end
+		if mask == 5 then return "GrassL" end
+		if mask == 10 then return "GrassR" end
+		if mask == 13 then return "GrassLT" end
+		if mask == 14 then return "GrassRT" end
+		if mask == 7 then return "GrassLD" end
+		if mask == 11 then return "GrassRD" end
+		if mask == 4 then return "GrassLTCorner" end
+		if mask == 8 then return "GrassRTCorner" end
+		if mask == 1 then return "GrassLDCorner" end
+		if mask == 2 then return "GrassRDCorner" end
+		return "FullGrass"
+	end
+
+	method boolean IsInWallBand(integer x, integer y)
+		-- Big Wall 밴드: max(|x|,|y|) >= MapRadius-WallThickness+1 이면 편집 불가.
+		local wallStart = self.MapRadius - self.WallThickness + 1
+		return math.max(math.abs(x), math.abs(y)) >= wallStart
+	end
+
+	method boolean IsTerrainCellEditable(Entity map, integer x, integer y)
+		-- L1 Soil 존재 + 벽 밴드 밖.
+		if self:IsInWallBand(x, y) then return false end
+		if not isvalid(map) then return false end
+		local layer1Entity = map:GetChildByName("RectTileMap")
+		if not isvalid(layer1Entity) or not isvalid(layer1Entity.RectTileMapComponent) then return false end
+		return layer1Entity.RectTileMapComponent:GetTile(x, y) ~= nil
+	end
+
+	method boolean IsGridOccupied(string mapName, integer x, integer y)
+		-- 자원/가구/설치 타일 점유 여부.
+		local key = x .. "_" .. y
+		local occ = self:GetGridToEntity(mapName)[key]
+		return occ ~= nil and (occ.isTile == true or occ.isFurniture == true or isvalid(occ.entity))
+	end
+
+	method integer GetCellMask(any tilemap2, any tilemap1, integer x, integer y)
+		-- 칠해진 L2 타일명 → 마스크 역산. L2 빈 칸 + L1 Soil = 15(홀). L1 없음/미지 = -1(편집 불가).
+		if not isvalid(tilemap2) then return -1 end
+		local info = tilemap2:GetTile(x, y)
+		if info ~= nil then
+			return self:TileNameToMask(info.Name)
+		end
+		if isvalid(tilemap1) and tilemap1:GetTile(x, y) ~= nil then
+			return 15
+		end
+		return -1
+	end
+
+	method void SetCellMask(any tilemap2, integer x, integer y, integer mask, string axis)
+		-- 마스크 → 타일 재도장 (digPath/digHole 추가 경로). 대각 2칸은 FixDiagonalMask(추가)로 보정.
+		if not isvalid(tilemap2) then return end
+		local fixed = self:FixDiagonalMask(mask, axis)
+		self:SetCellMaskExact(tilemap2, x, y, fixed)
+	end
+
+	method void SetCellMaskExact(any tilemap2, integer x, integer y, integer mask)
+		-- 마스크를 보정 없이 그대로 도장. plantGrass 감산 경로 전용 (추가식 FixDiagonalMask 개입 금지).
+		if not isvalid(tilemap2) then return end
+		if mask == 15 then
+			tilemap2:RemoveTile(x, y)
+		else
+			tilemap2:SetTile(self:MaskToTileName(mask), x, y)
+		end
+	end
+
 	@ExecSpace("ServerOnly")
-	method boolean ApplyTerrainEdit(string mapName, Entity map, string action, integer x, integer y, boolean persist)
-		-- 대상 셀의 잔디 커버(Layer 2 / RectTileMap2)를 편집하고 이웃 8셀 프린지를 재계산한다.
-		-- action="removeGrass": 잔디 제거 → L2 홀(아래 L1 Soil 노출 = 길). "plantGrass": 빈 셀에 잔디 심기.
-		-- 성공 시 true. persist=true면 편집 델타를 TerrainEditsJson에 기록한다.
-		-- ⚠️ 셀 단위 잔디 마스크(홀 문법)로 재계산 — 편집 인접 8셀은 방금 판/심은 흙 셀을 1칸 이상
-		-- 이웃으로 가지므로 FullGrass로 평탄화되지 않는다(AutotileGrassLayer 전맵 평탄화 문제와 무관).
+	method boolean ApplyTerrainEdit(string mapName, Entity map, string action, integer x, integer y, string axis, string side, boolean persist)
+		-- 서브셀 마스크 기반 지형 편집 (T11/T12). axis/side는 digPath만 사용 ("" 허용).
+		-- digPath: 밀착 2서브셀 폭 길 밴드(두 셀). digHole: 홀+½프린지.
+		-- plantGrass: digHole 대칭 역연산 — 대상 0 클리어 + 8이웃 대상쪽 비트 감산 (T12).
+		-- 셀 타일 = 자기 마스크만의 함수 → 이웃 8셀 ComputeGrassTileName 재계산 루프 없음.
 		if not isvalid(map) then return false end
 		local layer2Entity = map:GetChildByName("RectTileMap2")
 		if not isvalid(layer2Entity) then return false end
 		local tilemap2 = layer2Entity.RectTileMapComponent
 		if not isvalid(tilemap2) then return false end
+		local layer1Entity = map:GetChildByName("RectTileMap")
+		local tilemap1 = nil
+		if isvalid(layer1Entity) then tilemap1 = layer1Entity.RectTileMapComponent end
 
-		-- 현재 칠해진 타일을 읽어 "잔디 여부"를 판정하는 마스크 (편집 진행 중 실시간 갱신됨).
-		local function grassAt(ax, ay)
-			local info = tilemap2:GetTile(ax, ay)
-			return info ~= nil and self:IsGrassTileName(info.Name)
-		end
+		local editAxis = axis
+		if editAxis == nil or editAxis == "" then editAxis = "h" end
+		local editSide = side
+		if editSide == nil then editSide = "" end
 
-		if action == "removeGrass" then
-			if not grassAt(x, y) then return false end   -- 이미 길/흙 → 팔 것이 없음
-			tilemap2:RemoveTile(x, y)
-		elseif action == "plantGrass" then
-			if grassAt(x, y) then return false end        -- 이미 잔디 → 심을 필요 없음
-			-- L1 베이스(Soil)가 있어야(= 맵 안·벽 밴드 밖) 심을 수 있다.
-			local layer1Entity = map:GetChildByName("RectTileMap")
-			local baseOk = false
-			if isvalid(layer1Entity) and isvalid(layer1Entity.RectTileMapComponent) then
-				baseOk = layer1Entity.RectTileMapComponent:GetTile(x, y) ~= nil
+		if action == "digPath" then
+			-- 수평 밴드: 아래 셀 윗줄 + 위 셀 아랫줄. 수직 밴드: 좌 셀 오른열 + 우 셀 왼열.
+			-- 자유 끝단: 축 방향 양쪽 이웃 페어(4셀)에 오목 코너 캡 비트 합집합 (build_maps walk 끝단 캡).
+			local x1 = x
+			local y1 = y
+			local x2 = x
+			local y2 = y
+			local add1 = 0
+			local add2 = 0
+			if axis == "h" then
+				add1 = 12  -- TL|TR
+				add2 = 3   -- BL|BR
+				if editSide == "up" then
+					y1 = y
+					y2 = y + 1
+				else
+					-- down: 경계 = (y-1 | y)
+					y1 = y - 1
+					y2 = y
+				end
+			elseif axis == "v" then
+				add1 = 10  -- BR|TR
+				add2 = 5   -- BL|TL
+				if editSide == "right" then
+					x1 = x
+					x2 = x + 1
+				else
+					-- left: 경계 = (x-1 | x)
+					x1 = x - 1
+					x2 = x
+				end
+			else
+				return false
 			end
-			if not baseOk then return false end
-			tilemap2:SetTile(self:ComputeGrassTileName(grassAt, x, y), x, y)
-		else
-			return false
-		end
 
-		-- 이웃 8셀 중 잔디인 셀만 프린지 재계산 (편집으로 흙/잔디 경계가 바뀐 곳 보정).
-		for dx = -1, 1 do
-			for dy = -1, 1 do
-				if dx ~= 0 or dy ~= 0 then
-					local nx, ny = x + dx, y + dy
-					if grassAt(nx, ny) then
-						tilemap2:SetTile(self:ComputeGrassTileName(grassAt, nx, ny), nx, ny)
+			if not self:IsTerrainCellEditable(map, x1, y1) then return false end
+			if not self:IsTerrainCellEditable(map, x2, y2) then return false end
+			if self:IsGridOccupied(mapName, x1, y1) then return false end
+			if self:IsGridOccupied(mapName, x2, y2) then return false end
+
+			local m1 = self:GetCellMask(tilemap2, tilemap1, x1, y1)
+			local m2 = self:GetCellMask(tilemap2, tilemap1, x2, y2)
+			if m1 < 0 or m2 < 0 then return false end
+			local n1 = self:FixDiagonalMask(m1 | add1, axis)
+			local n2 = self:FixDiagonalMask(m2 | add2, axis)
+
+			-- 캡 대상: 축 방향 양쪽 이웃 페어 총 4셀. {cx, cy, bits}
+			-- 수평: 동=아래TL·위BL, 서=아래TR·위BR / 수직: 북=좌BR·우BL, 남=좌TR·우TL
+			local caps = {}
+			if axis == "h" then
+				caps = {
+					{ x1 + 1, y1, 4 },  -- E lower: TL
+					{ x2 + 1, y2, 1 },  -- E upper: BL
+					{ x1 - 1, y1, 8 },  -- W lower: TR
+					{ x2 - 1, y2, 2 },  -- W upper: BR
+				}
+			else
+				caps = {
+					{ x1, y1 + 1, 2 },  -- N left: BR
+					{ x2, y2 + 1, 1 },  -- N right: BL
+					{ x1, y1 - 1, 8 },  -- S left: TR
+					{ x2, y2 - 1, 4 },  -- S right: TL
+				}
+			end
+
+			local capApplied = {}
+			local anyChange = (n1 ~= m1) or (n2 ~= m2)
+			for _, c in ipairs(caps) do
+				local cx = c[1]
+				local cy = c[2]
+				local cbits = c[3]
+				-- 벽/편집불가 스킵(플러시 컷). 점유는 digHole 프린지와 같이 허용.
+				if self:IsTerrainCellEditable(map, cx, cy) then
+					local cm = self:GetCellMask(tilemap2, tilemap1, cx, cy)
+					if cm >= 0 then
+						local cn = self:FixDiagonalMask(cm | cbits, axis)
+						if cn ~= cm then
+							anyChange = true
+						end
+						table.insert(capApplied, { cx, cy, cn })
 					end
 				end
 			end
+
+			if not anyChange then return false end  -- 주 밴드+캡 전부 변화 없음
+
+			self:SetCellMask(tilemap2, x1, y1, n1, axis)
+			self:SetCellMask(tilemap2, x2, y2, n2, axis)
+			for _, c in ipairs(capApplied) do
+				self:SetCellMask(tilemap2, c[1], c[2], c[3], axis)
+			end
+
+		elseif action == "digHole" then
+			-- 문법 2: 대상=홀(15) + 8이웃 ½셀 프린지 마진 합집합.
+			if not self:IsTerrainCellEditable(map, x, y) then return false end
+			if self:IsGridOccupied(mapName, x, y) then return false end
+			local m0 = self:GetCellMask(tilemap2, tilemap1, x, y)
+			if m0 < 0 then return false end
+			if m0 == 15 then return false end  -- 이미 파여 있음
+
+			self:SetCellMask(tilemap2, x, y, 15, "h")
+			local fringes = self:GetTerrainFringeTable()
+			for _, f in ipairs(fringes) do
+				local nx = x + f[1]
+				local ny = y + f[2]
+				if self:IsTerrainCellEditable(map, nx, ny) then
+					local nm = self:GetCellMask(tilemap2, tilemap1, nx, ny)
+					if nm >= 0 then
+						self:SetCellMask(tilemap2, nx, ny, nm | f[3], "h")
+					end
+				end
+			end
+
+		elseif action == "plantGrass" then
+			-- digHole 대칭 역연산(T12): 대상 마스크=0 + 8이웃 대상쪽 비트 AND NOT.
+			-- fringe 테이블은 digHole과 단일 소스. 감산 후 대각은 FixDiagonalMaskSubtract로 1칸 강등.
+			if not self:IsTerrainCellEditable(map, x, y) then return false end
+			if self:IsGridOccupied(mapName, x, y) then return false end
+			local m = self:GetCellMask(tilemap2, tilemap1, x, y)
+			if m < 0 then return false end
+			if m == 0 then return false end  -- 이미 FullGrass
+			self:SetCellMaskExact(tilemap2, x, y, 0)
+			local fringes = self:GetTerrainFringeTable()
+			for _, f in ipairs(fringes) do
+				local fdx = f[1]
+				local fdy = f[2]
+				local fbits = f[3]
+				local nx = x + fdx
+				local ny = y + fdy
+				-- 이웃 점유여도 마진 클리어는 허용 (digHole 마진 합집합과 대칭).
+				if self:IsTerrainCellEditable(map, nx, ny) then
+					local nm = self:GetCellMask(tilemap2, tilemap1, nx, ny)
+					if nm >= 0 then
+						-- AND NOT bits (unary ~ 의존 회피: nm에서 fbits 겹침만 제거)
+						local cleared = nm - (nm & fbits)
+						cleared = self:FixDiagonalMaskSubtract(cleared, fdx, fdy)
+						self:SetCellMaskExact(tilemap2, nx, ny, cleared)
+					end
+				end
+			end
+
+		else
+			return false
 		end
 
 		if persist then
 			local json = self:GetTerrainEditsJson(mapName)
 			local edits = (json ~= nil and json ~= "") and _HttpService:JSONDecode(json) or {}
-			table.insert(edits, { action = action, x = x, y = y })
+			local entry = { action = action, x = x, y = y }
+			if action == "digPath" then
+				entry.axis = axis
+				entry.side = editSide
+			end
+			table.insert(edits, entry)
 			self:SetTerrainEditsJson(mapName, _HttpService:JSONEncode(edits))
 		end
 		return true
@@ -164,8 +440,8 @@ script ResourceSpawner extends Logic
 
 	@ExecSpace("ServerOnly")
 	method void ReconstructTerrainEditsForMap(Entity map)
-		-- 저장된 지형 편집 델타를 베이스 지형 위에 삽입 순서대로 재생한다. 각 편집이 tilemap을 변형하고
-		-- 이웃을 재계산하므로 순서 재생이 최종 상태를 결정론적으로 복원한다 (재생 자체는 persist=false).
+		-- 저장된 지형 편집 델타를 베이스 지형 위에 삽입 순서대로 재생한다.
+		-- 레거시 removeGrass → digHole. digPath는 저장 시점의 axis/side로 결정론 재생.
 		if not isvalid(map) then return end
 		local mapName = map.Name
 		local json = self:GetTerrainEditsJson(mapName)
@@ -173,7 +449,13 @@ script ResourceSpawner extends Logic
 		local applied = 0
 		for _, e in ipairs(edits) do
 			if e.action ~= nil and e.x ~= nil and e.y ~= nil then
-				if self:ApplyTerrainEdit(mapName, map, e.action, math.floor(e.x), math.floor(e.y), false) then
+				local act = e.action
+				if act == "removeGrass" then act = "digHole" end
+				local ax = ""
+				local sd = ""
+				if e.axis ~= nil then ax = e.axis end
+				if e.side ~= nil then sd = e.side end
+				if self:ApplyTerrainEdit(mapName, map, act, math.floor(e.x), math.floor(e.y), ax, sd, false) then
 					applied = applied + 1
 				end
 			end

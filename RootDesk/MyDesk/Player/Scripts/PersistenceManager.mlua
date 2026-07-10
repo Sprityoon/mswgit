@@ -417,6 +417,7 @@ script PersistenceManager extends Logic
 						if entCell then
 							for _, furn in ipairs(furnList) do
 								if furn.x == entCell.x and furn.y == entCell.y then
+									-- 원본 스냅샷(정제 전). 빈 {} 는 아래 정제에서 제거한다.
 									furn.chestItems = comp:GetItems()
 									break
 								end
@@ -426,11 +427,36 @@ script PersistenceManager extends Logic
 				end
 			end
 		end
-		
-		local furnJson = _HttpService:JSONEncode(furnList)
+
+		-- 상자 내용 정제: 빈 중첩 chestItems={} → LEA-3001. 비어 있으면 생략, 있으면 평문 복사만.
+		for _, furn in ipairs(furnList) do
+			local rawItems = furn.chestItems
+			furn.chestItems = nil
+			if rawItems ~= nil and type(rawItems) == "table" and next(rawItems) ~= nil then
+				local clean = {}
+				for _, it in ipairs(rawItems) do
+					if type(it) == "table" and it.name ~= nil then
+						local row = {
+							name = tostring(it.name),
+							count = math.floor(tonumber(it.count) or 0)
+						}
+						if it.isTool == true then
+							row.isTool = true
+							row.durability = math.floor(tonumber(it.durability) or 100)
+						end
+						table.insert(clean, row)
+					end
+				end
+				if #clean > 0 then
+					furn.chestItems = clean
+				end
+			end
+		end
+
+		local furnJson = self:SafeEncodeJson(furnList, "[]")
 		local destJson = _ResourceSpawner:GetDestroyedResourcesAsJson(mapName)
 		local permList = self.GuestPermissions[userId] or {}
-		local permJson = _HttpService:JSONEncode(permList)
+		local permJson = self:SafeEncodeJson(permList, "[]")
 
 		local data = {
 			level = tonumber(pc.Level) or 1,
@@ -440,25 +466,56 @@ script PersistenceManager extends Logic
 			maxStamina = tonumber(pc.MaxStamina) or 100,
 			gatheringSpeed = tonumber(pc.GatheringSpeed) or 1.0,
 			coin = tonumber(inv.Coin) or 0,
-			inventoryData = inv.InventoryDataJson,
-			equippedTool = inv.EquippedTool,
-			quickSlots = inv.QuickSlotsJson,
+			inventoryData = inv.InventoryDataJson or "{}",
+			equippedTool = inv.EquippedTool or "",
+			quickSlots = inv.QuickSlotsJson or "[\"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\"]",
 			selectedSlot = tonumber(inv.SelectedQuickSlotIndex) or 1,
 			unlockedWaypoints = pc.UnlockedWaypointsJson or "[]",
 			skillLevels = pc.SkillLevelsJson or "{}",
 			sp = tonumber(pc.SP) or 0,
-			isSleeping = pc.IsSleeping,
-			sleepStartTimeTicks = pc.SleepStartTimeTicks,
+			isSleeping = pc.IsSleeping == true,
+			sleepStartTimeTicks = pc.SleepStartTimeTicks or "0",
 			posX = tonumber(posX) or 0.0,
 			posY = tonumber(posY) or 0.0,
-			homeTiles = tilesJson,
+			homeTiles = tilesJson or "[]",
 			homeFurniture = furnJson,
-			homeTerrainEdits = _ResourceSpawner:GetTerrainEditsJson(mapName),
-			homeDestroyedResources = destJson,
+			homeTerrainEdits = _ResourceSpawner:GetTerrainEditsJson(mapName) or "[]",
+			homeDestroyedResources = destJson or "[]",
 			guestPermissions = permJson
 		}
 
-		local jsonStr = _HttpService:JSONEncode(data)
+		-- data 인코드 실패 시 필드 단위 격리 (전체 세이브 조용히 삼키기 금지 — 필드명 로그)
+		local okData, jsonStr = pcall(function() return _HttpService:JSONEncode(data) end)
+		if not okData or jsonStr == nil or jsonStr == "" then
+			log_error("PersistenceManager: data JSONEncode failed — isolating bad fields for " .. userId
+				.. " err=" .. tostring(jsonStr))
+			local safeData = {}
+			for k, v in pairs(data) do
+				local one = {}
+				one[k] = v
+				local okOne, encOne = pcall(function() return _HttpService:JSONEncode(one) end)
+				if okOne and encOne ~= nil and encOne ~= "" then
+					safeData[k] = v
+				else
+					log_error("PersistenceManager: save field dropped (unencodable): " .. tostring(k)
+						.. " type=" .. type(v) .. " err=" .. tostring(encOne))
+					if type(v) == "string" then
+						safeData[k] = ""
+					elseif type(v) == "number" then
+						safeData[k] = 0
+					elseif type(v) == "boolean" then
+						safeData[k] = false
+					else
+						safeData[k] = "[]"
+					end
+				end
+			end
+			jsonStr = self:SafeEncodeJson(safeData, "{}")
+			if jsonStr == nil or jsonStr == "" then
+				log_error("PersistenceManager: save aborted after field isolation for " .. userId)
+				return
+			end
+		end
 		local storage = _DataStorageService:GetUserDataStorage(userId)
 		if not storage then
 			log_error("PersistenceManager: Failed to get UserDataStorage for saving " .. userId)
@@ -481,6 +538,23 @@ script PersistenceManager extends Logic
 				end
 			end)
 		end
+	end
+
+	method string SafeEncodeJson(table tbl, string defaultVal)
+		-- 빈 테이블은 MSW JSONEncode 가 "" 를 반환하므로 기본값 사용.
+		-- 중첩 빈 테이블 등은 LEA-3001 을 던질 수 있어 pcall 필수.
+		if defaultVal == nil or defaultVal == "" then
+			defaultVal = "[]"
+		end
+		if tbl == nil or next(tbl) == nil then
+			return defaultVal
+		end
+		local ok, encoded = pcall(function() return _HttpService:JSONEncode(tbl) end)
+		if ok and encoded ~= nil and encoded ~= "" then
+			return encoded
+		end
+		log_error("PersistenceManager: SafeEncodeJson failed, using default. err=" .. tostring(encoded))
+		return defaultVal
 	end
 
 	@ExecSpace("ServerOnly")

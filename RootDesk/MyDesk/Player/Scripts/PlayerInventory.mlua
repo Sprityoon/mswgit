@@ -889,9 +889,9 @@ script PlayerInventory extends Component
 	end
 
 	@ExecSpace("Server")
-	method void ServerRequestTerrainEdit(string itemName, integer cellX, integer cellY)
-		-- 삽(잔디 제거→길)/씨앗(잔디 심기)으로 영지 지형을 편집한다. 데이터 주도: 활성 아이템의
-		-- item_dataset.TerrainEditAction 컬럼(removeGrass/plantGrass)이 동작을 결정한다(이름 분기 없음).
+	method void ServerRequestTerrainEdit(string itemName, integer cellX, integer cellY, integer dirX, integer dirY)
+		-- digPath(삽)/digHole(괭이)/plantGrass(씨앗) 영지 지형 편집. 데이터 주도: item_dataset.TerrainEditAction.
+		-- digPath axis는 시선(dir), side는 플레이어 셀 내 소수부(서버 계산, 재생 시 재계산 금지).
 		local playerComp = self.Entity.PlayerComponent
 		if playerComp == nil or senderUserId ~= playerComp.UserId then
 			return
@@ -933,7 +933,8 @@ script PlayerInventory extends Component
 		-- 사거리 검증 (설치와 동일: 체비쇼프 거리 ≤ 4).
 		local tilemap = currentMap:GetFirstChildComponentByTypeName("RectTileMapComponent", true)
 		if not isvalid(tilemap) then return end
-		local playerCell = tilemap:ToCellPosition(self.Entity.TransformComponent.WorldPosition)
+		local playerPos = self.Entity.TransformComponent.WorldPosition
+		local playerCell = tilemap:ToCellPosition(playerPos)
 		if playerCell == nil then return end
 		local dist = math.max(math.abs(cellX - playerCell.x), math.abs(cellY - playerCell.y))
 		if dist > 4 then
@@ -941,22 +942,75 @@ script PlayerInventory extends Component
 			return
 		end
 
-		-- 점유 셀(자원/가구/설치 타일) 편집 불가.
 		local resourceSpawner = _ResourceSpawner
 		if resourceSpawner == nil then return end
-		local key = cellX .. "_" .. cellY
-		local occ = resourceSpawner:GetGridToEntity(mapName)[key]
-		if occ ~= nil and (occ.isTile == true or occ.isFurniture == true or isvalid(occ.entity)) then
-			if isvalid(pc) then pc:ShowMineFeedback("자원이나 설치물이 있어 편집할 수 없습니다.") end
-			return
+
+		-- digPath axis/side 결정 (저장 시 side 확정 — 재생 시 플레이어 위치 재계산 금지).
+		local axis = ""
+		local side = ""
+		if action == "digPath" then
+			-- |dirX| > 0 → 동서 시선 → 수평 길 밴드(axis="h"). 남북 → axis="v".
+			if math.abs(dirX) >= math.abs(dirY) and dirX ~= 0 then
+				axis = "h"
+			elseif dirY ~= 0 then
+				axis = "v"
+			else
+				-- 시선 없음: 기본 수평
+				axis = "h"
+			end
+			-- 셀 내 소수부: 월드 단위 셀 = floor 기준 [n, n+1).
+			local fracX = playerPos.x - math.floor(playerPos.x)
+			local fracY = playerPos.y - math.floor(playerPos.y)
+			if axis == "h" then
+				if fracY >= 0.5 then side = "up" else side = "down" end
+			else
+				if fracX >= 0.5 then side = "right" else side = "left" end
+			end
 		end
 
-		-- 지형 편집 적용 (Layer2 변형 + 이웃 8셀 프린지 재계산 + 영속 델타 기록).
-		local success = resourceSpawner:ApplyTerrainEdit(mapName, currentMap, action, cellX, cellY, true)
+		-- 점유 셀 사전 검사 (digPath는 두 셀 모두 — Apply 내부와 동일 규칙, 피드백 메시지용).
+		if action == "digPath" then
+			local x1 = cellX
+			local y1 = cellY
+			local x2 = cellX
+			local y2 = cellY
+			if axis == "h" then
+				if side == "up" then
+					y2 = cellY + 1
+				else
+					y1 = cellY - 1
+				end
+			else
+				if side == "right" then
+					x2 = cellX + 1
+				else
+					x1 = cellX - 1
+				end
+			end
+			if resourceSpawner:IsGridOccupied(mapName, x1, y1) or resourceSpawner:IsGridOccupied(mapName, x2, y2) then
+				if isvalid(pc) then pc:ShowMineFeedback("자원이나 설치물이 있어 편집할 수 없습니다.") end
+				return
+			end
+			if not resourceSpawner:IsTerrainCellEditable(currentMap, x1, y1)
+				or not resourceSpawner:IsTerrainCellEditable(currentMap, x2, y2) then
+				if isvalid(pc) then pc:ShowMineFeedback("여기는 팔 수 없습니다.") end
+				return
+			end
+		else
+			if resourceSpawner:IsGridOccupied(mapName, cellX, cellY) then
+				if isvalid(pc) then pc:ShowMineFeedback("자원이나 설치물이 있어 편집할 수 없습니다.") end
+				return
+			end
+		end
+
+		-- 지형 편집 적용 (서브셀 마스크 + 영속 델타).
+		local success = resourceSpawner:ApplyTerrainEdit(mapName, currentMap, action, cellX, cellY, axis, side, true)
 		if not success then
 			if isvalid(pc) then
-				if action == "removeGrass" then
+				if action == "digPath" then
 					pc:ShowMineFeedback("이미 길입니다.")
+				elseif action == "digHole" then
+					pc:ShowMineFeedback("이미 파여 있습니다.")
 				else
 					pc:ShowMineFeedback("여기엔 잔디를 심을 수 없습니다.")
 				end
@@ -964,7 +1018,7 @@ script PlayerInventory extends Component
 			return
 		end
 
-		-- plantGrass는 씨앗 1개 소비 (removeGrass는 재사용 도구라 소비 없음).
+		-- plantGrass는 씨앗 1개 소비 (도구는 재사용).
 		if action == "plantGrass" then
 			self:RemoveItem(itemName, 1)
 		end

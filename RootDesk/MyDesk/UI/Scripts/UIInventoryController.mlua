@@ -33,6 +33,36 @@ script UIInventoryController extends Component
 
 	property table lastClickTimes = {}
 
+	-- Inventory → QuickSlot drag state (mirrors UIHUDController quickslot D&D)
+	property table invTouchDownHandlers = {}
+
+	property table invTouchDragHandlers = {}
+
+	property table invTouchUpHandlers = {}
+
+	property boolean invIsDragging = false
+
+	property number invDragAccumulatedDelta = 0
+
+	property string invDragItemKey = ""
+
+	property any invDraggedIcon = nil
+
+	property Vector2 invDraggedIconOriginalPos = Vector2(0, 0)
+
+	property Vector2 invDragOffset = Vector2(0, 0)
+
+	property Entity invDragStartSlot = nil
+
+	-- Floating ghost parented outside inventory clip (GridView mask) so it stays visible over HUD
+	property Entity invDragGhost = nil
+
+	property Entity invDragSourceIcon = nil
+
+	property Color invDragSourceIconOriginalColor = Color.white
+
+	property boolean invSuppressClick = false
+
 	property any closeHandler = nil
 
 	property number CurrentScale = 1.0
@@ -179,6 +209,32 @@ script UIInventoryController extends Component
 			end
 		end
 		self.slotHandlers = {}
+
+		if self.invTouchDownHandlers then
+			for slotEntity, eventHandler in pairs(self.invTouchDownHandlers) do
+				if isvalid(slotEntity) then
+					slotEntity:DisconnectEvent(UITouchDownEvent, eventHandler)
+				end
+			end
+			self.invTouchDownHandlers = {}
+		end
+		if self.invTouchDragHandlers then
+			for slotEntity, eventHandler in pairs(self.invTouchDragHandlers) do
+				if isvalid(slotEntity) then
+					slotEntity:DisconnectEvent(UITouchDragEvent, eventHandler)
+				end
+			end
+			self.invTouchDragHandlers = {}
+		end
+		if self.invTouchUpHandlers then
+			for slotEntity, eventHandler in pairs(self.invTouchUpHandlers) do
+				if isvalid(slotEntity) then
+					slotEntity:DisconnectEvent(UITouchUpEvent, eventHandler)
+				end
+			end
+			self.invTouchUpHandlers = {}
+		end
+		self:ResetInvDragState()
 
 		if self.keyDownHandler then
 			_InputService:DisconnectEvent(KeyDownEvent, self.keyDownHandler)
@@ -426,6 +482,155 @@ script UIInventoryController extends Component
 	end
 
 	@ExecSpace("ClientOnly")
+	method void DestroyInvDragGhost()
+		-- Removes floating drag ghost and restores the source slot icon visibility.
+		if isvalid(self.invDragGhost) then
+			self.invDragGhost:Destroy()
+			self.invDragGhost = nil
+		end
+		if isvalid(self.invDragSourceIcon) and isvalid(self.invDragSourceIcon.SpriteGUIRendererComponent) then
+			self.invDragSourceIcon.SpriteGUIRendererComponent.Color = self.invDragSourceIconOriginalColor
+		end
+		self.invDragSourceIcon = nil
+	end
+
+	@ExecSpace("ClientOnly")
+	method void EnsureInvDragGhost(Entity sourceIcon, Vector2 screenPoint)
+		-- Floating ghost must live under PopupGroup (displayOrder > HUD) so it draws
+		-- above InventoryPopup, yet outside GridView clip so it stays visible off-panel.
+		-- Parenting under HUDGroup put the ghost BEHIND the inventory (invisible).
+		if isvalid(self.invDragGhost) then return end
+		if not isvalid(sourceIcon) then return end
+
+		local host = _EntityService:GetEntityByPath("/ui/PopupGroup")
+		if not isvalid(host) then
+			host = _EntityService:GetEntityByPath("/ui/HUDGroup")
+		end
+		if not isvalid(host) then return end
+
+		-- Prefer runtime uisprite (same path as UIHUD NightOverlay) over Clone+Attach,
+		-- which can keep clip/parent quirks from GridView slot icons.
+		local ghost = _SpawnService:SpawnByModelId("uisprite", "InvDragGhost", Vector3.zero, host)
+		if not isvalid(ghost) then
+			-- Fallback: clone source icon and reparent
+			ghost = sourceIcon:Clone("InvDragGhost")
+			if isvalid(ghost) then
+				ghost:AttachTo(host)
+			end
+		end
+		if not isvalid(ghost) then return end
+		ghost.Enable = true
+
+		local srcSprite = sourceIcon.SpriteGUIRendererComponent
+		local ghostSprite = ghost.SpriteGUIRendererComponent
+		if isvalid(ghostSprite) then
+			ghostSprite.RaycastTarget = false
+			if isvalid(srcSprite) then
+				ghostSprite.ImageRUID = srcSprite.ImageRUID
+				ghostSprite.Color = srcSprite.Color
+			end
+			-- Do NOT set OrderInLayer here: Screen-mode UI requires OverrideSorting=true
+			-- (and UIMode/World rules) or Maker emits LWA-3047. Draw order is handled by
+			-- SetSiblingIndex below within PopupGroup hierarchy.
+		end
+
+		local srcT = sourceIcon.UITransformComponent
+		local gT = ghost.UITransformComponent
+		if isvalid(gT) then
+			gT.Pivot = Vector2(0.5, 0.5)
+			gT.AlignmentOption = AlignmentType.Center
+			if isvalid(srcT) then
+				local rs = srcT.RectSize
+				-- Guard zero-size clones; keep a readable drag cursor
+				if rs.x < 1 or rs.y < 1 then
+					gT.RectSize = Vector2(64, 64)
+				else
+					gT.RectSize = rs
+				end
+			else
+				gT.RectSize = Vector2(64, 64)
+			end
+		end
+		if isvalid(gT) then
+			_UILogic:SetSiblingIndex(gT, 1000000)
+		end
+
+		self.invDragGhost = ghost
+
+		-- Hide original in-slot icon only after ghost exists (avoids double-image)
+		self.invDragSourceIcon = sourceIcon
+		if isvalid(srcSprite) then
+			self.invDragSourceIconOriginalColor = srcSprite.Color
+			local c = self.invDragSourceIconOriginalColor
+			srcSprite.Color = Color(c.r, c.g, c.b, 0)
+		end
+
+		self:PositionInvDragGhost(screenPoint)
+	end
+
+	@ExecSpace("ClientOnly")
+	method void PositionInvDragGhost(Vector2 screenPoint)
+		if not isvalid(self.invDragGhost) then return end
+		local gT = self.invDragGhost.UITransformComponent
+		if not isvalid(gT) then return end
+		local host = self.invDragGhost.Parent
+		if not isvalid(host) or not isvalid(host.UITransformComponent) then return end
+		local localPos = _UILogic:ScreenToLocalUIPosition(screenPoint, host.UITransformComponent)
+		gT.anchoredPosition = localPos
+	end
+
+	@ExecSpace("ClientOnly")
+	method void ResetInvDragState()
+		-- Clears inventory→quickslot drag state and floating ghost.
+		self:DestroyInvDragGhost()
+		-- Legacy path safety: if source icon was moved in-place, snap it back
+		if isvalid(self.invDraggedIcon) and self.invDraggedIconOriginalPos ~= nil then
+			if isvalid(self.invDraggedIcon.UITransformComponent) then
+				self.invDraggedIcon.UITransformComponent.anchoredPosition = self.invDraggedIconOriginalPos
+			end
+		end
+		self.invIsDragging = false
+		self.invDragAccumulatedDelta = 0
+		self.invDragItemKey = ""
+		self.invDraggedIcon = nil
+		self.invDragStartSlot = nil
+	end
+
+	@ExecSpace("ClientOnly")
+	method integer HitTestQuickSlot(Vector2 screenPoint)
+		-- Returns 1..10 if screenPoint is inside a HUD quickslot, else -1.
+		-- Same bounds math as UIHUDController quickslot D&D drop (raycast-independent).
+		for targetIdx = 1, 10 do
+			local targetPath = "/ui/HUDGroup/QuickSlots/Slot" .. targetIdx
+			local targetSlot = _EntityService:GetEntityByPath(targetPath)
+			if isvalid(targetSlot) then
+				local localPos = _UILogic:ScreenToLocalUIPosition(screenPoint, targetSlot.UITransformComponent)
+				local rectSize = targetSlot.UITransformComponent.RectSize
+				local pivot = targetSlot.UITransformComponent.Pivot
+
+				local minX = -rectSize.x * pivot.x
+				local maxX = rectSize.x * (1 - pivot.x)
+				local minY = -rectSize.y * pivot.y
+				local maxY = rectSize.y * (1 - pivot.y)
+
+				if localPos.x >= minX and localPos.x <= maxX and localPos.y >= minY and localPos.y <= maxY then
+					return targetIdx
+				end
+			end
+		end
+		return -1
+	end
+
+	@ExecSpace("ClientOnly")
+	method boolean IsFurnaceOrChestOpen()
+		local furnacePopup = _EntityService:GetEntityByPath("/ui/PopupGroup/FurnacePopup")
+		local furnaceOpen = isvalid(furnacePopup) and furnacePopup.Enable
+		local chestPopup = _EntityService:GetEntityByPath("/ui/PopupGroup/ChestPopup")
+		local chestOpen = isvalid(chestPopup) and chestPopup.Enable
+		return furnaceOpen or chestOpen
+	end
+
+	@ExecSpace("ClientOnly")
 	method void RefreshGridItem(integer index, Entity slotEntity)
 		-- index is 0-based
 		local data = self.filteredItems[index + 1]
@@ -462,6 +667,12 @@ script UIInventoryController extends Component
 				slotEntity:DisconnectEvent(ButtonClickEvent, self.slotHandlers[slotEntity])
 			end
 			self.slotHandlers[slotEntity] = slotEntity:ConnectEvent(ButtonClickEvent, function()
+				-- Drag-drop already consumed this gesture (register to quickslot)
+				if self.invSuppressClick then
+					self.invSuppressClick = false
+					return
+				end
+
 				local clickTime = _UtilLogic.ElapsedSeconds
 				local lastTime = self.lastClickTimes[data.key] or 0
 				self.lastClickTimes[data.key] = clickTime
@@ -501,6 +712,90 @@ script UIInventoryController extends Component
 				end
 			end)
 		end
+
+		-- Inventory → QuickSlot drag (reuses ServerRegisterQuickSlot + HUD hit-test)
+		if isvalid(slotEntity.SpriteGUIRendererComponent) then
+			slotEntity.SpriteGUIRendererComponent.RaycastTarget = true
+		end
+		if not isvalid(slotEntity:GetComponent("UITouchReceiveComponent")) then
+			slotEntity:AddComponent("UITouchReceiveComponent")
+		end
+
+		if self.invTouchDownHandlers[slotEntity] then
+			slotEntity:DisconnectEvent(UITouchDownEvent, self.invTouchDownHandlers[slotEntity])
+		end
+		if self.invTouchDragHandlers[slotEntity] then
+			slotEntity:DisconnectEvent(UITouchDragEvent, self.invTouchDragHandlers[slotEntity])
+		end
+		if self.invTouchUpHandlers[slotEntity] then
+			slotEntity:DisconnectEvent(UITouchUpEvent, self.invTouchUpHandlers[slotEntity])
+		end
+
+		self.invTouchDownHandlers[slotEntity] = slotEntity:ConnectEvent(UITouchDownEvent, function(event)
+			self.invDragStartSlot = slotEntity
+			self.invDragItemKey = data.key
+			self.invIsDragging = false
+			self.invDragAccumulatedDelta = 0
+			self.invSuppressClick = false
+
+			local icon = slotEntity:GetChildByName("Icon")
+			if isvalid(icon) then
+				self.invDraggedIcon = icon
+				self.invDraggedIconOriginalPos = icon.UITransformComponent.anchoredPosition
+				local startLocalPos = _UILogic:ScreenToLocalUIPosition(event.TouchPoint, slotEntity.UITransformComponent)
+				self.invDragOffset = startLocalPos - self.invDraggedIconOriginalPos
+			else
+				self.invDraggedIcon = nil
+			end
+		end)
+
+		self.invTouchDragHandlers[slotEntity] = slotEntity:ConnectEvent(UITouchDragEvent, function(event)
+			if self.invDragStartSlot ~= slotEntity then return end
+			-- Furnace/chest transfer uses click/double-click; do not steal those gestures
+			if self:IsFurnaceOrChestOpen() then return end
+
+			self.invDragAccumulatedDelta = self.invDragAccumulatedDelta + math.abs(event.TouchDelta.x) + math.abs(event.TouchDelta.y)
+			if self.invDragAccumulatedDelta > 5 then
+				self.invIsDragging = true
+			end
+
+			if self.invIsDragging then
+				-- Floating ghost under HUDGroup escapes inventory GridView clip
+				if isvalid(self.invDraggedIcon) then
+					self:EnsureInvDragGhost(self.invDraggedIcon, event.TouchPoint)
+				end
+				self:PositionInvDragGhost(event.TouchPoint)
+			end
+		end)
+
+		self.invTouchUpHandlers[slotEntity] = slotEntity:ConnectEvent(UITouchUpEvent, function(event)
+			if self.invDragStartSlot ~= slotEntity then return end
+
+			local wasDragging = self.invIsDragging
+			local itemKey = self.invDragItemKey
+
+			if wasDragging and itemKey ~= "" and not self:IsFurnaceOrChestOpen() then
+				local dropTargetIndex = self:HitTestQuickSlot(event.TouchPoint)
+				if dropTargetIndex ~= -1 then
+					local player = _UserService.LocalPlayer
+					if isvalid(player) then
+						local inv = player:GetComponent("script.PlayerInventory")
+						if isvalid(inv) then
+							-- Empty = register, occupied = replace; dedupe handled server-side
+							inv:ServerRegisterQuickSlot(dropTargetIndex, itemKey)
+							self:FlashSlotEntity(slotEntity, Color(0.2, 0.8, 0.2, 1.0))
+							self.invSuppressClick = true
+						end
+					end
+				else
+					-- Drag cancelled (not over a quickslot) — suppress stray click
+					self.invSuppressClick = true
+				end
+			end
+
+			-- Destroys ghost + restores source icon alpha
+			self:ResetInvDragState()
+		end)
 	end
 
 	@ExecSpace("ClientOnly")
