@@ -1,6 +1,13 @@
 @Component
 script Furnace extends Component
 
+	-- T17: 레시피 테이블/표시 제목 프로퍼티 — 화로=제련, 냄비=요리 (기본값=기존 제련 무회귀).
+	property string RecipeTableName = "SmeltingRecipeDataSet"
+
+	property string StationTitle = "화로"
+
+	property string DurationColumn = "SmeltDuration"
+
 	@Sync
 	property string InputItemName = ""
 
@@ -40,13 +47,21 @@ script Furnace extends Component
 		self.FuelTimeRemaining = 0.0
 		self.ProgressTime = 0.0
 		self.IsSmelting = false
+		if self.RecipeTableName == nil or self.RecipeTableName == "" then
+			self.RecipeTableName = "SmeltingRecipeDataSet"
+		end
+		if self.DurationColumn == nil or self.DurationColumn == "" then
+			self.DurationColumn = "SmeltDuration"
+		end
 	end
 
 	@ExecSpace("ServerOnly")
 	method any GetRecipeForInput(string itemName)
-		-- Returns the smelting recipe row for the given ore, or nil if it is not smeltable.
+		-- Returns the recipe row for the given input from RecipeTableName.
 		if itemName == nil or itemName == "" then return nil end
-		local ds = _DataService:GetTable("SmeltingRecipeDataSet")
+		local tableName = self.RecipeTableName
+		if tableName == nil or tableName == "" then tableName = "SmeltingRecipeDataSet" end
+		local ds = _DataService:GetTable(tableName)
 		if ds == nil then return nil end
 		return ds:FindRow("InputItem", itemName)
 	end
@@ -74,7 +89,17 @@ script Furnace extends Component
 			requiredInput = math.floor(tonumber(recipe:GetItem("InputCount")) or 0)
 			if requiredInput > 0 and self.InputItemCount >= requiredInput then
 				targetBar = recipe:GetItem("OutputItem")
-				smeltDuration = tonumber(recipe:GetItem("SmeltDuration")) or 0.0
+				local durCol = self.DurationColumn
+				if durCol == nil or durCol == "" then durCol = "SmeltDuration" end
+				-- 없는 컬럼 GetItem은 LEA-3011 — pcall로 안전 조회
+				local function readDur(col)
+					local ok, v = pcall(function() return recipe:GetItem(col) end)
+					if ok and v ~= nil and v ~= "" then return tonumber(v) or 0.0 end
+					return 0.0
+				end
+				smeltDuration = readDur(durCol)
+				if smeltDuration <= 0 then smeltDuration = readDur("CookDuration") end
+				if smeltDuration <= 0 then smeltDuration = readDur("SmeltDuration") end
 			end
 		end
 		

@@ -91,6 +91,11 @@ script Monster extends Component
 			_TileDurabilityManager:SpawnResourceDrop(map, Vector3(p.x, p.y, 0), self.BossDropItem, self.BossDropMin, self.BossDropMax, 0)
 		end
 
+		-- T9: ItemDropDataSet 행 (SourceId = 엔티티 이름, 예: SlimeKing) — 도안 등 데이터 주도 추가 드롭.
+		if isvalid(map) and isvalid(t) and _TileDurabilityManager ~= nil then
+			self:DropFromItemDropDataSet(map, t.WorldPosition)
+		end
+
 		-- Next-tier waypoint unlock for the player who landed the killing blow.
 		if self.UnlockWaypointId ~= "" and isvalid(self.LastAttacker) then
 			local pc = self.LastAttacker:GetComponent("script.PlayerController")
@@ -98,6 +103,33 @@ script Monster extends Component
 				---@type PlayerController
 				local controller = pc
 				controller:UnlockWaypoint(self.UnlockWaypointId, self.UnlockWaypointName)
+			end
+		end
+	end
+
+	@ExecSpace("ServerOnly")
+	method void DropFromItemDropDataSet(Entity map, any worldPos)
+		-- ItemDropDataSet에서 SourceId==Entity.Name 행을 확률 드롭. ItemId = item_dataset.id.
+		local ds = _DataService:GetTable("ItemDropDataSet")
+		if ds == nil then return end
+		local sourceName = self.Entity.Name or ""
+		if sourceName == "" then return end
+		local rowCount = ds:GetRowCount()
+		for i = 1, rowCount do
+			local sid = ds:GetCell(i, "SourceId") or ""
+			if sid == sourceName then
+				local prob = tonumber(ds:GetCell(i, "Probability")) or 0.0
+				if math.random() <= prob then
+					local itemId = ds:GetCell(i, "ItemId") or ""
+					local minC = math.floor(tonumber(ds:GetCell(i, "MinCount")) or 1)
+					local maxC = math.floor(tonumber(ds:GetCell(i, "MaxCount")) or minC)
+					if maxC < minC then maxC = minC end
+					local count = math.random(minC, maxC)
+					if itemId ~= "" and count > 0 then
+						_TileDurabilityManager:SpawnResourceDrop(map, Vector3(worldPos.x, worldPos.y, 0), itemId, count, count, 0)
+						log("[MONSTER] ItemDropDataSet drop id=" .. itemId .. " x" .. tostring(count) .. " from " .. sourceName)
+					end
+				end
 			end
 		end
 	end

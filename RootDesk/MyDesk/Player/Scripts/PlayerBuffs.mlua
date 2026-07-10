@@ -1,0 +1,165 @@
+@Component
+script PlayerBuffs extends Component
+
+	-- T16: 세션 한정 버프. 로그아웃 시 소멸(영속 없음). StackRule=refresh 기본.
+
+	@Sync
+	property string ActiveBuffsJson = "[]"
+
+	property number _tickAccum = 0.0
+
+	@ExecSpace("ServerOnly")
+	method void OnBeginPlay()
+		self.ActiveBuffsJson = "[]"
+		self._tickAccum = 0.0
+	end
+
+	@ExecSpace("ServerOnly")
+	method void OnUpdate(number delta)
+		self._tickAccum = self._tickAccum + delta
+		if self._tickAccum < 0.5 then return end
+		self._tickAccum = 0.0
+		self:ExpireBuffs()
+	end
+
+	method table DecodeBuffs()
+		local ok, list = pcall(function() return _HttpService:JSONDecode(self.ActiveBuffsJson or "[]") end)
+		if ok and type(list) == "table" then return list end
+		return {}
+	end
+
+	method void EncodeBuffs(table list)
+		local ok, enc = pcall(function() return _HttpService:JSONEncode(list) end)
+		if ok and enc ~= nil then
+			self.ActiveBuffsJson = enc
+		else
+			self.ActiveBuffsJson = "[]"
+		end
+	end
+
+	@ExecSpace("ServerOnly")
+	method boolean ApplyBuff(string buffId)
+		-- BuffDataSet 행 조회 후 적용/갱신. 성공 시 true.
+		if buffId == nil or buffId == "" then return false end
+		local ds = _DataService:GetTable("BuffDataSet")
+		if ds == nil then return false end
+		local row = ds:FindRow("BuffId", buffId)
+		if row == nil then return false end
+
+		local duration = math.floor(tonumber(row:GetItem("Duration")) or 0)
+		if duration <= 0 then return false end
+		local stackRule = row:GetItem("StackRule") or "refresh"
+		local now = os.time()
+		local expireAt = now + duration
+
+		local list = self:DecodeBuffs()
+		local found = false
+		for _, b in ipairs(list) do
+			if b.buffId == buffId then
+				if stackRule == "ignore" then
+					return false
+				end
+				-- refresh
+				b.expireAt = expireAt
+				b.statKey = row:GetItem("StatKey") or ""
+				b.modifierType = row:GetItem("ModifierType") or "add"
+				b.value = tonumber(row:GetItem("Value")) or 0
+				b.displayName = row:GetItem("DisplayName") or buffId
+				b.iconRuid = row:GetItem("IconRUID") or ""
+				found = true
+				break
+			end
+		end
+		if not found then
+			table.insert(list, {
+				buffId = buffId,
+				expireAt = expireAt,
+				statKey = row:GetItem("StatKey") or "",
+				modifierType = row:GetItem("ModifierType") or "add",
+				value = tonumber(row:GetItem("Value")) or 0,
+				displayName = row:GetItem("DisplayName") or buffId,
+				iconRuid = row:GetItem("IconRUID") or "",
+			})
+		end
+		self:EncodeBuffs(list)
+		log("[BUFF] apply " .. buffId .. " expire=" .. tostring(expireAt))
+		return true
+	end
+
+	@ExecSpace("ServerOnly")
+	method void ExpireBuffs()
+		local list = self:DecodeBuffs()
+		if #list == 0 then return end
+		local now = os.time()
+		local kept = {}
+		local changed = false
+		for _, b in ipairs(list) do
+			if (tonumber(b.expireAt) or 0) > now then
+				table.insert(kept, b)
+			else
+				changed = true
+				log("[BUFF] expired " .. tostring(b.buffId))
+			end
+		end
+		if changed then
+			self:EncodeBuffs(kept)
+		end
+	end
+
+	method number GetStatModifier(string statKey)
+		-- 소비처 API: add 합 + mult 곱을 결합해 최종 배율/가산 반환 규칙
+		-- 반환 = 최종 곱셈 인자(mult 누적) 와 add 합은 분리 필요 → 두 API
+		-- 편의: 이 메서드는 "실효 배율"만 — add는 GetStatAdd.
+		return self:GetStatMult(statKey)
+	end
+
+	method number GetStatMult(string statKey)
+		if statKey == nil or statKey == "" then return 1.0 end
+		local list = self:DecodeBuffs()
+		local now = os.time()
+		local mult = 1.0
+		for _, b in ipairs(list) do
+			if b.statKey == statKey and (tonumber(b.expireAt) or 0) > now then
+				if b.modifierType == "mult" then
+					mult = mult * (tonumber(b.value) or 1.0)
+				end
+			end
+		end
+		return mult
+	end
+
+	method number GetStatAdd(string statKey)
+		if statKey == nil or statKey == "" then return 0.0 end
+		local list = self:DecodeBuffs()
+		local now = os.time()
+		local add = 0.0
+		for _, b in ipairs(list) do
+			if b.statKey == statKey and (tonumber(b.expireAt) or 0) > now then
+				if b.modifierType == "add" then
+					add = add + (tonumber(b.value) or 0.0)
+				end
+			end
+		end
+		return add
+	end
+
+	method table GetActiveBuffsForUI()
+		-- 클라 HUD용: 만료 전 버프 목록.
+		local list = self:DecodeBuffs()
+		local now = os.time()
+		local out = {}
+		for _, b in ipairs(list) do
+			local exp = tonumber(b.expireAt) or 0
+			if exp > now then
+				table.insert(out, {
+					buffId = b.buffId,
+					displayName = b.displayName or b.buffId,
+					iconRuid = b.iconRuid or "",
+					remain = exp - now,
+				})
+			end
+		end
+		return out
+	end
+
+end

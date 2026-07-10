@@ -20,6 +20,11 @@ script PlayerCombat extends AttackComponent
 				dmg = dmg + toolInfo.power * 4  -- 등급별 4배율 공격력 증가식
 			end
 		end
+		-- T16 AttackPower 버프
+		local pc = self.Entity:GetComponent("script.PlayerController")
+		if isvalid(pc) then
+			dmg = dmg + math.floor(pc:GetBuffedAttackPower() + 0.5)
+		end
 		
 		self.PendingDamage = dmg
 		local shape = BoxShape(worldPos, Vector2(self.AttackBoxSize, self.AttackBoxSize), 0)

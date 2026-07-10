@@ -20,6 +20,7 @@
       "Components": [
         "script.PlayerController",
         "script.PlayerInventory",
+        "script.PlayerBuffs",
         "MOD.Core.DamageSkinComponent",
         "script.PlayerCombat",
         "script.PlayerDBManager",

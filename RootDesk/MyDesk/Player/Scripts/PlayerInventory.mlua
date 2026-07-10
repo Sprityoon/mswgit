@@ -16,7 +16,20 @@ script PlayerInventory extends Component
 	@Sync
 	property integer Coin = 0
 
+	-- T25: 레시피 해금 키 목록 JSON 배열. 구세이브 폴백 "[]".
+	@Sync
+	property string UnlockedRecipesJson = "[]"
+
+	-- T7: 진행 중 연구 (플레이어 단위, 오프라인 경과 환산).
+	@Sync
+	property string ActiveResearchId = ""
+
+	@Sync
+	property string ResearchStartTime = "0"
+
 	property table Items = {}
+
+	property number _researchTickAccum = 0.0
 
 	@ExecSpace("ServerOnly")
 	method void OnBeginPlay()
@@ -27,7 +40,299 @@ script PlayerInventory extends Component
 		self.QuickSlotsJson = "[\"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\"]"
 		self.SelectedQuickSlotIndex = 1
 		self.Coin = 0
+		self.UnlockedRecipesJson = "[]"
+		self.ActiveResearchId = ""
+		self.ResearchStartTime = "0"
+		self._researchTickAccum = 0.0
 		log("PlayerInventory initialized on server for player: " .. self.Entity.Name)
+	end
+
+	@ExecSpace("ServerOnly")
+	method void OnUpdate(number delta)
+		-- T7: 연구 타이머 완료 검사 (1초 간격).
+		if self.ActiveResearchId == nil or self.ActiveResearchId == "" then return end
+		self._researchTickAccum = self._researchTickAccum + delta
+		if self._researchTickAccum < 1.0 then return end
+		self._researchTickAccum = 0.0
+		self:TryCompleteActiveResearch()
+	end
+
+	method boolean HasRecipeUnlock(string unlockId)
+		-- UnlockId 보유 여부. 공란 키는 항상 true.
+		if unlockId == nil or unlockId == "" then return true end
+		local list = self:SafeDecodeJson(self.UnlockedRecipesJson, {})
+		for _, k in ipairs(list) do
+			if k == unlockId then return true end
+		end
+		return false
+	end
+
+	@ExecSpace("ServerOnly")
+	method boolean GrantRecipeUnlock(string unlockId)
+		-- 멱등 해금 지급. 신규일 때만 저장·MarkDirty·클라 토스트.
+		if unlockId == nil or unlockId == "" then return false end
+		if self:HasRecipeUnlock(unlockId) then return false end
+		local list = self:SafeDecodeJson(self.UnlockedRecipesJson, {})
+		table.insert(list, unlockId)
+		self.UnlockedRecipesJson = self:SafeEncodeJson(list, "[]")
+		if self.Entity.PlayerComponent then
+			_PersistenceManager:MarkPlayerDirty(self.Entity.PlayerComponent.UserId)
+		end
+		local displayName = unlockId
+		local ds = _DataService:GetTable("RecipeDataSet")
+		if ds ~= nil then
+			local rowCount = ds:GetRowCount()
+			for i = 1, rowCount do
+				if ds:GetCell(i, "UnlockId") == unlockId then
+					displayName = ds:GetCell(i, "RecipeName") or unlockId
+					break
+				end
+			end
+		end
+		local userId = self.Entity.PlayerComponent and self.Entity.PlayerComponent.UserId or 0
+		self:ClientOnRecipeUnlocked(displayName, userId)
+		log("[UNLOCK] granted " .. unlockId .. " -> " .. displayName)
+		return true
+	end
+
+	@ExecSpace("Client")
+	method void ClientOnRecipeUnlocked(string recipeDisplayName)
+		-- 해금 토스트/피드백.
+		local pc = self.Entity:GetComponent("script.PlayerController")
+		if isvalid(pc) then
+			pc:ShowMineFeedback("새 제작법을 익혔다: " .. tostring(recipeDisplayName))
+		end
+	end
+
+	@ExecSpace("ServerOnly")
+	method void MigrateLegacyRecipeUnlocks()
+		-- 잠금 도입 1회: 이미 보유한 산출물 레시피는 자동 해금.
+		local ds = _DataService:GetTable("RecipeDataSet")
+		if ds == nil then return end
+		local rowCount = ds:GetRowCount()
+		for i = 1, rowCount do
+			local unlockId = ds:GetCell(i, "UnlockId") or ""
+			if unlockId ~= "" then
+				local recipeName = ds:GetCell(i, "RecipeName") or ""
+				if recipeName ~= "" and self:GetItemCount(recipeName) > 0 then
+					self:GrantRecipeUnlock(unlockId)
+				end
+			end
+		end
+	end
+
+	@ExecSpace("ServerOnly")
+	method any GetResearchRow(string researchId)
+		-- ResearchDataSet FindRow by ResearchId.
+		if researchId == nil or researchId == "" then return nil end
+		local ds = _DataService:GetTable("ResearchDataSet")
+		if ds == nil then return nil end
+		return ds:FindRow("ResearchId", researchId)
+	end
+
+	@ExecSpace("ServerOnly")
+	method boolean TryCompleteActiveResearch()
+		-- 경과 시간이 Duration 이상이면 GrantRecipeUnlock 후 진행 상태 클리어.
+		if self.ActiveResearchId == nil or self.ActiveResearchId == "" then return false end
+		local row = self:GetResearchRow(self.ActiveResearchId)
+		if row == nil then
+			log_warning("[RESEARCH] unknown ActiveResearchId=" .. tostring(self.ActiveResearchId) .. " — clearing")
+			self.ActiveResearchId = ""
+			self.ResearchStartTime = "0"
+			return false
+		end
+		local duration = math.floor(tonumber(row:GetItem("Duration")) or 0)
+		local startT = tonumber(self.ResearchStartTime) or 0
+		local elapsed = os.time() - startT
+		if elapsed < duration then return false end
+
+		local unlockId = row:GetItem("UnlockRecipeId") or ""
+		local displayName = row:GetItem("DisplayName") or unlockId
+		self.ActiveResearchId = ""
+		self.ResearchStartTime = "0"
+		if unlockId ~= "" then
+			self:GrantRecipeUnlock(unlockId)
+		end
+		if self.Entity.PlayerComponent then
+			_PersistenceManager:MarkPlayerDirty(self.Entity.PlayerComponent.UserId)
+		end
+		local userId = self.Entity.PlayerComponent and self.Entity.PlayerComponent.UserId or 0
+		self:ClientOnResearchComplete(displayName, userId)
+		log("[RESEARCH] completed " .. tostring(displayName) .. " unlock=" .. tostring(unlockId))
+		return true
+	end
+
+	@ExecSpace("Client")
+	method void ClientOnResearchComplete(string researchDisplayName)
+		local pc = self.Entity:GetComponent("script.PlayerController")
+		if isvalid(pc) then
+			pc:ShowMineFeedback("연구 완료: " .. tostring(researchDisplayName))
+		end
+	end
+
+	@ExecSpace("Server")
+	method void ServerRequestUseItem(string itemName)
+		-- T9/T16: Category=consumable 사용. UseUnlockId → GrantRecipeUnlock 후 1 소모.
+		-- (T16 UseBuffId 등은 동일 진입점에서 확장 — 전용 해금 경로 재구현 금지.)
+		local userId = senderUserId
+		if userId == nil or userId == "" then return end
+		local playerComp = self.Entity.PlayerComponent
+		if playerComp == nil or userId ~= playerComp.UserId then return end
+		if itemName == nil or itemName == "" then return end
+
+		local baseName = self:GetBaseItemName(itemName)
+		local ds = _DataService:GetTable("item_dataset")
+		if ds == nil then return end
+		local row = ds:FindRow("Name", baseName)
+		if row == nil then return end
+		local category = row:GetItem("Category") or ""
+		if category ~= "consumable" then
+			local pc = self.Entity:GetComponent("script.PlayerController")
+			if isvalid(pc) then pc:ShowMineFeedback("사용할 수 없는 아이템입니다.") end
+			return
+		end
+		if self:GetItemCount(baseName) < 1 then
+			local pc = self.Entity:GetComponent("script.PlayerController")
+			if isvalid(pc) then pc:ShowMineFeedback("아이템이 없습니다.") end
+			return
+		end
+
+		local useUnlockId = ""
+		local okU, vU = pcall(function() return row:GetItem("UseUnlockId") end)
+		if okU and vU ~= nil then useUnlockId = vU end
+
+		if useUnlockId ~= nil and useUnlockId ~= "" then
+			if self:HasRecipeUnlock(useUnlockId) then
+				local pc = self.Entity:GetComponent("script.PlayerController")
+				if isvalid(pc) then pc:ShowMineFeedback("이미 익힌 제작법입니다.") end
+				return
+			end
+			if not self:RemoveItem(baseName, 1) then return end
+			self:GrantRecipeUnlock(useUnlockId)
+			log("[USE] scroll " .. baseName .. " -> unlock " .. useUnlockId)
+			return
+		end
+
+		-- T16: UseBuffId → PlayerBuffs.ApplyBuff (소모는 적용 성공 후에만)
+		local useBuffId = ""
+		local okB, vB = pcall(function() return row:GetItem("UseBuffId") end)
+		if okB and vB ~= nil then useBuffId = tostring(vB) end
+		if useBuffId ~= nil then
+			useBuffId = string.gsub(useBuffId, "^%s+", "")
+			useBuffId = string.gsub(useBuffId, "%s+$", "")
+		end
+		if useBuffId ~= nil and useBuffId ~= "" then
+			local buffs = self.Entity:GetComponent("script.PlayerBuffs")
+			if not isvalid(buffs) then
+				buffs = self.Entity:GetComponent("PlayerBuffs")
+			end
+			if not isvalid(buffs) then
+				-- DefaultPlayer 미부착/리프레시 누락 폴백
+				self.Entity:AddComponent("script.PlayerBuffs")
+				buffs = self.Entity:GetComponent("script.PlayerBuffs")
+				if not isvalid(buffs) then
+					self.Entity:AddComponent("PlayerBuffs")
+					buffs = self.Entity:GetComponent("PlayerBuffs")
+				end
+			end
+			if not isvalid(buffs) then
+				log_error("[USE] PlayerBuffs missing after AddComponent")
+				local pc = self.Entity:GetComponent("script.PlayerController")
+				if isvalid(pc) then pc:ShowMineFeedback("버프 시스템을 불러오지 못했습니다.") end
+				return
+			end
+			if not buffs:ApplyBuff(useBuffId) then
+				local pc = self.Entity:GetComponent("script.PlayerController")
+				if isvalid(pc) then pc:ShowMineFeedback("버프를 적용할 수 없습니다: " .. useBuffId) end
+				log_warning("[USE] ApplyBuff failed id=" .. useBuffId)
+				return
+			end
+			if not self:RemoveItem(baseName, 1) then
+				log_warning("[USE] buff applied but RemoveItem failed for " .. baseName)
+			end
+			local pcOk = self.Entity:GetComponent("script.PlayerController")
+			if isvalid(pcOk) then
+				local dsB = _DataService:GetTable("BuffDataSet")
+				local dn = useBuffId
+				if dsB ~= nil then
+					local br = dsB:FindRow("BuffId", useBuffId)
+					if br ~= nil then dn = br:GetItem("DisplayName") or useBuffId end
+				end
+				pcOk:ShowMineFeedback("버프 적용: " .. tostring(dn))
+			end
+			log("[USE] buff item " .. baseName .. " -> " .. useBuffId)
+			return
+		end
+
+		local pc2 = self.Entity:GetComponent("script.PlayerController")
+		if isvalid(pc2) then pc2:ShowMineFeedback("아직 사용할 수 없습니다.") end
+	end
+
+	@ExecSpace("Server")
+	method void ServerRequestStartResearch(string researchId)
+		-- 연구소 연구 시작: 재료 차감 → ActiveResearch 설정. 완료는 타이머/로드 시 TryComplete.
+		local userId = senderUserId
+		if userId == nil or userId == "" then return end
+		local playerComp = self.Entity.PlayerComponent
+		if playerComp == nil or userId ~= playerComp.UserId then return end
+
+		if researchId == nil or researchId == "" then return end
+
+		-- 오프라인 경과로 이미 끝난 연구가 있으면 먼저 정산
+		self:TryCompleteActiveResearch()
+
+		if self.ActiveResearchId ~= nil and self.ActiveResearchId ~= "" then
+			local pc = self.Entity:GetComponent("script.PlayerController")
+			if isvalid(pc) then pc:ShowMineFeedback("이미 연구가 진행 중입니다.") end
+			return
+		end
+
+		local row = self:GetResearchRow(researchId)
+		if row == nil then
+			local pc = self.Entity:GetComponent("script.PlayerController")
+			if isvalid(pc) then pc:ShowMineFeedback("알 수 없는 연구입니다.") end
+			return
+		end
+
+		local unlockId = row:GetItem("UnlockRecipeId") or ""
+		if unlockId ~= "" and self:HasRecipeUnlock(unlockId) then
+			local pc = self.Entity:GetComponent("script.PlayerController")
+			if isvalid(pc) then pc:ShowMineFeedback("이미 해금된 연구입니다.") end
+			return
+		end
+
+		local inputItem = row:GetItem("InputItem") or ""
+		local inputCount = math.floor(tonumber(row:GetItem("InputCount")) or 0)
+		if inputItem == "" or inputCount <= 0 then
+			log_error("[RESEARCH] invalid input for " .. researchId)
+			return
+		end
+		if self:GetItemCount(inputItem) < inputCount then
+			local pc = self.Entity:GetComponent("script.PlayerController")
+			if isvalid(pc) then
+				pc:ShowMineFeedback("재료가 부족합니다: " .. inputItem .. " x" .. tostring(inputCount))
+			end
+			return
+		end
+		if not self:RemoveItem(inputItem, inputCount) then
+			local pc = self.Entity:GetComponent("script.PlayerController")
+			if isvalid(pc) then pc:ShowMineFeedback("재료 차감에 실패했습니다.") end
+			return
+		end
+
+		self.ActiveResearchId = researchId
+		self.ResearchStartTime = tostring(os.time())
+		_PersistenceManager:MarkPlayerDirty(userId)
+
+		local displayName = row:GetItem("DisplayName") or researchId
+		local pc2 = self.Entity:GetComponent("script.PlayerController")
+		if isvalid(pc2) then
+			pc2:ShowMineFeedback("연구를 시작했습니다: " .. tostring(displayName))
+		end
+		log("[RESEARCH] started " .. researchId .. " by " .. tostring(userId))
+
+		-- Duration 0 즉시 완료 지원
+		self:TryCompleteActiveResearch()
 	end
 
 	@ExecSpace("Server")
@@ -476,6 +781,18 @@ script PlayerInventory extends Component
 		
 		local row = ds:FindRow("RecipeName", recipeName)
 		if row == nil then return end
+
+		-- T25 해금 게이트: UnlockId 비공란 & 미보유 → 거부.
+		local unlockId = row:GetItem("UnlockId") or ""
+		if unlockId ~= "" and not self:HasRecipeUnlock(unlockId) then
+			local pc = self.Entity:GetComponent("script.PlayerController")
+			local hint = row:GetItem("UnlockHint") or "???"
+			if isvalid(pc) then
+				pc:ShowMineFeedback("아직 익히지 않은 제작법입니다. " .. tostring(hint))
+			end
+			self:ClientOnCraftCompleted(recipeName, false, playerComp.UserId)
+			return
+		end
 		
 		local ingredients = {}
 		local ing1Name = row:GetItem("Ing1Name") or ""
@@ -791,6 +1108,29 @@ script PlayerInventory extends Component
 			log_warning("ResourceSpawner not available.")
 			return
 		end
+
+		-- 작물 씨앗 여부: CropDataSet.SeedItem FindRow 로만 판정 (이름 분기 금지).
+		local cropRow = nil
+		local cropDs = _DataService:GetTable("CropDataSet")
+		if cropDs ~= nil then
+			cropRow = cropDs:FindRow("SeedItem", itemName)
+		end
+		local isCropSeed = cropRow ~= nil
+
+		-- 작물 파종: L2 홀 + L1 Soil (마스크 15) 셀만 허용 — GetCellMask 재사용.
+		if isCropSeed then
+			local layer1Ent = currentMap:GetChildByName("RectTileMap")
+			local layer2Ent = currentMap:GetChildByName("RectTileMap2")
+			local tm1 = isvalid(layer1Ent) and layer1Ent.RectTileMapComponent or nil
+			local tm2 = isvalid(layer2Ent) and layer2Ent.RectTileMapComponent or nil
+			local mask = resourceSpawner:GetCellMask(tm2, tm1, cellPos.x, cellPos.y)
+			if mask ~= 15 then
+				if isvalid(pc) then
+					pc:ShowMineFeedback("괭이로 간 밭(흙 홀)에만 심을 수 있습니다.")
+				end
+				return
+			end
+		end
 		
 		-- Validate grid footprint occupancy
 		if isTile then
@@ -800,8 +1140,14 @@ script PlayerInventory extends Component
 				return
 			end
 		else
-			-- Furniture footprint check (generic model lookup)
-			local modelId = _EntryService:GetModelIdByName("Furniture_" .. string.gsub(itemName, " ", ""))
+			-- Furniture / crop model lookup
+			local modelId = nil
+			if isCropSeed then
+				local cropId = cropRow:GetItem("CropId") or ""
+				modelId = _EntryService:GetModelIdByName("Crop_" .. string.gsub(cropId, " ", ""))
+			else
+				modelId = _EntryService:GetModelIdByName("Furniture_" .. string.gsub(itemName, " ", ""))
+			end
 			if modelId == nil or modelId == "" then
 				log_error("Placed model not found for: " .. itemName)
 				return
@@ -829,6 +1175,9 @@ script PlayerInventory extends Component
 				for ny = yMin, yMax do
 					local key = nx .. "_" .. ny
 					if resourceSpawner:GetGridToEntity(currentMap.Name)[key] ~= nil then
+						if isvalid(pc) then
+							pc:ShowMineFeedback("이미 점유된 칸입니다.")
+						end
 						log_warning("Grid cell occupied: " .. key)
 						return
 					end
@@ -851,12 +1200,23 @@ script PlayerInventory extends Component
 			end
 			resourceSpawner:AddPlacedTile(currentMap.Name, placedTileName, cellPos.x, cellPos.y)
 		else
-			-- Spawn furniture entity
-			local modelId = _EntryService:GetModelIdByName("Furniture_" .. string.gsub(itemName, " ", ""))
+			-- Spawn furniture or crop entity
+			local modelId = nil
+			if isCropSeed then
+				local cropId = cropRow:GetItem("CropId") or ""
+				modelId = _EntryService:GetModelIdByName("Crop_" .. string.gsub(cropId, " ", ""))
+			else
+				modelId = _EntryService:GetModelIdByName("Furniture_" .. string.gsub(itemName, " ", ""))
+			end
 			local spawnPos = Vector3(cellPos.x + 0.5, cellPos.y + 0.5, 0)
+			local spawnName = itemName
+			if isCropSeed then
+				local cropId = cropRow:GetItem("CropId") or itemName
+				spawnName = "Crop_" .. string.gsub(cropId, " ", "")
+			end
 			local spawnedEntity = _SpawnService:SpawnByModelId(
 				modelId,
-				itemName,
+				spawnName,
 				spawnPos,
 				currentMap
 			)
@@ -867,9 +1227,44 @@ script PlayerInventory extends Component
 					sprite.SortingLayer = _RenderLayers.EntityLayer
 					sprite.OrderInLayer = math.max(_RenderLayers.MinEntityOrder, math.floor((resourceSpawner.MapRadius - cellPos.y) * 100))
 				end
-				log("[PLACE] Spawned furniture " .. itemName .. " at cell " .. tostring(cellPos))
-				
-
+				if isCropSeed then
+					-- 모델에 script.Crop이 등록돼 있어야 함. 미등록 시 서버 전용 AddComponent 폴백
+					-- (클라 Multicast 금지 — 없으면 LEA-3004 MissingComponent Crop).
+					local cropComp = spawnedEntity:GetComponent("script.Crop")
+					if not isvalid(cropComp) then
+						log_warning("[PLACE] model missing script.Crop; server AddComponent fallback. modelId="
+							.. tostring(modelId) .. " — rebuild Crop_* model after Crop.mlua refresh")
+						spawnedEntity:AddComponent("script.Crop")
+						cropComp = spawnedEntity:GetComponent("script.Crop")
+					end
+					if not isvalid(cropComp) then
+						spawnedEntity:AddComponent("Crop")
+						cropComp = spawnedEntity:GetComponent("script.Crop")
+						if not isvalid(cropComp) then
+							cropComp = spawnedEntity:GetComponent("Crop")
+						end
+					end
+					if isvalid(cropComp) then
+						cropComp:InitializePlant(itemName, math.floor(os.time()))
+						-- 파종 직후 스케일 즉시 적용 (1프레임 거대화 방지). InitializePlant가 비주얼도 갱신.
+						local s = cropComp:GetStageScale(1)
+						if s == nil or s <= 0 then s = 0.25 end
+						local tr = spawnedEntity.TransformComponent
+						if isvalid(tr) then
+							tr.Scale = Vector3(s, s, 1)
+						end
+						log("[PLACE] Planted crop seed " .. itemName
+							.. " at cell " .. tostring(cellPos)
+							.. " plantedAt=" .. tostring(cropComp.PlantedAtUnix)
+							.. " seedProp=" .. tostring(cropComp.SeedItem)
+							.. " scale=" .. tostring(s))
+					else
+						log_error("[PLACE] Failed to attach Crop for " .. itemName
+							.. " modelId=" .. tostring(modelId))
+					end
+				else
+					log("[PLACE] Spawned furniture " .. itemName .. " at cell " .. tostring(cellPos))
+				end
 
 				-- NOTE: portals need no placement-time initialization. Furniture_Portal.model carries
 				-- script.PortalGate itself, and portals placed on estate (Home_*) maps are universal:
@@ -878,7 +1273,7 @@ script PlayerInventory extends Component
 
 				resourceSpawner:AddPlacedFurniture(currentMap.Name, itemName, cellPos.x, cellPos.y, spawnedEntity)
 			else
-				log_error("Failed to spawn furniture entity: " .. itemName)
+				log_error("Failed to spawn placeable entity: " .. itemName)
 			end
 		end
 

@@ -15,4 +15,12 @@ Stone,desert,stone,1,2,1.0
 Tree1,,wood,4,6,1.0
 Tree2,,wood,10,15,1.0
 GrownGrass,,grass,1,1,1.0
+GrownGrass,,carrot_seed,1,1,0.05
 IronNodeResource,,iron_ore,2,4,1.0
+SlimeKing,,recipe_scroll_copper,1,1,0.35
+SlimeKing,,recipe_scroll_iron,1,1,0.15
+Boss_slime_king,,recipe_scroll_copper,1,1,0.35
+Boss_slime_king,,recipe_scroll_iron,1,1,0.15
+TreasureChest,,copper ore,2,4,1.0
+TreasureChest,,iron_ore,1,2,0.5
+TreasureChest,,recipe_scroll_copper,1,1,0.25

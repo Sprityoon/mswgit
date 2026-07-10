@@ -1,0 +1,131 @@
+@Component
+script TreasureChest extends Component
+
+	-- T9: 사냥터 보물 상자. F/터치 1회 개봉 → ItemDropDataSet(SourceId=TreasureChest).
+	-- F는 PlayerController.FindNearbyTreasureChest에서도 호출 (포탈과 겹치지 않게 그쪽이 우선).
+
+	@Sync
+	property boolean IsOpened = false
+
+	property any keyHandler = nil
+
+	method void OnBeginPlay()
+		if self:IsClient() then
+			self.Entity:ConnectEvent(TouchEvent, self.OnTouch)
+			-- 전역 F는 PlayerController가 처리. 터치/클릭만 여기서.
+		end
+	end
+
+	method void OnEndPlay()
+		if self:IsClient() and self.keyHandler ~= nil then
+			_InputService:DisconnectEvent(KeyDownEvent, self.keyHandler)
+			self.keyHandler = nil
+		end
+	end
+
+	@ExecSpace("ClientOnly")
+	method void OnTouch(TouchEvent event)
+		self:TryOpenLocal()
+	end
+
+	@ExecSpace("ClientOnly")
+	method void TryOpenLocal()
+		local localPlayer = _UserService.LocalPlayer
+		if not isvalid(localPlayer) then return end
+		local myPos = self.Entity.TransformComponent.WorldPosition
+		local playerPos = localPlayer.TransformComponent.WorldPosition
+		local dist = Vector2.Distance(Vector2(myPos.x, myPos.y), Vector2(playerPos.x, playerPos.y))
+		if dist > 3.0 then
+			local pc = localPlayer:GetComponent("script.PlayerController")
+			if isvalid(pc) then pc:ShowMineFeedback("상자에 더 가까이 다가가야 합니다.") end
+			return
+		end
+		if self.IsOpened then
+			local pc = localPlayer:GetComponent("script.PlayerController")
+			if isvalid(pc) then pc:ShowMineFeedback("이미 열어본 상자입니다.") end
+			return
+		end
+		self:ServerRequestOpen()
+	end
+
+	@ExecSpace("Server")
+	method void ServerRequestOpen()
+		if self.IsOpened then return end
+		local userId = senderUserId
+		if userId == nil or userId == "" then return end
+		local playerEntity = _UserService:GetUserEntityByUserId(userId)
+		if not isvalid(playerEntity) then return end
+
+		local myPos = self.Entity.TransformComponent.WorldPosition
+		local playerPos = playerEntity.TransformComponent.WorldPosition
+		local dist = Vector2.Distance(Vector2(myPos.x, myPos.y), Vector2(playerPos.x, playerPos.y))
+		if dist > 4.0 then
+			log_warning("[TREASURE] open rejected dist=" .. tostring(dist))
+			return
+		end
+
+		self.IsOpened = true
+		local map = self.Entity.CurrentMap
+		if isvalid(map) and _TileDurabilityManager ~= nil then
+			self:DropLoot(map, myPos)
+		else
+			log_error("[TREASURE] DropLoot skipped — map or TileDurabilityManager missing")
+		end
+
+		local sprite = self.Entity.SpriteRendererComponent
+		if isvalid(sprite) then
+			sprite.Color = Color(0.45, 0.45, 0.45, 0.75)
+		end
+
+		local pc = playerEntity:GetComponent("script.PlayerController")
+		if isvalid(pc) then
+			pc:ShowMineFeedback("보물 상자를 열었다!")
+		end
+		log("[TREASURE] opened by " .. tostring(userId) .. " on " .. tostring(map and map.Name or "?"))
+	end
+
+	@ExecSpace("ServerOnly")
+	method void DropLoot(Entity map, any worldPos)
+		local ds = _DataService:GetTable("ItemDropDataSet")
+		if ds == nil then
+			log_error("[TREASURE] ItemDropDataSet missing")
+			return
+		end
+		local sourceName = "TreasureChest"
+		local dropped = 0
+		local rowCount = ds:GetRowCount()
+		for i = 1, rowCount do
+			local sid = ds:GetCell(i, "SourceId") or ""
+			if sid == sourceName then
+				local prob = tonumber(ds:GetCell(i, "Probability")) or 0.0
+				if math.random() <= prob then
+					local itemId = ds:GetCell(i, "ItemId") or ""
+					local minC = math.floor(tonumber(ds:GetCell(i, "MinCount")) or 1)
+					local maxC = math.floor(tonumber(ds:GetCell(i, "MaxCount")) or minC)
+					if maxC < minC then maxC = minC end
+					local count = math.random(minC, maxC)
+					if itemId ~= "" and count > 0 then
+						local ox = (math.random() - 0.5) * 0.8
+						local oy = (math.random() - 0.5) * 0.8
+						_TileDurabilityManager:SpawnResourceDrop(
+							map,
+							Vector3(worldPos.x + ox, worldPos.y + oy, 0),
+							itemId, count, count, 0
+						)
+						dropped = dropped + 1
+					end
+				end
+			end
+		end
+		-- 확률 전부 실패해도 최소 1종 보장 (구리 광석)
+		if dropped == 0 then
+			_TileDurabilityManager:SpawnResourceDrop(
+				map,
+				Vector3(worldPos.x, worldPos.y, 0),
+				"copper ore", 2, 2, 0
+			)
+			log("[TREASURE] fallback copper ore drop")
+		end
+	end
+
+end

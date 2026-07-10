@@ -667,7 +667,7 @@ script UIInventoryController extends Component
 				slotEntity:DisconnectEvent(ButtonClickEvent, self.slotHandlers[slotEntity])
 			end
 			self.slotHandlers[slotEntity] = slotEntity:ConnectEvent(ButtonClickEvent, function()
-				-- Drag-drop already consumed this gesture (register to quickslot)
+				-- Drag-drop already consumed this gesture
 				if self.invSuppressClick then
 					self.invSuppressClick = false
 					return
@@ -675,18 +675,41 @@ script UIInventoryController extends Component
 
 				local clickTime = _UtilLogic.ElapsedSeconds
 				local lastTime = self.lastClickTimes[data.key] or 0
+				-- lastClickTimes는 비교 후에 갱신 (단일 클릭이 더블로 오인되지 않게)
+				local isDouble = (lastTime > 0) and ((clickTime - lastTime) < 0.35)
 				self.lastClickTimes[data.key] = clickTime
-		
+
 				local furnacePopup = _EntityService:GetEntityByPath("/ui/PopupGroup/FurnacePopup")
 				local furnaceOpen = isvalid(furnacePopup) and furnacePopup.Enable
 				local chestPopup = _EntityService:GetEntityByPath("/ui/PopupGroup/ChestPopup")
 				local chestOpen = isvalid(chestPopup) and chestPopup.Enable
-		
-				if clickTime - lastTime < 0.3 then
-					-- Double click
-					if furnaceOpen then
+				local shiftHeld = false
+				if _InputService ~= nil then
+					if _InputService:IsKeyPressed(KeyboardKey.LeftShift) then shiftHeld = true end
+					if _InputService:IsKeyPressed(KeyboardKey.RightShift) then shiftHeld = true end
+				end
+
+				if furnaceOpen then
+					-- 툴팁 숨김. 단일=무동작(하이라이트만). 더블=1개. 시프트(+클릭)=전부.
+					self:HideItemTooltip()
+					if shiftHeld then
 						self:TransferToFurnace(data.key, data.count, slotEntity)
-					elseif chestOpen then
+						return
+					end
+					if isDouble then
+						self:TransferToFurnace(data.key, 1, slotEntity)
+						-- 더블 소비 후 타이머 리셋해 삼중 클릭 방지
+						self.lastClickTimes[data.key] = 0
+						return
+					end
+					-- 단일 클릭: 절대 투입하지 않음
+					self.SelectedForFurnace = data.key
+					self:FlashSlotEntity(slotEntity, Color(0.3, 0.7, 1.0, 1.0))
+					return
+				end
+
+				if isDouble then
+					if chestOpen then
 						self:TransferToChest(data.key, data.count, slotEntity)
 					else
 						local player = _UserService.LocalPlayer
@@ -698,17 +721,9 @@ script UIInventoryController extends Component
 							end
 						end
 					end
+					self.lastClickTimes[data.key] = 0
 				else
-					-- Single click
-					if furnaceOpen then
-						self.SelectedForFurnace = data.key
-						self:ShowTooltip(data.key, data.count)
-						self:FlashSlotEntity(slotEntity, Color(0.3, 0.7, 1.0, 1.0))
-					elseif chestOpen then
-						self:ShowTooltip(data.key, data.count)
-					else
-						self:ShowTooltip(data.key, data.count)
-					end
+					self:ShowTooltip(data.key, data.count)
 				end
 			end)
 		end
@@ -751,8 +766,9 @@ script UIInventoryController extends Component
 
 		self.invTouchDragHandlers[slotEntity] = slotEntity:ConnectEvent(UITouchDragEvent, function(event)
 			if self.invDragStartSlot ~= slotEntity then return end
-			-- Furnace/chest transfer uses click/double-click; do not steal those gestures
-			if self:IsFurnaceOrChestOpen() then return end
+			-- 상자는 클릭 전용; 화로/냄비는 드래그 허용
+			local chestPopup = _EntityService:GetEntityByPath("/ui/PopupGroup/ChestPopup")
+			if isvalid(chestPopup) and chestPopup.Enable then return end
 
 			self.invDragAccumulatedDelta = self.invDragAccumulatedDelta + math.abs(event.TouchDelta.x) + math.abs(event.TouchDelta.y)
 			if self.invDragAccumulatedDelta > 5 then
@@ -760,7 +776,6 @@ script UIInventoryController extends Component
 			end
 
 			if self.invIsDragging then
-				-- Floating ghost under HUDGroup escapes inventory GridView clip
 				if isvalid(self.invDraggedIcon) then
 					self:EnsureInvDragGhost(self.invDraggedIcon, event.TouchPoint)
 				end
@@ -774,26 +789,36 @@ script UIInventoryController extends Component
 			local wasDragging = self.invIsDragging
 			local itemKey = self.invDragItemKey
 
-			if wasDragging and itemKey ~= "" and not self:IsFurnaceOrChestOpen() then
-				local dropTargetIndex = self:HitTestQuickSlot(event.TouchPoint)
-				if dropTargetIndex ~= -1 then
-					local player = _UserService.LocalPlayer
-					if isvalid(player) then
-						local inv = player:GetComponent("script.PlayerInventory")
-						if isvalid(inv) then
-							-- Empty = register, occupied = replace; dedupe handled server-side
-							inv:ServerRegisterQuickSlot(dropTargetIndex, itemKey)
-							self:FlashSlotEntity(slotEntity, Color(0.2, 0.8, 0.2, 1.0))
-							self.invSuppressClick = true
-						end
+			if wasDragging and itemKey ~= "" then
+				local furnacePopup = _EntityService:GetEntityByPath("/ui/PopupGroup/FurnacePopup")
+				local furnaceOpen = isvalid(furnacePopup) and furnacePopup.Enable
+				if furnaceOpen then
+					local slotType = self:HitTestFurnaceSlot(event.TouchPoint)
+					if slotType ~= "" then
+						-- 드래그앤드롭 = 보유 전부 투입
+						self:TransferToFurnaceSlot(itemKey, data.count, slotType, slotEntity)
+						self.invSuppressClick = true
+					else
+						self.invSuppressClick = true
 					end
 				else
-					-- Drag cancelled (not over a quickslot) — suppress stray click
-					self.invSuppressClick = true
+					local dropTargetIndex = self:HitTestQuickSlot(event.TouchPoint)
+					if dropTargetIndex ~= -1 then
+						local player = _UserService.LocalPlayer
+						if isvalid(player) then
+							local inv = player:GetComponent("script.PlayerInventory")
+							if isvalid(inv) then
+								inv:ServerRegisterQuickSlot(dropTargetIndex, itemKey)
+								self:FlashSlotEntity(slotEntity, Color(0.2, 0.8, 0.2, 1.0))
+								self.invSuppressClick = true
+							end
+						end
+					else
+						self.invSuppressClick = true
+					end
 				end
 			end
 
-			-- Destroys ghost + restores source icon alpha
 			self:ResetInvDragState()
 		end)
 	end
@@ -809,8 +834,22 @@ script UIInventoryController extends Component
 	end
 
 	@ExecSpace("ClientOnly")
+	method void HideItemTooltip()
+		if isvalid(self.tooltipPanel) then
+			self.tooltipPanel.Enable = false
+		end
+		self.inspectedItem = ""
+		self.inspectedCount = 0
+	end
+
+	@ExecSpace("ClientOnly")
 	method void ShowTooltip(string itemKey, integer count)
 		-- Shows the item details tooltip with rarity colors.
+		-- 화로/냄비 열림 중에는 툴팁이 스테이션 UI를 가리므로 표시하지 않음.
+		if self:IsFurnaceOpenOnly() then
+			self:HideItemTooltip()
+			return
+		end
 		if not isvalid(self.tooltipPanel) then return end
 		self.tooltipPanel.Enable = true
 		self.inspectedItem = itemKey
@@ -840,40 +879,104 @@ script UIInventoryController extends Component
 	end
 
 	@ExecSpace("ClientOnly")
-	method void TransferToFurnace(string itemKey, integer count, Entity slotEntity)
+	method boolean IsFurnaceOpenOnly()
+		local furnacePopup = _EntityService:GetEntityByPath("/ui/PopupGroup/FurnacePopup")
+		return isvalid(furnacePopup) and furnacePopup.Enable
+	end
+
+	@ExecSpace("ClientOnly")
+	method string GetOpenFurnaceRecipeTable()
+		local furnacePopup = _EntityService:GetEntityByPath("/ui/PopupGroup/FurnacePopup")
+		if not isvalid(furnacePopup) then return "SmeltingRecipeDataSet" end
+		local furnaceController = furnacePopup:GetComponent("script.UIFurnaceController")
+		if isvalid(furnaceController) and furnaceController.GetRecipeTableName ~= nil then
+			return furnaceController:GetRecipeTableName()
+		end
+		return "SmeltingRecipeDataSet"
+	end
+
+	@ExecSpace("ClientOnly")
+	method string HitTestFurnaceSlot(Vector2 screenPoint)
+		-- 인벤 드래그 드롭 대상: input / fuel (output 제외).
+		local paths = {
+			input = "/ui/PopupGroup/FurnacePopup/Bg/InputSlot",
+			fuel = "/ui/PopupGroup/FurnacePopup/Bg/FuelSlot",
+		}
+		for slotType, path in pairs(paths) do
+			local ent = _EntityService:GetEntityByPath(path)
+			if isvalid(ent) and isvalid(ent.UITransformComponent) then
+				local tr = ent.UITransformComponent
+				local size = tr.RectSize
+				-- world corners approx via ScreenToLocal
+				local localPos = _UILogic:ScreenToLocalUIPosition(screenPoint, tr)
+				if localPos ~= nil then
+					local hx = size.x * 0.5
+					local hy = size.y * 0.5
+					if localPos.x >= -hx and localPos.x <= hx and localPos.y >= -hy and localPos.y <= hy then
+						return slotType
+					end
+				end
+			end
+		end
+		return ""
+	end
+
+	@ExecSpace("ClientOnly")
+	method void TransferToFurnaceSlot(string itemKey, integer count, string slotType, Entity slotEntity)
+		-- slotType: "input" | "fuel" | ""(자동 판정)
 		local furnacePopup = _EntityService:GetEntityByPath("/ui/PopupGroup/FurnacePopup")
 		if not isvalid(furnacePopup) then return end
 		local furnaceController = furnacePopup:GetComponent("script.UIFurnaceController")
 		if not isvalid(furnaceController) or not isvalid(furnaceController.CurrentFurnace) then return end
 		local furnaceComp = furnaceController.CurrentFurnace:GetComponent("script.Furnace")
 		if not isvalid(furnaceComp) then return end
-		
+
 		local player = _UserService.LocalPlayer
 		local inv = isvalid(player) and player:GetComponent("script.PlayerInventory")
 		local baseName = isvalid(inv) and inv:GetBaseItemName(itemKey) or itemKey
-		
-		local transferred = false
-		local smeltDs = _DataService:GetTable("SmeltingRecipeDataSet")
+		if count == nil or count < 1 then count = 1 end
+
+		local recipeTable = self:GetOpenFurnaceRecipeTable()
+		local recipeDs = _DataService:GetTable(recipeTable)
 		local fuelDs = _DataService:GetTable("FurnaceFuelDataSet")
 		local isFuel = fuelDs ~= nil and fuelDs:FindRow("FuelItem", baseName) ~= nil
-		local isOre = smeltDs ~= nil and smeltDs:FindRow("InputItem", baseName) ~= nil
-		
-		if isFuel then
+		local isInput = recipeDs ~= nil and recipeDs:FindRow("InputItem", baseName) ~= nil
+
+		local target = slotType
+		if target == nil or target == "" then
+			if isFuel and not isInput then
+				target = "fuel"
+			elseif isInput then
+				target = "input"
+			elseif isFuel then
+				target = "fuel"
+			else
+				target = ""
+			end
+		end
+
+		local transferred = false
+		if target == "fuel" and isFuel then
 			local curCount = furnaceComp.FuelItemCount
 			local toPut = math.min(99 - curCount, count)
 			if toPut > 0 then
 				furnaceComp:RequestPutItem("fuel", baseName, toPut)
 				transferred = true
 			end
-		elseif isOre then
-			local curCount = furnaceComp.InputItemCount
-			local toPut = math.min(99 - curCount, count)
-			if toPut > 0 then
-				furnaceComp:RequestPutItem("input", baseName, toPut)
-				transferred = true
+		elseif target == "input" and isInput then
+			if furnaceComp.InputItemName ~= "" and furnaceComp.InputItemName ~= baseName then
+				transferred = false
+			else
+				local curCount = furnaceComp.InputItemCount
+				local toPut = math.min(99 - curCount, count)
+				if toPut > 0 then
+					furnaceComp:RequestPutItem("input", baseName, toPut)
+					transferred = true
+				end
 			end
 		end
-		
+
+		self:HideItemTooltip()
 		if transferred then
 			self:FlashSlotEntity(slotEntity, Color(0.2, 0.8, 0.2, 1.0))
 			self.SelectedForFurnace = ""
@@ -885,6 +988,12 @@ script UIInventoryController extends Component
 		else
 			self:FlashSlotEntity(slotEntity, Color(0.8, 0.2, 0.2, 1.0))
 		end
+	end
+
+	@ExecSpace("ClientOnly")
+	method void TransferToFurnace(string itemKey, integer count, Entity slotEntity)
+		-- 자동 슬롯 판정 (레시피 테이블 = 열린 스테이션 기준).
+		self:TransferToFurnaceSlot(itemKey, count, "", slotEntity)
 	end
 
 	@ExecSpace("ClientOnly")

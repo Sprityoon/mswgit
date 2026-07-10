@@ -1,0 +1,75 @@
+@Component
+script ResearchLab extends Component
+
+	-- Town research lab interact: F / Touch → open ResearchPopup (MerchantInteract pattern).
+
+	property any keyHandler = nil
+
+	method void OnBeginPlay()
+		if self:IsClient() then
+			self.Entity:ConnectEvent(TouchEvent, self.OnTouch)
+			self.keyHandler = _InputService:ConnectEvent(KeyDownEvent, self.OnKeyDown)
+		end
+	end
+
+	method void OnEndPlay()
+		if self:IsClient() and self.keyHandler ~= nil then
+			_InputService:DisconnectEvent(KeyDownEvent, self.keyHandler)
+			self.keyHandler = nil
+		end
+	end
+
+	@ExecSpace("ClientOnly")
+	method void OnTouch(TouchEvent event)
+		local localPlayer = _UserService.LocalPlayer
+		if not isvalid(localPlayer) then return end
+		if self:GetDistanceToPlayer(localPlayer) > 3.0 then
+			self:ShowRangeFeedback(localPlayer)
+			return
+		end
+		self:OpenResearchUI()
+	end
+
+	@ExecSpace("ClientOnly")
+	method void OnKeyDown(KeyDownEvent event)
+		if event.key ~= KeyboardKey.F then return end
+		local localPlayer = _UserService.LocalPlayer
+		if not isvalid(localPlayer) then return end
+		if self:GetDistanceToPlayer(localPlayer) <= 3.0 then
+			self:OpenResearchUI()
+		end
+	end
+
+	@ExecSpace("ClientOnly")
+	method number GetDistanceToPlayer(Entity player)
+		local myPos = self.Entity.TransformComponent.WorldPosition
+		local playerPos = player.TransformComponent.WorldPosition
+		return Vector2.Distance(Vector2(myPos.x, myPos.y), Vector2(playerPos.x, playerPos.y))
+	end
+
+	@ExecSpace("ClientOnly")
+	method void ShowRangeFeedback(Entity player)
+		local pc = player:GetComponent("script.PlayerController")
+		if isvalid(pc) then
+			pc:ShowMineFeedback("연구소에 더 가까이 다가가야 합니다.")
+		end
+	end
+
+	@ExecSpace("ClientOnly")
+	method void OpenResearchUI()
+		local popup = _EntityService:GetEntityByPath("/ui/PopupGroup/ResearchPopup")
+		if not isvalid(popup) then
+			log_error("[ResearchLab] ResearchPopup not found at /ui/PopupGroup/ResearchPopup")
+			return
+		end
+		local ctrl = popup:GetComponent("script.UIResearchController")
+		if isvalid(ctrl) then
+			if popup.Enable then
+				ctrl:Close()
+			else
+				ctrl:Open()
+			end
+		end
+	end
+
+end

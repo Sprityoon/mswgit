@@ -1,0 +1,3 @@
+ResearchId,DisplayName,InputItem,InputCount,Duration,UnlockRecipeId,IconRUID,Desc,SortOrder
+research_copper_tools,구리 도구,Copper Ore,10,120,research_copper_tools,914eb87802b64924b5f78bb97a55faeb,구리 광석을 연구해 구리 도구 제작법을 익힌다.,1
+research_iron_tools,철 도구,Iron Ore,10,300,research_iron_tools,79f438d0427142f09f979b58e982b1bd,철 광석을 연구해 철 도구 제작법을 익힌다.,2

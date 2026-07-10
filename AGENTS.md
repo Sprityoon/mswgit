@@ -9,6 +9,7 @@ You are an expert assistant for **MapleStory World (MSW)** development. Treat ev
 > - 컴포넌트 설계·디렉터리 구조 규칙 → [docs/agents/directory-structure.md](./docs/agents/directory-structure.md)
 > - 스킬/레퍼런스 로드 프로토콜 (도메인 트리거 매트릭스) → [docs/agents/skill-routing.md](./docs/agents/skill-routing.md)
 > - 개발 워크플로우·MCP 검증 프로세스 → [docs/agents/workflow.md](./docs/agents/workflow.md)
+> - 지휘자(기획·위임) 역할 규약 → [docs/agents/conductor-role.md](./docs/agents/conductor-role.md), 하위 에이전트 작업 큐 → [docs/agents/subagent-handoff.md](./docs/agents/subagent-handoff.md)
 
 ---
 

@@ -416,11 +416,40 @@ script UIHUDController extends Component
 	end
 
 	@ExecSpace("ClientOnly")
+	method void UpdateBuffBar(Entity player)
+		-- T16: 활성 버프 텍스트 (아이콘 바 간이판).
+		local bar = _EntityService:GetEntityByPath("/ui/HUDGroup/BuffBar")
+		if not isvalid(bar) then return end
+		local textEnt = bar:GetChildByName("Text")
+		if not isvalid(textEnt) or not isvalid(textEnt.TextComponent) then return end
+		local buffs = player:GetComponent("script.PlayerBuffs")
+		if not isvalid(buffs) then
+			textEnt.TextComponent.Text = ""
+			bar.Enable = false
+			return
+		end
+		local list = buffs:GetActiveBuffsForUI()
+		if #list == 0 then
+			textEnt.TextComponent.Text = ""
+			bar.Enable = false
+			return
+		end
+		bar.Enable = true
+		local parts = {}
+		for _, b in ipairs(list) do
+			table.insert(parts, tostring(b.displayName) .. " " .. tostring(b.remain) .. "s")
+		end
+		textEnt.TextComponent.Text = table.concat(parts, "  ·  ")
+	end
+
+	@ExecSpace("ClientOnly")
 	method void UpdateHUD()
 		-- description: Updates quick slots (icons, counts, rarity colors) and the day/night time UI.
 		-- HP / Level / Stamina now live in the UIMyInfo widget (script.UIMyInfo).
 		local player = _UserService.LocalPlayer
 		if not isvalid(player) then return end
+
+		self:UpdateBuffBar(player)
 
 		local inv = player:GetComponent("script.PlayerInventory")
 		if isvalid(inv) then

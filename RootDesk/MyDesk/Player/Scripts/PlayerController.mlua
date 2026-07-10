@@ -153,7 +153,9 @@ script PlayerController extends Component
 					end
 				else
 					if self.Stamina < self.MaxStamina then
-						self.Stamina = math.min(self.MaxStamina, self.Stamina + 2)
+						local regen = math.floor(self:GetBuffedStaminaRegen() + 0.5)
+						if regen < 1 then regen = 1 end
+						self.Stamina = math.min(self.MaxStamina, self.Stamina + regen)
 					end
 				end
 			end, 1.0)
@@ -275,6 +277,12 @@ script PlayerController extends Component
 				self:ServerRequestWakeUp()
 			end
 			return
+		end
+
+		-- T16: 이동속도 버프 반영
+		local movementBuff = self.Entity.MovementComponent
+		if isvalid(movementBuff) then
+			movementBuff.InputSpeed = self:GetBuffedMoveSpeed()
 		end
 
 		-- Resolve any overlaps with resource colliders first
@@ -505,14 +513,35 @@ script PlayerController extends Component
 
 	@ExecSpace("ClientOnly")
 	method void TryMine()
-		-- description: Attempts to trigger mining or placement on client-side.
+		-- description: Attempts to trigger mining, placement, or consumable use on client-side.
+		local inv = self.Entity:GetComponent("script.PlayerInventory")
+		local activeItem = ""
+		if isvalid(inv) then
+			local slots = _HttpService:JSONDecode(inv.QuickSlotsJson) or {}
+			activeItem = slots[inv.SelectedQuickSlotIndex] or ""
+			-- consumable: 쿨다운/타일맵 무관 — 퀵슬롯 Ctrl로 즉시 사용
+			if activeItem ~= "" then
+				local baseName = inv:GetBaseItemName(activeItem)
+				local ds = _DataService:GetTable("item_dataset")
+				if ds ~= nil then
+					local row = ds:FindRow("Name", baseName)
+					if row ~= nil and row:GetItem("Category") == "consumable" then
+						inv:ServerRequestUseItem(baseName)
+						return
+					end
+				end
+			end
+		end
+
 		local now = _UtilLogic.ElapsedSeconds
 		if now - self.LastMineTime < self:GetEffectiveMineCooldown() then
 			return
 		end
 		self.LastMineTime = now
-		
-		local tilemap = self.Entity.CurrentMap:GetFirstChildComponentByTypeName("RectTileMapComponent")
+
+		local currentMap = self.Entity.CurrentMap
+		if not isvalid(currentMap) then return end
+		local tilemap = currentMap:GetFirstChildComponentByTypeName("RectTileMapComponent")
 		if not isvalid(tilemap) then return end
 		local playerCell = tilemap:ToCellPosition(self.Entity.TransformComponent.WorldPosition)
 		if playerCell == nil then return end
@@ -520,29 +549,21 @@ script PlayerController extends Component
 		
 		local isPlaceable = false
 		local terrainAction = ""
-		local activeItem = ""
-		local inv = self.Entity:GetComponent("script.PlayerInventory")
-		if isvalid(inv) then
-			local slots = _HttpService:JSONDecode(inv.QuickSlotsJson) or {}
-			activeItem = slots[inv.SelectedQuickSlotIndex] or ""
-			if activeItem ~= "" then
-				local baseName = inv:GetBaseItemName(activeItem)
-				local ds = _DataService:GetTable("item_dataset")
-				if ds ~= nil then
-					local row = ds:FindRow("Name", baseName)
-					if row ~= nil then
-						-- 데이터 주도: TerrainEditAction 컬럼이 있으면 지형 편집 우선.
-						local ok, v = pcall(function() return row:GetItem("TerrainEditAction") end)
-						if ok and v ~= nil then terrainAction = v end
-						if row:GetItem("Category") == "furniture" then
-							isPlaceable = true
-						end
-						-- 스윙 모션은 액션 이름이 아니라 Category=="tool" 여부 (삽·괭이 공통, 씨앗 무모션).
-						if terrainAction ~= nil and terrainAction ~= "" and row:GetItem("Category") == "tool" then
-							local state = self.Entity.StateComponent
-							if isvalid(state) then
-								state:ChangeState("MINE")
-							end
+		if isvalid(inv) and activeItem ~= "" then
+			local baseName = inv:GetBaseItemName(activeItem)
+			local ds = _DataService:GetTable("item_dataset")
+			if ds ~= nil then
+				local row = ds:FindRow("Name", baseName)
+				if row ~= nil then
+					local ok, v = pcall(function() return row:GetItem("TerrainEditAction") end)
+					if ok and v ~= nil then terrainAction = v end
+					if row:GetItem("Category") == "furniture" then
+						isPlaceable = true
+					end
+					if terrainAction ~= nil and terrainAction ~= "" and row:GetItem("Category") == "tool" then
+						local state = self.Entity.StateComponent
+						if isvalid(state) then
+							state:ChangeState("MINE")
 						end
 					end
 				end
@@ -640,6 +661,20 @@ script PlayerController extends Component
 				end
 			end
 		elseif key == KeyboardKey.F then
+			-- 보물 상자: 포탈보다 우선 (홈 포탈 옆 스폰 시 F가 워프로만 먹히던 문제)
+			local nearbyTreasure = self:FindNearbyTreasureChest()
+			if isvalid(nearbyTreasure) then
+				local tc = nearbyTreasure:GetComponent("script.TreasureChest")
+				if not isvalid(tc) then tc = nearbyTreasure:GetComponent("TreasureChest") end
+				if isvalid(tc) then
+					if tc.IsOpened then
+						self:ShowMineFeedback("이미 열어본 상자입니다.")
+					else
+						tc:ServerRequestOpen()
+					end
+					return
+				end
+			end
 			if isvalid(self.ActivePortal) then
 				-- Estate portals open the destination list (town / hunting grounds); fixed portals in
 				-- other maps warp straight to their single target. See TryUsePortal.
@@ -1640,7 +1675,46 @@ script PlayerController extends Component
 
 	method number GetEffectiveMineCooldown()
 		-- 실효 채집 쿨다운 = MineCooldown + Σ패시브(MineCooldown, 음수), 하한 0.2초
-		return math.max(0.2, self.MineCooldown + self:GetPassiveBonus("MineCooldown"))
+		-- T16 GatherSpeed mult: 쿨다운 / mult (채집 빨라짐)
+		local cd = self.MineCooldown + self:GetPassiveBonus("MineCooldown")
+		local buffs = self.Entity:GetComponent("script.PlayerBuffs")
+		if isvalid(buffs) then
+			local mult = buffs:GetStatMult("GatherSpeed")
+			if mult > 0.01 then
+				cd = cd / mult
+			end
+			cd = cd - buffs:GetStatAdd("GatherSpeed") * 0.05
+		end
+		return math.max(0.2, cd)
+	end
+
+	method number GetBuffedMoveSpeed()
+		-- T16 MoveSpeed: base 3.6 * mult + add
+		local base = 3.6
+		local buffs = self.Entity:GetComponent("script.PlayerBuffs")
+		if isvalid(buffs) then
+			return base * buffs:GetStatMult("MoveSpeed") + buffs:GetStatAdd("MoveSpeed")
+		end
+		return base
+	end
+
+	method number GetBuffedAttackPower()
+		-- T16 AttackPower 가산 (BaseDamage에 더함)
+		local buffs = self.Entity:GetComponent("script.PlayerBuffs")
+		if isvalid(buffs) then
+			return buffs:GetStatAdd("AttackPower") + (buffs:GetStatMult("AttackPower") - 1.0) * 8.0
+		end
+		return 0.0
+	end
+
+	method number GetBuffedStaminaRegen()
+		-- T16 StaminaRegen: 초당 기본 2 + add, * mult
+		local base = 2.0
+		local buffs = self.Entity:GetComponent("script.PlayerBuffs")
+		if isvalid(buffs) then
+			return (base + buffs:GetStatAdd("StaminaRegen")) * buffs:GetStatMult("StaminaRegen")
+		end
+		return base
 	end
 
 	@ExecSpace("ServerOnly")
@@ -1749,6 +1823,7 @@ script PlayerController extends Component
 				base = base + toolInfo.power * 4
 			end
 		end
+		base = base + math.floor(self:GetBuffedAttackPower() + 0.5)
 		return math.floor(base * damageMul)
 	end
 
@@ -2003,13 +2078,13 @@ script PlayerController extends Component
 
 	@ExecSpace("Client")
 	method void ClientOnSleepStart()
-		-- description: Handle client-side visual effects when sleeping starts.
-		_ScreenMessageLogic:PrivateMsg("수면을 시작합니다. 이동키 입력 시 깨어납니다.")
+		-- description: Handle client-side feedback when sleeping starts (T8).
+		_ScreenMessageLogic:PrivateMsg("수면 시작 — 약 10분에 HP/스태미나 풀충전. 이동키로 기상(비례 회복).")
 	end
 
 	@ExecSpace("Client")
 	method void ClientOnSleepEnd()
-		-- description: Handle client-side visual effects when sleeping ends.
+		-- description: Handle client-side feedback when sleeping ends.
 		_ScreenMessageLogic:PrivateMsg("잠에서 깨어났습니다.")
 	end
 
@@ -2040,6 +2115,37 @@ script PlayerController extends Component
 			end
 		end
 		
+		return closest
+	end
+
+	@ExecSpace("ClientOnly")
+	method Entity FindNearbyTreasureChest()
+		-- T9: 미개봉 보물 상자 (거리 ≤2.5). 포탈보다 우선 처리용.
+		local currentMap = self.Entity.CurrentMap
+		if not isvalid(currentMap) then return nil end
+		local myPos = self.Entity.TransformComponent.WorldPosition:ToVector2()
+		local closest = nil
+		local minDist = 2.5
+		local comps = currentMap:GetChildComponentsByTypeName("script.TreasureChest", true)
+		if not comps then
+			comps = currentMap:GetChildComponentsByTypeName("TreasureChest", true)
+		end
+		if not comps then return nil end
+		for _, comp in ipairs(comps) do
+			if isvalid(comp) then
+				if not comp.IsOpened then
+					local ent = comp.Entity
+					if isvalid(ent) then
+						local fPos = ent.TransformComponent.WorldPosition:ToVector2()
+						local dist = (myPos - fPos):Magnitude()
+						if dist < minDist then
+							minDist = dist
+							closest = ent
+						end
+					end
+				end
+			end
+		end
 		return closest
 	end
 

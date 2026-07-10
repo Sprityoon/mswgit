@@ -63,10 +63,22 @@ script UIFurnaceController extends Component
 		self.CurrentFurnace = furnaceEntity
 		self.Entity.Enable = true
 		log("[FURNACE-UI] Opened Furnace UI for: " .. furnaceEntity.Name)
-		
+
+		-- T17: 스테이션 제목 (화로/냄비)
+		local fc = furnaceEntity:GetComponent("script.Furnace")
+		local titleText = "화로"
+		if isvalid(fc) and fc.StationTitle ~= nil and fc.StationTitle ~= "" then
+			titleText = fc.StationTitle
+		end
 		local bg = self.Entity:GetChildByName("Bg")
-		if isvalid(bg) and isvalid(bg.UITransformComponent) then
-			bg.UITransformComponent.anchoredPosition = Vector2(330, 0)
+		if isvalid(bg) then
+			local titleEnt = bg:GetChildByName("Title")
+			if isvalid(titleEnt) and isvalid(titleEnt.TextComponent) then
+				titleEnt.TextComponent.Text = titleText
+			end
+			if isvalid(bg.UITransformComponent) then
+				bg.UITransformComponent.anchoredPosition = Vector2(330, 0)
+			end
 		end
 		
 		local invPopup = _EntityService:GetEntityByPath("/ui/PopupGroup/InventoryPopup")
@@ -77,6 +89,12 @@ script UIFurnaceController extends Component
 			local invController = invPopup:GetComponent("script.UIInventoryController")
 			if isvalid(invController) then
 				invController:Open()
+				-- 냄비/화로 옆 툴팁이 스테이션을 가리지 않도록 즉시 숨김
+				if invController.HideItemTooltip ~= nil then
+					invController:HideItemTooltip()
+				elseif isvalid(invController.tooltipPanel) then
+					invController.tooltipPanel.Enable = false
+				end
 			end
 		end
 	end
@@ -239,10 +257,21 @@ script UIFurnaceController extends Component
 	end
 
 	@ExecSpace("ClientOnly")
+	method string GetRecipeTableName()
+		if isvalid(self.CurrentFurnace) then
+			local fc = self.CurrentFurnace:GetComponent("script.Furnace")
+			if isvalid(fc) and fc.RecipeTableName ~= nil and fc.RecipeTableName ~= "" then
+				return fc.RecipeTableName
+			end
+		end
+		return "SmeltingRecipeDataSet"
+	end
+
+	@ExecSpace("ClientOnly")
 	method boolean IsSmeltable(string itemName)
-		-- True if the item is registered as a smelting input.
+		-- True if the item is a valid input for the open station's recipe table.
 		if itemName == nil or itemName == "" then return false end
-		local ds = _DataService:GetTable("SmeltingRecipeDataSet")
+		local ds = _DataService:GetTable(self:GetRecipeTableName())
 		if ds == nil then return false end
 		return ds:FindRow("InputItem", itemName) ~= nil
 	end
@@ -258,13 +287,33 @@ script UIFurnaceController extends Component
 
 	@ExecSpace("ClientOnly")
 	method number GetSmeltDuration(string itemName)
-		-- Returns the smelt duration for the given ore, or 0 if not smeltable.
+		-- Returns cook/smelt duration for the open station recipe table.
+		-- CookingRecipeDataSet uses CookDuration — SmeltDuration 직접 조회 시 LEA-3011 발생.
 		if itemName == nil or itemName == "" then return 0.0 end
-		local ds = _DataService:GetTable("SmeltingRecipeDataSet")
+		local ds = _DataService:GetTable(self:GetRecipeTableName())
 		if ds == nil then return 0.0 end
 		local row = ds:FindRow("InputItem", itemName)
 		if row == nil then return 0.0 end
-		return tonumber(row:GetItem("SmeltDuration")) or 0.0
+
+		local preferred = "SmeltDuration"
+		if isvalid(self.CurrentFurnace) then
+			local fc = self.CurrentFurnace:GetComponent("script.Furnace")
+			if isvalid(fc) and fc.DurationColumn ~= nil and fc.DurationColumn ~= "" then
+				preferred = fc.DurationColumn
+			end
+		end
+		local d = 0.0
+		local ok1, v1 = pcall(function() return row:GetItem(preferred) end)
+		if ok1 and v1 ~= nil and v1 ~= "" then d = tonumber(v1) or 0.0 end
+		if d <= 0 then
+			local ok2, v2 = pcall(function() return row:GetItem("CookDuration") end)
+			if ok2 and v2 ~= nil and v2 ~= "" then d = tonumber(v2) or 0.0 end
+		end
+		if d <= 0 then
+			local ok3, v3 = pcall(function() return row:GetItem("SmeltDuration") end)
+			if ok3 and v3 ~= nil and v3 ~= "" then d = tonumber(v3) or 0.0 end
+		end
+		return d
 	end
 
 	@ExecSpace("ClientOnly")
@@ -299,130 +348,48 @@ script UIFurnaceController extends Component
 	end
 
 	@ExecSpace("ClientOnly")
-	method boolean TryPutSelectedItem(string slotType)
-		local invPopup = _EntityService:GetEntityByPath("/ui/PopupGroup/InventoryPopup")
-		if not isvalid(invPopup) then return false end
-		local invController = invPopup:GetComponent("script.UIInventoryController")
-		if not isvalid(invController) then return false end
-		
-		local selectedName = invController.SelectedForFurnace
-		if selectedName == nil or selectedName == "" then return false end
-		
-		if not isvalid(self.CurrentFurnace) then return false end
-		local furnace = self.CurrentFurnace:GetComponent("script.Furnace")
-		if not isvalid(furnace) then return false end
-		
-		local localPlayer = _UserService.LocalPlayer
-		if not isvalid(localPlayer) then return false end
-		local inv = localPlayer:GetComponent("script.PlayerInventory")
-		if not isvalid(inv) then return false end
-		
-		local ownedCount = inv:GetItemCount(selectedName)
-		if ownedCount <= 0 then
-			invController.SelectedForFurnace = ""
-			return false
-		end
-		
-		if slotType == "input" then
-			if not self:IsSmeltable(selectedName) then return false end
-			if furnace.InputItemName ~= "" and furnace.InputItemName ~= selectedName then return false end
-			local curCount = furnace.InputItemCount
-			local toPut = math.min(99 - curCount, ownedCount)
-			if toPut <= 0 then return false end
-			furnace:RequestPutItem("input", selectedName, toPut)
-			self:FlashSlot(self.inputSlot, Color(0.2, 0.8, 0.2, 1.0))
-		elseif slotType == "fuel" then
-			if not self:IsFuel(selectedName) then return false end
-			if furnace.FuelItemName ~= "" and furnace.FuelItemName ~= selectedName then return false end
-			local curCount = furnace.FuelItemCount
-			local toPut = math.min(99 - curCount, ownedCount)
-			if toPut <= 0 then return false end
-			furnace:RequestPutItem("fuel", selectedName, toPut)
-			self:FlashSlot(self.fuelSlot, Color(0.2, 0.8, 0.2, 1.0))
-		else
-			return false
-		end
-		
-		invController.SelectedForFurnace = ""
-		_TimerService:SetTimerOnce(function()
-			if isvalid(invController) then
-				invController:RefreshInventoryData()
-			end
-		end, 0.15)
-		return true
-	end
-
-	@ExecSpace("ClientOnly")
 	method void OnCloseClicked(ButtonClickEvent event)
 		self:Close()
 	end
 
 	@ExecSpace("ClientOnly")
 	method void OnInputClicked(ButtonClickEvent event)
-		if self:TryPutSelectedItem("input") then return end
-		
+		-- 투입 경로 제거: 슬롯 클릭은 회수만 (인벤 더블/시프트/드래그로 투입).
 		if not isvalid(self.CurrentFurnace) then return end
 		local furnace = self.CurrentFurnace:GetComponent("script.Furnace")
 		if not isvalid(furnace) then return end
-		
-		local localPlayer = _UserService.LocalPlayer
-		if not isvalid(localPlayer) then return end
-		local inv = localPlayer:GetComponent("script.PlayerInventory")
-		if not isvalid(inv) then return end
-		
-		if furnace.InputItemName ~= "" then
-			local curCount = furnace.InputItemCount
-			local ownedCount = inv:GetItemCount(furnace.InputItemName)
-		
-			if curCount < 99 and ownedCount > 0 then
-				local toPut = math.min(99 - curCount, ownedCount)
-				furnace:RequestPutItem("input", furnace.InputItemName, toPut)
-				self:FlashSlot(self.inputSlot, Color(0.2, 0.8, 0.2, 1.0))
-			else
-				furnace:RequestTakeItem("input")
-				self:FlashSlot(self.inputSlot, Color(0.8, 0.6, 0.2, 1.0))
-			end
-		else
-			local oreName = self:FindOwnedByColumn("SmeltingRecipeDataSet", "InputItem")
-			if oreName ~= "" then
-				local toPut = math.min(99, inv:GetItemCount(oreName))
-				furnace:RequestPutItem("input", oreName, toPut)
-				self:FlashSlot(self.inputSlot, Color(0.2, 0.8, 0.2, 1.0))
+		if furnace.InputItemName ~= "" and furnace.InputItemCount > 0 then
+			furnace:RequestTakeItem("input")
+			self:FlashSlot(self.inputSlot, Color(0.8, 0.6, 0.2, 1.0))
+			local invPopup = _EntityService:GetEntityByPath("/ui/PopupGroup/InventoryPopup")
+			if isvalid(invPopup) then
+				local invController = invPopup:GetComponent("script.UIInventoryController")
+				if isvalid(invController) then
+					_TimerService:SetTimerOnce(function()
+						if isvalid(invController) then invController:RefreshInventoryData() end
+					end, 0.15)
+				end
 			end
 		end
 	end
 
 	@ExecSpace("ClientOnly")
 	method void OnFuelClicked(ButtonClickEvent event)
-		if self:TryPutSelectedItem("fuel") then return end
-		
+		-- 투입 경로 제거: 슬롯 클릭은 회수만.
 		if not isvalid(self.CurrentFurnace) then return end
 		local furnace = self.CurrentFurnace:GetComponent("script.Furnace")
 		if not isvalid(furnace) then return end
-		
-		local localPlayer = _UserService.LocalPlayer
-		if not isvalid(localPlayer) then return end
-		local inv = localPlayer:GetComponent("script.PlayerInventory")
-		if not isvalid(inv) then return end
-		
 		if furnace.FuelItemCount > 0 then
-			local curCount = furnace.FuelItemCount
-			local ownedCount = inv:GetItemCount(furnace.FuelItemName)
-		
-			if curCount < 99 and ownedCount > 0 then
-				local toPut = math.min(99 - curCount, ownedCount)
-				furnace:RequestPutItem("fuel", furnace.FuelItemName, toPut)
-				self:FlashSlot(self.fuelSlot, Color(0.2, 0.8, 0.2, 1.0))
-			else
-				furnace:RequestTakeItem("fuel")
-				self:FlashSlot(self.fuelSlot, Color(0.8, 0.6, 0.2, 1.0))
-			end
-		else
-			local fuelName = self:FindOwnedByColumn("FurnaceFuelDataSet", "FuelItem")
-			if fuelName ~= "" then
-				local toPut = math.min(99, inv:GetItemCount(fuelName))
-				furnace:RequestPutItem("fuel", fuelName, toPut)
-				self:FlashSlot(self.fuelSlot, Color(0.2, 0.8, 0.2, 1.0))
+			furnace:RequestTakeItem("fuel")
+			self:FlashSlot(self.fuelSlot, Color(0.8, 0.6, 0.2, 1.0))
+			local invPopup = _EntityService:GetEntityByPath("/ui/PopupGroup/InventoryPopup")
+			if isvalid(invPopup) then
+				local invController = invPopup:GetComponent("script.UIInventoryController")
+				if isvalid(invController) then
+					_TimerService:SetTimerOnce(function()
+						if isvalid(invController) then invController:RefreshInventoryData() end
+					end, 0.15)
+				end
 			end
 		end
 	end

@@ -83,12 +83,90 @@ script TileDurabilityManager extends Logic
 				return
 			end
 		end
+
+		-- 작물 판정: CropDataSet.SeedItem == grid itemName (컴포넌트 유무와 무관 — 가구 철거 경로 오인 방지).
+		local cropComp = nil
+		local isCrop = false
+		local cropRow = nil
+		if not isTile then
+			local seedName = gridData.itemName or ""
+			if seedName ~= "" then
+				local cropDs = _DataService:GetTable("CropDataSet")
+				if cropDs ~= nil then
+					cropRow = cropDs:FindRow("SeedItem", seedName)
+				end
+			end
+			if cropRow ~= nil or gridData.isCrop == true then
+				isCrop = true
+			end
+			if isCrop and isvalid(resourceEntity) then
+				cropComp = resourceEntity:GetComponent("script.Crop")
+				if not isvalid(cropComp) then
+					cropComp = resourceEntity:GetComponent("Crop")
+				end
+				if not isvalid(cropComp) then
+					-- 서버 전용 폴백 (성장 판정·수확용). 클라 Multicast 경로 없음.
+					resourceEntity:AddComponent("script.Crop")
+					cropComp = resourceEntity:GetComponent("script.Crop")
+					if not isvalid(cropComp) then
+						resourceEntity:AddComponent("Crop")
+						cropComp = resourceEntity:GetComponent("script.Crop") or resourceEntity:GetComponent("Crop")
+					end
+					if isvalid(cropComp) then
+						log_warning("TileDurabilityManager: server Crop AddComponent fallback at " .. pivotKey)
+					end
+				end
+				if isvalid(cropComp) then
+					local plantedAt = math.floor(tonumber(gridData.plantedAt) or 0)
+					if plantedAt <= 0 then plantedAt = math.floor(os.time()) end
+					-- SeedItem 비어 있으면 행 조회 실패 → 수확이 가구 철거로 빠지던 근본 원인.
+					if cropComp.SeedItem == nil or cropComp.SeedItem == "" or cropComp.PlantedAtUnix <= 0 then
+						cropComp:InitializePlant(seedName, plantedAt)
+					end
+				end
+			end
+		end
+		if isCrop then
+			local mature = false
+			if isvalid(cropComp) then
+				mature = cropComp:IsMature()
+			elseif cropRow ~= nil then
+				-- 컴포넌트 없을 때 데이터셋+plantedAt 폴백.
+				local stages = math.floor(tonumber(cropRow:GetItem("GrowthStages")) or 1)
+				local duration = math.floor(tonumber(cropRow:GetItem("StageDuration")) or 1)
+				if stages < 1 then stages = 1 end
+				if duration < 1 then duration = 1 end
+				local plantedAt = math.floor(tonumber(gridData.plantedAt) or 0)
+				local elapsed = 0
+				if plantedAt > 0 then elapsed = math.floor(os.time()) - plantedAt end
+				if elapsed < 0 then elapsed = 0 end
+				mature = elapsed >= (stages * duration)
+			end
+			if not mature then
+				local pcFb = attacker:GetComponent("script.PlayerController")
+				if isvalid(pcFb) then
+					pcFb:ShowMineFeedback("아직 자라지 않았습니다.")
+				end
+				if isvalid(resourceEntity) then
+					local reactionImmature = resourceEntity:GetComponent("script.ResourceReaction")
+					if isvalid(reactionImmature) then
+						reactionImmature:PlayRefusalShake()
+					end
+				end
+				log("TileDurabilityManager: immature crop hit at " .. pivotKey
+					.. " item=" .. tostring(gridData.itemName)
+					.. " plantedAt=" .. tostring(gridData.plantedAt))
+				return
+			end
+		end
 		
 		local damageKey = mapName .. "_" .. pivotKey
 		local data = self.DamagedResources[damageKey]
 		if data == nil then
 			local maxDurability = 2
-			if not isTile and not isFurniture then
+			if isCrop then
+				maxDurability = 1
+			elseif not isTile and not isFurniture then
 				maxDurability = self:GetMaxDurability(resourceEntity)
 			end
 			
@@ -97,10 +175,41 @@ script TileDurabilityManager extends Logic
 				maxDurability = maxDurability,
 				lastHitTime = os.clock(),
 				strikeCount = 0,
-				dropPool = {}
+				dropPool = {},
+				isCrop = isCrop
 			}
 			
-			if isTile then
+			if isCrop then
+				-- 수확 아이템 Min~Max yield (item_dataset id 키로 드롭 풀 구성). 맨손 채집.
+				local harvestName = ""
+				local yieldCount = 1
+				if isvalid(cropComp) then
+					harvestName = cropComp:GetHarvestItemName()
+					yieldCount = cropComp:RollHarvestCount()
+				elseif cropRow ~= nil then
+					harvestName = cropRow:GetItem("HarvestItem") or ""
+					local minY = math.floor(tonumber(cropRow:GetItem("MinYield")) or 1)
+					local maxY = math.floor(tonumber(cropRow:GetItem("MaxYield")) or minY)
+					if minY < 1 then minY = 1 end
+					if maxY < minY then maxY = minY end
+					yieldCount = math.random(minY, maxY)
+				end
+				local itemId = ""
+				local ds = _DataService:GetTable("item_dataset")
+				if ds ~= nil and harvestName ~= "" then
+					local row = ds:FindRow("Name", harvestName)
+					if row ~= nil then
+						itemId = row:GetItem("id")
+					end
+				end
+				if itemId ~= "" and yieldCount > 0 then
+					data.dropPool[itemId] = yieldCount
+					log("TileDurabilityManager: crop harvest pool " .. harvestName .. " x" .. tostring(yieldCount))
+				else
+					log_warning("TileDurabilityManager: Crop harvest item missing for seed="
+						.. tostring(gridData.itemName) .. " harvestName=" .. tostring(harvestName))
+				end
+			elseif isTile then
 				-- Find item ID for this tile from item_dataset
 				local tileName = gridData.tileName
 				local itemId = ""
@@ -193,8 +302,16 @@ script TileDurabilityManager extends Logic
 				local sourceName = resourceEntity.Name or ""
 				local biomeId = _ResourceSpawner:GetBiomeAt(mapName, gridData.pivotX, gridData.pivotY)
 				local drops = _ItemDropLogic:GetDrops(sourceName, biomeId)
+				-- T9: 희귀 변종 DropMultiplier
+				local mult = 1.0
+				local occ = resourceEntity:GetComponent("script.ResourceOccupiedArea")
+				if isvalid(occ) then
+					local m = tonumber(occ.DropMultiplier) or 1.0
+					if m > 1.0 then mult = m end
+				end
 				for _, drop in ipairs(drops) do
 					local totalCount = math.random(drop.min, drop.max)
+					totalCount = math.max(1, math.floor(totalCount * mult + 0.5))
 					data.dropPool[drop.id] = totalCount
 				end
 			end
@@ -209,7 +326,8 @@ script TileDurabilityManager extends Logic
 		local requiredPower = 0
 		local playerToolPower = 0
 		
-		if not isTile and not isFurniture then
+		-- 작물 수확: 도구 불필요(맨손 허용). 일반 자원만 도구 검사.
+		if not isCrop and not isTile and not isFurniture then
 			requiredTool = self:GetRequiredToolType(resourceEntity)
 			requiredPower = self:GetRequiredToolPower(resourceEntity)
 			if requiredTool ~= "" then
@@ -233,7 +351,7 @@ script TileDurabilityManager extends Logic
 		end
 		
 		-- 스킬트리 패시브(MinePower): 보유 레벨만큼 채집 타격 위력 가산 (자원 채집에만 적용)
-		if not isTile and not isFurniture and isvalid(attacker) then
+		if not isCrop and not isTile and not isFurniture and isvalid(attacker) then
 			local pcComp = attacker:GetComponent("script.PlayerController")
 			if isvalid(pcComp) then
 				---@type PlayerController
@@ -343,6 +461,8 @@ script TileDurabilityManager extends Logic
 		
 		if isTile then
 			log("Hit tile: " .. gridData.tileName .. " at " .. pivotKey .. " (" .. data.currentHits .. "/" .. data.maxDurability .. ")")
+		elseif isCrop then
+			log("Hit crop: " .. tostring(gridData.itemName) .. " at " .. pivotKey .. " (" .. data.currentHits .. "/" .. data.maxDurability .. ")")
 		elseif isFurniture then
 			log("Hit furniture: " .. gridData.itemName .. " at " .. pivotKey .. " (" .. data.currentHits .. "/" .. data.maxDurability .. ")")
 		else
@@ -361,6 +481,25 @@ script TileDurabilityManager extends Logic
 				end
 				resourceSpawner:RemovePlacedTile(mapName, gridData.pivotX, gridData.pivotY)
 				log("Tile demolished: " .. gridData.tileName .. " at " .. pivotKey)
+			elseif isCrop then
+				-- 성숙 작물 수확: 가구 영속 델타에서 제거 후 엔티티 파괴 (재파종은 빈 홀에 다시 씨앗).
+				resourceSpawner:RemovePlacedFurniture(mapName, gridData.pivotX, gridData.pivotY)
+				resourceEntity:Destroy()
+				log("Crop harvested: " .. tostring(gridData.itemName) .. " at " .. pivotKey)
+				if isvalid(attacker) and attacker.PlayerComponent ~= nil then
+					local pcCrop = attacker:GetComponent("script.PlayerController")
+					if isvalid(pcCrop) then
+						pcCrop:AddXP(5)
+					end
+					if _PersistenceManager then
+						-- 영지 세이브는 소유자 맵 기준 — 맵 이름이 Home_* 이면 소유자 dirty.
+						if string.sub(mapName, 1, 5) == "Home_" then
+							_PersistenceManager:MarkPlayerDirty(string.sub(mapName, 6))
+						else
+							_PersistenceManager:MarkPlayerDirty(attacker.PlayerComponent.UserId)
+						end
+					end
+				end
 			elseif isFurniture then
 				resourceSpawner:RemovePlacedFurniture(mapName, gridData.pivotX, gridData.pivotY)
 				resourceEntity:Destroy()

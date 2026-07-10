@@ -29,6 +29,17 @@ script UICraftingController extends Component
 
 	property ButtonComponent btnCraft = "7a2ffe94-43c4-4857-8915-64bdf3c18993"
 
+	-- T26: 탭/칩 행 템플릿 + 바 컨테이너 (순환 화살표 제거)
+	property Entity tierBar = "72a5144a-0f53-48bc-93b9-6dd0e97cb372"
+
+	property Entity tierChipTemplate = "c30bf3f6-2d01-4f2d-a575-e2da2e9a70fa"
+
+	property Entity categoryBar = "c963671b-689f-4adf-9d59-c293792363aa"
+
+	property Entity categoryChipTemplate = "2d0a1a26-fa79-4089-8ecd-f2c1860a9f06"
+
+	property TextComponent unlockHintText = "37405201-394a-4323-a4a8-7d8900e913a0"
+
 	property string selectedRecipe = "Stone Pickaxe"
 
 	property table recipes = {}
@@ -38,6 +49,22 @@ script UICraftingController extends Component
 	property table recipeButtons = {}
 
 	property table recipeClickHandlers = {}
+
+	property table tierOptions = {}
+
+	property table categoryOptions = {}
+
+	property integer selectedTierIndex = 1
+
+	property integer selectedCategoryIndex = 1
+
+	property table tierChipButtons = {}
+
+	property table tierChipHandlers = {}
+
+	property table categoryChipButtons = {}
+
+	property table categoryChipHandlers = {}
 
 	property number CurrentScale = 1.0
 
@@ -60,6 +87,8 @@ script UICraftingController extends Component
 		
 		-- Load recipe data from RecipeDataSet (single source of truth shared with the server)
 		self:LoadRecipes()
+		self:RebuildFilterOptions()
+		self:BuildFilterChips()
 		self:BuildRecipeList()
 		
 		self.closeHandler = self.btnClose.Entity:ConnectEvent(ButtonClickEvent, function() self:Close() end)
@@ -68,7 +97,7 @@ script UICraftingController extends Component
 
 	@ExecSpace("ClientOnly")
 	method void LoadRecipes()
-		-- Builds self.recipes (and self.recipeOrder) from RecipeDataSet rows.
+		-- Builds self.recipes (and self.recipeOrder) from RecipeDataSet rows. Tier/Category/Unlock* CSV 주도.
 		self.recipes = {}
 		self.recipeOrder = {}
 		local ds = _DataService:GetTable("RecipeDataSet")
@@ -80,10 +109,20 @@ script UICraftingController extends Component
 		local rowCount = ds:GetRowCount()
 		for i = 1, rowCount do
 			local recipeName = ds:GetCell(i, "RecipeName")
+			local tier = math.floor(tonumber(ds:GetCell(i, "Tier")) or 1)
+			if tier < 1 then tier = 1 end
+			local category = ds:GetCell(i, "Category") or "misc"
+			if category == "" then category = "misc" end
+			local unlockId = ds:GetCell(i, "UnlockId") or ""
+			local unlockHint = ds:GetCell(i, "UnlockHint") or ""
 			local entry = {
 				name = recipeName,
 				desc = ds:GetCell(i, "Desc"),
 				icon = ds:GetCell(i, "Icon"),
+				tier = tier,
+				category = category,
+				unlockId = unlockId,
+				unlockHint = unlockHint,
 				ingredients = {}
 			}
 		
@@ -103,6 +142,253 @@ script UICraftingController extends Component
 			table.insert(self.recipeOrder, recipeName)
 		end
 		log("UICraftingController: Loaded " .. rowCount .. " recipes from RecipeDataSet.")
+	end
+
+	@ExecSpace("ClientOnly")
+	method void RebuildFilterOptions()
+		-- CSV에 존재하는 Tier/Category 값만으로 필터 목록 생성 (코드 하드코딩 금지).
+		self.tierOptions = { 0 }
+		self.categoryOptions = { "all" }
+		local tierSeen = {}
+		local catSeen = {}
+		tierSeen[0] = true
+		catSeen["all"] = true
+		for _, name in ipairs(self.recipeOrder) do
+			local r = self.recipes[name]
+			if r ~= nil then
+				if not tierSeen[r.tier] then
+					tierSeen[r.tier] = true
+					table.insert(self.tierOptions, r.tier)
+				end
+				if not catSeen[r.category] then
+					catSeen[r.category] = true
+					table.insert(self.categoryOptions, r.category)
+				end
+			end
+		end
+		table.sort(self.tierOptions)
+		if self.selectedTierIndex < 1 or self.selectedTierIndex > #self.tierOptions then
+			self.selectedTierIndex = 1
+		end
+		if self.selectedCategoryIndex < 1 or self.selectedCategoryIndex > #self.categoryOptions then
+			self.selectedCategoryIndex = 1
+		end
+	end
+
+	@ExecSpace("ClientOnly")
+	method void ClearFilterChips()
+		-- 동적 칩 정리.
+		for key, chip in pairs(self.tierChipButtons) do
+			if isvalid(chip) then
+				if self.tierChipHandlers[key] ~= nil then
+					chip:DisconnectEvent(ButtonClickEvent, self.tierChipHandlers[key])
+				end
+				chip:Destroy()
+			end
+		end
+		self.tierChipButtons = {}
+		self.tierChipHandlers = {}
+		for key, chip in pairs(self.categoryChipButtons) do
+			if isvalid(chip) then
+				if self.categoryChipHandlers[key] ~= nil then
+					chip:DisconnectEvent(ButtonClickEvent, self.categoryChipHandlers[key])
+				end
+				chip:Destroy()
+			end
+		end
+		self.categoryChipButtons = {}
+		self.categoryChipHandlers = {}
+	end
+
+	@ExecSpace("ClientOnly")
+	method void BuildFilterChips()
+		-- CSV 파생 티어/카테고리를 가로 칩 탭으로 전부 노출 (순환 화살표 제거).
+		self:ClearFilterChips()
+		if isvalid(self.tierChipTemplate) then self.tierChipTemplate.Enable = false end
+		if isvalid(self.categoryChipTemplate) then self.categoryChipTemplate.Enable = false end
+
+		local chipW = 100
+		local chipH = 32
+		local gap = 8
+		local startX = 16
+
+		-- 티어 칩
+		if isvalid(self.tierChipTemplate) then
+			for i, tierVal in ipairs(self.tierOptions) do
+				local label = "All"
+				if tierVal ~= 0 then label = "T" .. tostring(tierVal) end
+				local chip = self.tierChipTemplate:Clone("TierChip_" .. tostring(tierVal))
+				chip.Enable = true
+				local x = startX + (i - 1) * (chipW + gap)
+				local tr = chip.UITransformComponent
+				if isvalid(tr) then
+					tr.anchoredPosition = Vector2(x, 0)
+					tr.RectSize = Vector2(chipW, chipH)
+				end
+				local textComp = chip.TextComponent
+				if isvalid(textComp) then
+					textComp.Text = label
+					textComp.FontSize = 16
+				end
+				local idx = i
+				local h = chip:ConnectEvent(ButtonClickEvent, function()
+					self:SelectTierIndex(idx)
+				end)
+				self.tierChipButtons[tostring(tierVal)] = chip
+				self.tierChipHandlers[tostring(tierVal)] = h
+			end
+		end
+
+		-- 카테고리 칩
+		if isvalid(self.categoryChipTemplate) then
+			local catW = 110
+			for i, catVal in ipairs(self.categoryOptions) do
+				local chip = self.categoryChipTemplate:Clone("CatChip_" .. tostring(catVal))
+				chip.Enable = true
+				local x = startX + (i - 1) * (catW + gap)
+				local tr = chip.UITransformComponent
+				if isvalid(tr) then
+					tr.anchoredPosition = Vector2(x, 0)
+					tr.RectSize = Vector2(catW, chipH)
+				end
+				local textComp = chip.TextComponent
+				if isvalid(textComp) then
+					textComp.Text = tostring(catVal)
+					textComp.FontSize = 15
+				end
+				local idx = i
+				local h = chip:ConnectEvent(ButtonClickEvent, function()
+					self:SelectCategoryIndex(idx)
+				end)
+				self.categoryChipButtons[tostring(catVal)] = chip
+				self.categoryChipHandlers[tostring(catVal)] = h
+			end
+		end
+
+		self:RefreshChipHighlight()
+	end
+
+	@ExecSpace("ClientOnly")
+	method void SelectTierIndex(integer index)
+		-- 티어 탭 클릭.
+		if index < 1 or index > #self.tierOptions then return end
+		self.selectedTierIndex = index
+		self:RefreshChipHighlight()
+		self:RebuildRecipeList()
+	end
+
+	@ExecSpace("ClientOnly")
+	method void SelectCategoryIndex(integer index)
+		-- 카테고리 탭 클릭.
+		if index < 1 or index > #self.categoryOptions then return end
+		self.selectedCategoryIndex = index
+		self:RefreshChipHighlight()
+		self:RebuildRecipeList()
+	end
+
+	@ExecSpace("ClientOnly")
+	method void RefreshChipHighlight()
+		-- 선택 칩 = 액센트 배경+밝은 글자, 비선택 = 서페이스+디밍 (색+형태 이중 하이라이트).
+		local selectedBg = Color(0.94, 0.66, 0.19, 1.0)   -- accent gold
+		local idleBg = Color(0.18, 0.20, 0.16, 1.0)
+		local selectedText = Color(0.15, 0.12, 0.08, 1.0)
+		local idleText = Color(0.79, 0.75, 0.70, 1.0)
+
+		for i, tierVal in ipairs(self.tierOptions) do
+			local chip = self.tierChipButtons[tostring(tierVal)]
+			if isvalid(chip) then
+				local selected = (i == self.selectedTierIndex)
+				local spr = chip.SpriteGUIRendererComponent
+				if isvalid(spr) then
+					if selected then spr.Color = selectedBg else spr.Color = idleBg end
+				end
+				local textComp = chip.TextComponent
+				if isvalid(textComp) then
+					if selected then textComp.FontColor = selectedText else textComp.FontColor = idleText end
+				end
+				local tr = chip.UITransformComponent
+				if isvalid(tr) then
+					if selected then
+						tr.RectSize = Vector2(104, 34)
+					else
+						tr.RectSize = Vector2(100, 32)
+					end
+				end
+			end
+		end
+
+		for i, catVal in ipairs(self.categoryOptions) do
+			local chip = self.categoryChipButtons[tostring(catVal)]
+			if isvalid(chip) then
+				local selected = (i == self.selectedCategoryIndex)
+				local spr = chip.SpriteGUIRendererComponent
+				if isvalid(spr) then
+					if selected then spr.Color = selectedBg else spr.Color = idleBg end
+				end
+				local textComp = chip.TextComponent
+				if isvalid(textComp) then
+					if selected then textComp.FontColor = selectedText else textComp.FontColor = idleText end
+				end
+				local tr = chip.UITransformComponent
+				if isvalid(tr) then
+					if selected then
+						tr.RectSize = Vector2(114, 34)
+					else
+						tr.RectSize = Vector2(110, 32)
+					end
+				end
+			end
+		end
+	end
+
+	@ExecSpace("ClientOnly")
+	method boolean IsRecipeUnlocked(string recipeName)
+		-- T25: PlayerInventory.UnlockedRecipesJson + UnlockId 정합.
+		local r = self.recipes[recipeName]
+		if r == nil then return false end
+		if r.unlockId == nil or r.unlockId == "" then return true end
+		local player = _UserService.LocalPlayer
+		if not isvalid(player) then return false end
+		local inv = player:GetComponent("script.PlayerInventory")
+		if not isvalid(inv) then return false end
+		return inv:HasRecipeUnlock(r.unlockId)
+	end
+
+	@ExecSpace("ClientOnly")
+	method boolean RecipeMatchesFilter(string recipeName)
+		-- 선택 티어/카테고리와 일치하는지.
+		local r = self.recipes[recipeName]
+		if r == nil then return false end
+		local tier = self.tierOptions[self.selectedTierIndex] or 0
+		local cat = self.categoryOptions[self.selectedCategoryIndex] or "all"
+		if tier ~= 0 and r.tier ~= tier then return false end
+		if cat ~= "all" and r.category ~= cat then return false end
+		return true
+	end
+
+	@ExecSpace("ClientOnly")
+	method void RebuildRecipeList()
+		-- 필터 변경 시 목록 재구성.
+		for recipeName, item in pairs(self.recipeButtons) do
+			if isvalid(item) then
+				item:DisconnectEvent(ButtonClickEvent, self.recipeClickHandlers[recipeName])
+				item:Destroy()
+			end
+		end
+		self.recipeButtons = {}
+		self.recipeClickHandlers = {}
+		self:BuildRecipeList()
+		-- 선택 레시피가 필터 밖이면 첫 매칭으로.
+		if not self:RecipeMatchesFilter(self.selectedRecipe) then
+			for _, name in ipairs(self.recipeOrder) do
+				if self:RecipeMatchesFilter(name) then
+					self:SelectRecipe(name)
+					return
+				end
+			end
+		else
+			self:SelectRecipe(self.selectedRecipe)
+		end
 	end
 
 	@ExecSpace("ClientOnly")
@@ -135,29 +421,62 @@ script UICraftingController extends Component
 
 	@ExecSpace("ClientOnly")
 	method void BuildRecipeList()
-		-- Clones recipeTemplate once per recipe and wires its click handler.
+		-- Clones recipeTemplate for filter-matching recipes. 미해금 실루엣/자물쇠 훅, 재료 부족 회색 틴트.
 		if not isvalid(self.recipeTemplate) then return end
 		self.recipeTemplate.Enable = false
+
+		local player = _UserService.LocalPlayer
+		local inv = nil
+		if isvalid(player) then inv = player:GetComponent("script.PlayerInventory") end
 		
 		for _, recipeName in ipairs(self.recipeOrder) do
-			local recipe = self.recipes[recipeName]
-			local item = self.recipeTemplate:Clone("Recipe_" .. recipeName)
-			item.Enable = true
+			if self:RecipeMatchesFilter(recipeName) then
+				local recipe = self.recipes[recipeName]
+				local unlocked = self:IsRecipeUnlocked(recipeName)
+				local item = self.recipeTemplate:Clone("Recipe_" .. recipeName)
+				item.Enable = true
 		
-			local nameText = item:GetChildByName("Name").TextComponent
-			if isvalid(nameText) then
-				nameText.Text = recipe.name
-				local rarity = self:GetItemRarity(recipe.name)
-				nameText.FontColor = self:GetRarityColor(rarity)
+				local nameText = item:GetChildByName("Name").TextComponent
+				if isvalid(nameText) then
+					if unlocked then
+						nameText.Text = recipe.name
+						local rarity = self:GetItemRarity(recipe.name)
+						nameText.FontColor = self:GetRarityColor(rarity)
+					else
+						nameText.Text = "???"
+						nameText.FontColor = Color(0.5, 0.5, 0.5, 1)
+					end
+				end
+		
+				local iconEnt = item:GetChildByName("Icon")
+				local icon = isvalid(iconEnt) and iconEnt.SpriteGUIRendererComponent or nil
+				if isvalid(icon) then
+					icon.ImageRUID = recipe.icon
+					if not unlocked then
+						icon.Color = Color(0.15, 0.15, 0.15, 0.85)
+					else
+						-- 재료 부족 시 회색 틴트
+						local canCraft = true
+						if isvalid(inv) then
+							for _, ing in ipairs(recipe.ingredients) do
+								if inv:GetItemCount(ing.name) < ing.required then
+									canCraft = false
+									break
+								end
+							end
+						end
+						if canCraft then
+							icon.Color = Color(1, 1, 1, 1)
+						else
+							icon.Color = Color(0.45, 0.45, 0.45, 1)
+						end
+					end
+				end
+		
+				local clickHandler = item:ConnectEvent(ButtonClickEvent, function() self:SelectRecipe(recipeName) end)
+				self.recipeButtons[recipeName] = item
+				self.recipeClickHandlers[recipeName] = clickHandler
 			end
-		
-			local icon = item:GetChildByName("Icon").SpriteGUIRendererComponent
-			if isvalid(icon) then icon.ImageRUID = recipe.icon end
-		
-			local clickHandler = item:ConnectEvent(ButtonClickEvent, function() self:SelectRecipe(recipeName) end)
-		
-			self.recipeButtons[recipeName] = item
-			self.recipeClickHandlers[recipeName] = clickHandler
 		end
 	end
 
@@ -165,6 +484,7 @@ script UICraftingController extends Component
 	method void OnEndPlay()
 		if isvalid(self.btnClose) then self.btnClose.Entity:DisconnectEvent(ButtonClickEvent, self.closeHandler) end
 		if isvalid(self.btnCraft) then self.btnCraft.Entity:DisconnectEvent(ButtonClickEvent, self.craftHandler) end
+		self:ClearFilterChips()
 		
 		for recipeName, item in pairs(self.recipeButtons) do
 			if isvalid(item) then
@@ -201,8 +521,19 @@ script UICraftingController extends Component
 			transform.Scale = Vector3(0.8, 0.8, 1.0)
 		end
 		self:ApplyScaleTween(1.0)
-		
-		self:SelectRecipe("Stone Pickaxe")
+		self:RebuildFilterOptions()
+		self:BuildFilterChips()
+		self:RebuildRecipeList()
+		if self:RecipeMatchesFilter("Stone Pickaxe") then
+			self:SelectRecipe("Stone Pickaxe")
+		elseif #self.recipeOrder > 0 then
+			for _, name in ipairs(self.recipeOrder) do
+				if self:RecipeMatchesFilter(name) then
+					self:SelectRecipe(name)
+					break
+				end
+			end
+		end
 		self:UpdateDimmer()
 	end
 
@@ -280,10 +611,31 @@ script UICraftingController extends Component
 			local rarity = self:GetItemRarity(recipe.name)
 			self.detailName.FontColor = self:GetRarityColor(rarity)
 		end
-		if isvalid(self.detailDesc) then self.detailDesc.Text = recipe.desc end
+		local unlocked = self:IsRecipeUnlocked(self.selectedRecipe)
+		if isvalid(self.detailDesc) then
+			if unlocked then
+				self.detailDesc.Text = recipe.desc
+			else
+				self.detailDesc.Text = "잠긴 제작법"
+			end
+		end
+		if isvalid(self.unlockHintText) then
+			if unlocked then
+				self.unlockHintText.Text = ""
+			else
+				local hint = recipe.unlockHint
+				if hint == nil or hint == "" then hint = "???" end
+				self.unlockHintText.Text = hint
+			end
+		end
 		
 		if isvalid(self.detailIcon) then
 			self.detailIcon.ImageRUID = recipe.icon
+			if unlocked then
+				self.detailIcon.Color = Color(1, 1, 1, 1)
+			else
+				self.detailIcon.Color = Color(0.2, 0.2, 0.2, 0.9)
+			end
 		end
 		
 		local player = _UserService.LocalPlayer
@@ -295,7 +647,7 @@ script UICraftingController extends Component
 		if isvalid(self.ingSlot2) then self.ingSlot2.Enable = false end
 		if isvalid(self.ingSlot1) then self.ingSlot1.Enable = false end
 		
-		local canCraft = true
+		local canCraft = unlocked
 		
 		-- Ingredient 1
 		local ing1 = recipe.ingredients[1]
@@ -346,6 +698,11 @@ script UICraftingController extends Component
 				self.btnCraft.Enable = false
 				local textComp = self.btnCraft.Entity.TextComponent
 				if isvalid(textComp) then textComp.Text = "Crafting..." end
+			elseif not unlocked then
+				self.btnCraft.Entity.SpriteGUIRendererComponent.Color = Color(0.25, 0.25, 0.25, 1)
+				self.btnCraft.Enable = false
+				local textComp = self.btnCraft.Entity.TextComponent
+				if isvalid(textComp) then textComp.Text = "Locked" end
 			elseif canCraft then
 				self.btnCraft.Entity.SpriteGUIRendererComponent.Color = Color(0.18, 0.34, 0.15, 1) -- Forest Green
 				self.btnCraft.Enable = true

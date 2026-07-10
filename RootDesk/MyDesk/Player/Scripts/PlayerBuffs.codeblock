@@ -1,0 +1,33 @@
+{
+  "Id": "",
+  "GameId": "",
+  "EntryKey": "codeblock://d0b44a95-99bd-4a5f-9fee-2bfa23f3b6ac",
+  "ContentType": "x-mod/codeblock",
+  "Content": "",
+  "Usage": 0,
+  "UsePublish": 1,
+  "UseService": 0,
+  "CoreVersion": "26.5.0.0",
+  "StudioVersion": "",
+  "DynamicLoading": 0,
+  "ContentProto": {
+    "Use": "Json",
+    "Json": {
+      "CoreVersion": {
+        "Major": 0,
+        "Minor": 2
+      },
+      "ScriptVersion": {
+        "Major": 1,
+        "Minor": 1
+      },
+      "Description": "",
+      "Id": "d0b44a95-99bd-4a5f-9fee-2bfa23f3b6ac",
+      "Language": 1,
+      "Name": "PlayerBuffs",
+      "Type": 1,
+      "Source": 0,
+      "Target": null
+    }
+  }
+}

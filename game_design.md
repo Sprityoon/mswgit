@@ -153,6 +153,13 @@ graph TD
   - 현재 제작은 **장소 제약 없이 어디서나 가능한 전역 제작**이며, 별도의 "제작대" 엔티티는 존재하지 않는다(근접 제작 분리는 §3.11 제안).
   - 예: Stone 2 → Hand Axe / Wood 1 + Stone 3 → Stone Pickaxe (§4 테크 트리 참조).
   - 도구·가구를 제작하면 비어 있는 첫 퀵 슬롯에 자동 등록되고, 도구라면 자동 장착된다.
+  - **제작창 UI 개편 방향 (⚖️ 2026-07-10 채택)**: 아이템 종류 증가와 연구 해금(§2.2 ②) 도입에 대비해 제작창을 **도감형 + 티어 탭 + 그리드 하이브리드**로 개편한다 — 상단 티어 탭, 좌측 카테고리 필터 + `GridView`, 우측 상세 패널(재료 `보유/필요`, 선행 조건, [제작]/[연구] 버튼, 미해금은 실루엣+자물쇠). 티어/카테고리/해금은 `RecipeDataSet.csv` 컬럼(`Tier`/`Category`/`UnlockId`/`UnlockHint`)로 전부 데이터 주도. 후보 비교·채택 근거는 [docs/agents/crafting_ui_concepts.md](./docs/agents/crafting_ui_concepts.md), 구현 계획은 `docs/agents/subagent-handoff.md` §3 T14(제작창 선행)·T25(해금 인프라)·T7(연구 통합).
+  - **레시피 해금 계층 (⚖️ 2026-07-11 확정)**: **"제작법은 콘텐츠 보상이다"** — Tier 1 생존 필수(온보딩 퀘스트 라인 포함)만 기본 해금하고, 나머지 제작법은 콘텐츠를 통해 **하나씩** 획득한다.
+    - **데이터**: `RecipeDataSet.UnlockId`(공란=기본 해금) + `UnlockHint`(잠금 시 표시 문구 — "연구소: 'OOO' 연구" / "퀘스트 'OOO' 보상" / "어딘가의 도안…").
+    - **영속·API**: 유저별 해금 키 집합(영속) + 서버 `GrantRecipeUnlock(unlockId)`(멱등, 해금 토스트) **하나로 모든 소스 통일**.
+    - **해금 소스 3종**: ① 연구소 연구 완료(§2.2 ② — `ResearchDataSet.UnlockRecipeId`) ② 퀘스트 보상(`RewardUnlockId`) ③ 도안(Recipe Scroll) 아이템 사용(`item_dataset.UseUnlockId`). 신규 소스(업적 보상 등)도 GrantRecipeUnlock 호출만으로 확장.
+    - **게이트**: 미해금 레시피는 서버 제작 거부 + 제작창 실루엣·자물쇠·힌트 표시. 초기 배정: 상위 도구·가공=연구 / 생활 콘텐츠 입문(냄비·낚싯대·우리)=퀘스트 / 희귀·특수=도안. 기존 유저는 로드 시 1회 보정(보유 산출물의 레시피 자동 해금).
+    - 구현: handoff §3 **T25(인프라) → T7(연구 소스) → T9(도안 소스)**. 향후 아이템 대량 추가 시에도 CSV 행+UnlockId 배정만으로 수용.
 
 ### 3.3.1. 캐릭터 정보(User Info) 장착 표시
 - **문제**: 현재 User Info(CharacterPopup)에서 어떤 도구/장비를 장착 중인지 확인할 수 없어 UX가 불편함.
@@ -611,13 +618,32 @@ graph TD
 - [x] 패시브 스킬(`Type=Passive`, `GetPassiveBonus` — MineCooldown/MinePower 적용).
 - [ ] 잔여: `SpriteAnimPlayerChangeFrameEvent` 기반 프레임 정밀 타격 판정, 클래스/무기별 스킬 확장(대시/투사체는 시전 골격만).
 
-### Phase 14: 다음 마일스톤 (🧭 제안 2026-07-07 — 우선순위 협의)
-> **배경**: 3대 공간 루프(영지↔마을↔사냥터 4체인+보스)·스킬트리·온보딩 퀘스트·NPC 상점·영속화가 모두 가동 중. 남은 구조적 공백은 ① "농장" 필러인데 **농사가 없음**, ② 사냥 전리품의 **사용처(연구소) 부재**, ③ 영지 꾸미기 심화 수단 부족. 아래 순서를 제안한다 (14-A/B가 영지 가꾸기 축, 14-C/E가 사냥 보상 축).
+### Phase 14: 다음 마일스톤 (🧭 제안 2026-07-07 → 실행 순서 확정 2026-07-10)
+> **배경**: 3대 공간 루프(영지↔마을↔사냥터 4체인+보스)·스킬트리·온보딩 퀘스트·NPC 상점·영속화가 모두 가동 중. 남은 구조적 공백은 ① "농장" 필러인데 **농사가 없음**, ② 사냥 전리품의 **사용처(연구소) 부재**, ③ 영지 꾸미기 심화 수단 부족. (14-A/B가 영지 가꾸기 축, 14-C/E가 사냥 보상 축.)
+>
+> 🧭 **실행 순서 (2026-07-10 확정 → 2026-07-11 갱신)**: **14-B(농사 — ✅코드 완료) → [🔥 T24 작물 비주얼 핫픽스] → 14-F(제작창 UI 개편) → [T25 레시피 해금 인프라 — §3.3] → 14-C(연구소) → 14-D(침대) → 14-E(희귀 드롭)**. 14-G(도구 아트)는 병행 가능, 테라스 아트는 아트 방향 확정 대기. 작업 명세·위임은 `docs/agents/subagent-handoff.md` §3 (지휘자 규약은 `docs/agents/conductor-role.md`).
 
-- [~] **14-A 영지 타일 편집 — 길 파기/잔디 심기** (§2.2 ① "개인 타일 편집 우선"의 실구현 — **코드 구현 완료 2026-07-09, 런타임 검증 대기**): 삽(신규 도구)으로 잔디 커버(`RectTileMap2`) 제거 → 아래 Soil이 드러나 길이 됨(2026-07-07 타일 스킴 그대로 활용), Grass Seed 아이템으로 재식재. 편집 델타는 월드 데이터로 영속화(설치 타일과 동일 계층). `item_dataset`에 `TerrainEditAction` 컬럼(removeGrass/plantGrass)로 데이터 주도 — 후속 계절 리스킨·경작지와 같은 파이프라인 공유. 구현: `ResourceSpawner:ApplyTerrainEdit`(Layer2 편집 + 이웃 8셀 `ComputeGrassTileName` 재계산 + 델타 영속) / `PlayerInventory:ServerRequestTerrainEdit`(영지·권한·소유·사거리·점유 5중 서버 검증, plantGrass만 씨앗 소비) / `PlayerController:TryMine` 데이터 주도 분기 / `PersistenceManager` `homeTerrainEdits` 저장·복원. 상세: `docs/agents/subagent-handoff.md` §3 T5.
-- [ ] **14-B 농사 시스템 MVP** (신규 제안 — 스타듀 핵심 루프 완성): 괭이로 경작지 타일 생성 → 씨앗 심기(엔티티) → 단계 성장(낮/밤 주기 §3.11 연동, 성장 단계별 RUID) → 수확(드롭 파이프라인 재사용). `CropDataSet.csv`(SeedItem/GrowthStages/StageDuration/HarvestItem/ReplantYield) 데이터 주도. 씨앗 공급처 = 마을 상점 + GrownGrass 드롭.
-- [ ] **14-C 연구소 가동** (§2.2 ②): 마을 `ResearchLab` 상호작용(F) UI — 몹 드롭/사냥 재료를 투입해 연구 → 가공 레시피·효율 기술 **영구 해금**(`ResearchDataSet`: InputItem/InputCount/Duration/UnlockRecipeId, `PersistenceManager` 필드 추가). 예: 멧돼지 다리 → 고기+가죽 분해술. 사냥 전리품의 사용처를 만들어 사냥터 루프를 닫는다.
-- [ ] **14-D 침대·수면 회복** (§2.2 ①): 집/침대 가구 + 침대 휴식 10분 풀충전 + 침대 로그아웃 후 10분 경과 재접속 시 풀충전(오프라인 환산). 영지 "쉼" 축 완성.
-- [ ] **14-E 희귀 드롭 소스** (§3.8 — Rarity 컬럼의 실사용처): 보스 도안(Recipe Scroll — 습득 시 제작 레시피 영구 해금), 희귀 광맥 변종(3%), 사냥터 외곽 보물 상자. 14-C 연구소와 함께 사냥 보상 축을 강화.
+- [x] **14-A 영지 타일 편집 — 길 파기/잔디 심기** (§2.2 ① — **v2 완결 2026-07-10**): v1(2026-07-09, 셀 단위 removeGrass/plantGrass)이 밀착 페어 타일 스킴과 불일치해 **v2로 재구현** — `scripts/build_maps.cjs`와 동일한 2×2 서브셀 흙 마스크 모델 위에서 삽=`digPath`(셀 경계 밀착 2서브셀 폭 길 밴드 + 자유 끝단 오목 코너 캡), 신규 괭이=`digHole`(셀 홀 + 둘레 ½ 프린지), 씨앗=`plantGrass`(digHole의 대칭 역연산 — 주변 반밴드·프린지 자동 복구). `item_dataset.TerrainEditAction` 컬럼로 데이터 주도, 편집 델타 영속화(`homeTerrainEdits`, 레거시 removeGrass는 digHole로 재생). 주기 세이브 LEA-3001(JSONEncode 실패 — 빈 chestItems 중첩표) 근본 수정 포함. 제작자 Play 검증: 파기/심기/재접속 복원 PASS(2026-07-10), 끝단 캡 비주얼 육안만 잔여. 상세: `docs/agents/subagent-handoff.md` §3 T5/T11/T12/T13.
+- [x] **14-B 농사 시스템 MVP** (스타듀 핵심 루프 완성 — ⚖️ 2026-07-10 확정 / **Play 검증 PASS 2026-07-11, 작물 비주얼 T24 육안 확정**): 별도 경작지 타일을 신설하지 않고 **괭이(digHole, 14-A v2)로 판 흙 홀 셀이 곧 밭** — 밭 갈기→씨앗 파종(가구 설치 경로 재사용, 흙 홀 셀만 허용)→단계 성장(**MVP는 낮/밤 §3.11 비연동 서버 타이머**, 심은 시각 기준 경과 환산으로 오프라인 성장 포함)→수확(드롭 파이프라인 재사용). `CropDataSet.csv`(SeedItem/GrowthStages/StageDuration/HarvestItem/MinYield/MaxYield/StageSprites/StageScales) 데이터 주도. 씨앗 공급처 = 마을 상점 + GrownGrass 드롭. 계획: handoff §3 T6. **후속(T24, 코드 완료 2026-07-11)**: 작물 맵 비주얼 튜닝 — 성숙 스프라이트=공식 잎 식물(아이콘 불변)+단계 크기 `0.55|0.70|0.80`, CSV 셀만으로 재튜닝. 감성 픽만 제작자(안 A 기본 적용) — handoff §3 T24.
+- [x] **14-C 연구소 가동** (§2.2 ② — **Play 검증 PASS 2026-07-11**): 마을 `ResearchLab` 상호작용(F) UI — 재료 투입→서버 타이머→완료 시 `GrantRecipeUnlock`(§3.3 해금 계층의 **연구 소스**). `ResearchDataSet`(구리/철 도구 연구 시범 2행), 진행 중 연구 영속(재접속 오프라인 정산). UI는 14-F 제작창 하이브리드 골격 축소 재사용. 계획: handoff §3 T7.
+- [x] **14-D 침대·수면 회복** (§2.2 ① — **Play 검증 PASS 2026-07-11**): 기존 수면 인프라(F/터치 수면·온라인 600초 비례 회복·세이브)에 `Item_Bed` 드롭 모델·제작 레시피(Wood×10)·오프라인 ≥600s 풀충전 분기·피드백 보강. 도중 기상=비례 회복. 잔여: 침대 전용 스프라이트(현 placeholder)·수면 화면 디밍(선택). 계획: handoff §3 T8.
+- [x] **14-E 희귀 드롭 소스** (§3.8 — **Play 검증 PASS 2026-07-11**): 보스 도안(Recipe Scroll, `UseUnlockId`→`GrantRecipeUnlock`=§3.3 해금 계층의 **도안 소스**), 자원 3% 희귀 변종(드롭 배율 ×2·금색 틴트), 사냥터(hunt) 외곽 보물 상자 1회 개봉, consumable 사용 진입점 `ServerRequestUseItem` 신설(T16 확장). 잔여: 도안 전용 아이콘·보물 상자 영속. 계획: handoff §3 T9.
+- [x] **14-F 제작창 UI 개편 — 도감형+티어 탭+그리드 하이브리드** (⚖️ 2026-07-10 채택 — §3.3 / **Play 검증 PASS 2026-07-11**): [docs/agents/crafting_ui_concepts.md](./docs/agents/crafting_ui_concepts.md) 추천안 채택 (선 연결형 테크 트리는 기각). `RecipeDataSet`에 `Tier`/`Category`/`UnlockId`/`UnlockHint` 컬럼 신설 — 탭·필터·잠금 전부 데이터 주도(해금 보유·지급 인프라 = T25, §3.3 "레시피 해금 계층"). 필터는 제작자 피드백으로 순환 화살표 → **탭/칩 행**으로 재개편(T26 — 팝업 1000×780, ui-aesthetics §7 루브릭 8/8 PASS, 칩 라벨 육안 정상). UI 작업 전반의 디자인 철학(ui-aesthetics) 준수는 handoff §1.2 규칙 6으로 상설화. 계획: handoff §3 T14→T25→T26. **해금 소스**: 연구=14-C(T7)✓ · 도안=14-E(T9)✓ · 퀘스트=T27(잔여).
+- [ ] **14-G 지형 편집 도구 전용 아트**: Shovel/Hoe/Grass Seed의 placeholder RUID(곡괭이·풀 재사용)를 전용 아트로 교체 — `item_dataset.csv` 셀 교체만, 코드 무변경, 다른 항목과 병행 가능. 계획: handoff §3 T15.
+
+### Phase 15: 살아있는 월드 확장 (🧭 2026-07-11 기획 확정 — 기획서: [docs/design/phase15-living-world.md](./docs/design/phase15-living-world.md))
+> **배경**: Phase 14가 수직 진행(농사·연구·침대·희귀드롭)을 채운 뒤에도 남는 5대 공백 — ① 산출물의 소비처 ② 일일 접속 훅 ③ 수집/기록 메타 ④ 정적인 월드 ⑤ 제3의 액티비티 — 을 8개 시스템으로 채운다. 상세 기획·통합 루프·비범위 판단은 기획서 참조. 구현 티켓은 `docs/agents/subagent-handoff.md` §3 **T16~T23** (배치 B: T16→T17→T20→T18 / 배치 C: T19→T21→T22→T23 — Phase 14 잔여 배치 A 이후 순차).
+>
+> **진행(2026-07-11)**: 15-A(T16)·15-B(T17) Play 검증 PASS. 다음 = **15-D(T20 의뢰 게시판) → 15-C(T18 낚시)** → 배치 C.
+
+- [x] **15-A 공통 버프 시스템** (T16 — 선행 인프라 / **Play 검증 PASS 2026-07-11**): `BuffDataSet` + `PlayerBuffs` 세션 버프(StatKey: MoveSpeed/GatherSpeed/AttackPower/StaminaRegen 훅) + `Category=consumable`+`UseBuffId` 퀵슬롯 Ctrl 사용 경로(진입점 `ServerRequestUseItem` — 14-E와 공유) + HUD BuffBar. ⚖️ 세션 한정(영속화 없음), 재적용=시간 갱신. 실증템 Roasted Grass. 계획: handoff §3 T16.
+- [x] **15-B 요리** (T17 — **Play 검증 PASS 2026-07-11**): 조리 냄비 — `Furnace`를 레시피 테이블/제목/기간 컬럼 **프로퍼티로 일반화**(기존 제련 무회귀), `CookingRecipeDataSet` + 음식 3종(consumable+`UseBuffId`). 농사/사냥/낚시 산출물의 소비처. 잔여: 다재료(2-input) 요리·냄비 전용 아이콘. 계획: handoff §3 T17.
+- [ ] **15-C 낚시** (T18): 낚싯대(`ToolType=rod`) + 낚시터 픽스처(영지 연못/마을/사냥터 물가 — 타일 지형 불가침) + `FishDataSet`(SpotType별 어종) + 원버튼 타이밍 미니게임(캐스팅→랜덤 대기→`!`→0.8초 윈도우).
+- [ ] **15-D 마을 의뢰 게시판** (T20): 서버 일 번호 시드로 "오늘의 의뢰 3건" — 전 서버 공통(결정론), 납품→보상, 의뢰당 하루 1회, 일 변경 리셋. 일일 접속 훅이자 잉여 자원 소비처.
+- [ ] **15-E 목장/가축** (T19): 우리 가구 + 닭(씨앗→달걀)/양(풀→양털), 급여→생산 타이머(타임스탬프 환산, 오프라인 포함), 우리 반경 배회(전투 없음 — 영지 평화 원칙 유지).
+- [ ] **15-F 날씨** (T21): 맑음/비/안개 — 비=영지 작물 성장 가속+낚시 입질↑. ⚖️ **보너스만, 페널티 없음**. 낮/밤 오버레이 연출 파이프라인 재사용. `WeatherDataSet`으로 행 확장.
+- [ ] **15-G 도감 & 업적** (T22 — §3.11 도감 제안의 실행): 획득/제작/처치 누적 카운터(영속) + 도감 UI(14-F 골격 재사용, 항목은 데이터셋에서 자동 파생, 미발견 실루엣) + `AchievementDataSet` 보상. 플랫폼 배지 연동은 컬럼만 예약.
+- [ ] **15-H 펫 동반자** (T23): 펫 소환 아이템(`UsePetId`) → 추종 + 반경 내 자동 줍기(자석 파이프라인·PickupGrace 규칙 재사용). 희귀 펫은 보스 드롭/업적 보상으로 후속.
+- ⛔ **비범위 (⚖️ 2026-07-11 확정)**: 영지 방문·랭킹(Phase 16 유력 후보) / 계절 테마(아트 확정 후) / **허기 시스템(페널티형 — 아늑한 생활 톤과 충돌, 기각)** / 가축 번식·펫 전투·날씨-몬스터 연동 / 낚시 게이지 미니게임 고도화.
 
 

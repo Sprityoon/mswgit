@@ -1,0 +1,209 @@
+@Component
+script Crop extends Component
+	-- 작물 성장 컴포넌트. SeedItem으로 CropDataSet을 조회하며, 심은 시각(PlantedAtUnix) 기준 단계 환산.
+	-- MVP: 낮/밤 비연동 서버 타이머. 재접속 시에도 심은 시각으로 경과 재계산(오프라인 성장).
+	-- 성숙 조건: 경과 >= GrowthStages * StageDuration (3×15s=45s).
+
+	@Sync
+	property string SeedItem = ""
+
+	@Sync
+	property integer PlantedAtUnix = 0
+
+	@Sync
+	property integer CurrentStage = 1
+
+	property integer stageTimerId = 0
+
+	@ExecSpace("ServerOnly")
+	method void OnBeginPlay()
+		-- 타이머로 단계 비주얼 갱신. SeedItem/PlantedAt은 InitializePlant 또는 모델 기본값.
+		if self.PlantedAtUnix <= 0 then
+			self.PlantedAtUnix = math.floor(os.time())
+		end
+		self:RefreshGrowthVisual()
+		if self.stageTimerId == 0 then
+			self.stageTimerId = _TimerService:SetTimerRepeat(function()
+				if isvalid(self) and isvalid(self.Entity) then
+					self:RefreshGrowthVisual()
+				end
+			end, 1.0)
+		end
+	end
+
+	@ExecSpace("ServerOnly")
+	method void OnEndPlay()
+		-- 성장 폴링 타이머 정리.
+		if self.stageTimerId ~= 0 then
+			_TimerService:ClearTimer(self.stageTimerId)
+			self.stageTimerId = 0
+		end
+	end
+
+	method any GetCropRow()
+		-- CropDataSet에서 SeedItem 행 조회. 작물 여부는 이 FindRow로만 판정.
+		if self.SeedItem == nil or self.SeedItem == "" then return nil end
+		local ds = _DataService:GetTable("CropDataSet")
+		if ds == nil then
+			log_warning("Crop: CropDataSet not found (SeedItem=" .. tostring(self.SeedItem) .. ")")
+			return nil
+		end
+		return ds:FindRow("SeedItem", self.SeedItem)
+	end
+
+	method integer GetElapsedSeconds()
+		-- 심은 시각 기준 경과 초 (오프라인 포함).
+		if self.PlantedAtUnix <= 0 then return 0 end
+		local now = math.floor(os.time())
+		local elapsed = now - self.PlantedAtUnix
+		if elapsed < 0 then return 0 end
+		return elapsed
+	end
+
+	method integer ComputeStage()
+		-- 경과 / StageDuration → 1..GrowthStages. 성숙 전에도 마지막 단계 스프라이트까지 표시.
+		local row = self:GetCropRow()
+		if row == nil then return 1 end
+		local stages = math.floor(tonumber(row:GetItem("GrowthStages")) or 1)
+		local duration = math.floor(tonumber(row:GetItem("StageDuration")) or 1)
+		if stages < 1 then stages = 1 end
+		if duration < 1 then duration = 1 end
+		local elapsed = self:GetElapsedSeconds()
+		local stage = math.floor(elapsed / duration) + 1
+		if stage > stages then stage = stages end
+		if stage < 1 then stage = 1 end
+		return stage
+	end
+
+	method boolean IsMature()
+		-- 총 성장 시간 = GrowthStages * StageDuration 이상이면 성숙.
+		local row = self:GetCropRow()
+		if row == nil then return false end
+		local stages = math.floor(tonumber(row:GetItem("GrowthStages")) or 1)
+		local duration = math.floor(tonumber(row:GetItem("StageDuration")) or 1)
+		if stages < 1 then stages = 1 end
+		if duration < 1 then duration = 1 end
+		return self:GetElapsedSeconds() >= (stages * duration)
+	end
+
+	method table SplitPipeList(string raw)
+		-- 파이프(|) 구분 문자열을 테이블로 분리.
+		local list = {}
+		if raw == nil or raw == "" then return list end
+		for part in string.gmatch(raw, "[^|]+") do
+			table.insert(list, part)
+		end
+		return list
+	end
+
+	method string GetStageSpriteRuid(integer stage)
+		-- StageSprites 컬럼(| 구분)에서 단계별 SpriteRUID 추출.
+		local row = self:GetCropRow()
+		if row == nil then return "" end
+		local list = self:SplitPipeList(row:GetItem("StageSprites") or "")
+		if stage < 1 or stage > #list then return "" end
+		return list[stage] or ""
+	end
+
+	method number GetStageScale(integer stage)
+		-- StageScales 컬럼(| 구분)에서 단계별 Transform 스케일. 공란/누락 시 0.5.
+		local row = self:GetCropRow()
+		if row == nil then return 0.5 end
+		local list = self:SplitPipeList(row:GetItem("StageScales") or "")
+		if stage < 1 or stage > #list then
+			if #list > 0 then
+				return tonumber(list[#list]) or 0.5
+			end
+			return 0.5
+		end
+		return tonumber(list[stage]) or 0.5
+	end
+
+	@ExecSpace("ServerOnly")
+	method void InitializePlant(string seedItem, integer plantedAtUnix)
+		-- 파종/복원 시 SeedItem·심은 시각 주입 후 비주얼·타이머 보장.
+		if seedItem ~= nil and seedItem ~= "" then
+			self.SeedItem = seedItem
+		end
+		if plantedAtUnix ~= nil and plantedAtUnix > 0 then
+			self.PlantedAtUnix = plantedAtUnix
+		elseif self.PlantedAtUnix <= 0 then
+			self.PlantedAtUnix = math.floor(os.time())
+		end
+		log("Crop: InitializePlant seed=" .. tostring(self.SeedItem)
+			.. " plantedAt=" .. tostring(self.PlantedAtUnix)
+			.. " row=" .. tostring(self:GetCropRow() ~= nil))
+		self:RefreshGrowthVisual()
+		if self.stageTimerId == 0 then
+			self.stageTimerId = _TimerService:SetTimerRepeat(function()
+				if isvalid(self) and isvalid(self.Entity) then
+					self:RefreshGrowthVisual()
+				end
+			end, 1.0)
+		end
+	end
+
+	@ExecSpace("ServerOnly")
+	method void RefreshGrowthVisual()
+		-- 현재 단계 계산 후 스프라이트·스케일 스왑 (Multicast로 클라 반영).
+		local stage = self:ComputeStage()
+		if stage ~= self.CurrentStage then
+			self.CurrentStage = stage
+			log("Crop: stage=" .. tostring(stage)
+				.. " elapsed=" .. tostring(self:GetElapsedSeconds())
+				.. " mature=" .. tostring(self:IsMature())
+				.. " seed=" .. tostring(self.SeedItem)
+				.. " scale=" .. tostring(self:GetStageScale(stage)))
+		end
+		local ruid = self:GetStageSpriteRuid(stage)
+		local scale = self:GetStageScale(stage)
+		if ruid ~= nil and ruid ~= "" then
+			self:ApplyStageVisual(ruid, scale)
+		else
+			self:ApplyStageVisual("", scale)
+		end
+	end
+
+	@ExecSpace("ServerOnly")
+	method void ApplyStageVisual(string ruid, number scale)
+		-- 서버에서 스프라이트·스케일 적용 (엔티티 속성 동기화로 클라 반영).
+		-- Multicast 사용 금지: 모델에 Crop이 없거나 서버만 AddComponent한 경우 클라 LEA-3004 유발.
+		if not isvalid(self.Entity) then return end
+		if ruid ~= nil and ruid ~= "" then
+			local sprite = self.Entity.SpriteRendererComponent
+			if isvalid(sprite) then
+				sprite.SpriteRUID = ruid
+			end
+		end
+		local s = scale
+		if s == nil or s <= 0 then s = 0.25 end
+		local transform = self.Entity.TransformComponent
+		if isvalid(transform) then
+			transform.Scale = Vector3(s, s, 1)
+		end
+		-- ResourceReaction 흔들기 기준 스케일도 맞춤 (되돌림 시 거대화 방지).
+		local reaction = self.Entity:GetComponent("script.ResourceReaction")
+		if isvalid(reaction) then
+			reaction.OriginalScale = Vector3(s, s, 1)
+		end
+	end
+
+	method integer RollHarvestCount()
+		-- MinYield~MaxYield 사이 수확 수량.
+		local row = self:GetCropRow()
+		if row == nil then return 1 end
+		local minY = math.floor(tonumber(row:GetItem("MinYield")) or 1)
+		local maxY = math.floor(tonumber(row:GetItem("MaxYield")) or minY)
+		if minY < 1 then minY = 1 end
+		if maxY < minY then maxY = minY end
+		return math.random(minY, maxY)
+	end
+
+	method string GetHarvestItemName()
+		-- 수확 아이템 표시명 (item_dataset Name).
+		local row = self:GetCropRow()
+		if row == nil then return "" end
+		return row:GetItem("HarvestItem") or ""
+	end
+
+end

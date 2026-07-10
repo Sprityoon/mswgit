@@ -1017,6 +1017,7 @@ script ResourceSpawner extends Logic
 		if isvalid(hunt01) then
 			self:SpawnFixedPortal(hunt01, "Portal", 0, -3, "Home", Vector2(-3, 0))
 			self:SpawnFixedPortal(hunt01, "PortalToHunt02", 10, 0, "hunt02", Vector2(0, 0))
+			self:SpawnTreasureChestsForMap(hunt01, "hunt01")
 		end
 
 		-- hunt02: Home return + back to hunt01 + forward to hunt03.
@@ -1024,6 +1025,7 @@ script ResourceSpawner extends Logic
 			self:SpawnFixedPortal(hunt02, "Portal", 0, -3, "Home", Vector2(-3, 0))
 			self:SpawnFixedPortal(hunt02, "PortalToHunt01", -10, 0, "hunt01", Vector2(8, 0))
 			self:SpawnFixedPortal(hunt02, "PortalToHunt03", 10, 0, "hunt03", Vector2(0, 0))
+			self:SpawnTreasureChestsForMap(hunt02, "hunt02")
 		end
 
 		-- hunt03: Home return + back to hunt02 + forward to the boss arena hunt04.
@@ -1031,6 +1033,7 @@ script ResourceSpawner extends Logic
 			self:SpawnFixedPortal(hunt03, "Portal", 0, -3, "Home", Vector2(-3, 0))
 			self:SpawnFixedPortal(hunt03, "PortalToHunt02", -10, 0, "hunt02", Vector2(8, 0))
 			self:SpawnFixedPortal(hunt03, "PortalToHunt04", 10, 0, "hunt04", Vector2(0, -5))
+			self:SpawnTreasureChestsForMap(hunt03, "hunt03")
 		end
 
 		-- hunt04 (boss arena): Home return + back to hunt03 + the King Slime boss.
@@ -1041,6 +1044,58 @@ script ResourceSpawner extends Logic
 		end
 
 		log("ResourceSpawner: Hunting-ground chain ready (hunt01..hunt04).")
+	end
+
+	@ExecSpace("ServerOnly")
+	method void SpawnTreasureChestsForMap(Entity map, string mapName)
+		-- T9: 사냥터 홈 포탈 근처 눈에 띄는 위치에 보물 상자 1개 (멱등).
+		if not isvalid(map) then return end
+		local existing = map:GetChildComponentsByTypeName("script.TreasureChest", true)
+		if existing and #existing > 0 then return end
+
+		local modelId = _EntryService:GetModelIdByName("TreasureChest")
+		if modelId == nil or modelId == "" then
+			modelId = _EntryService:GetModelIdByName("treasure_chest")
+		end
+		if modelId == nil or modelId == "" then
+			-- model Id 필드 / EntryKey 폴백
+			modelId = "treasure_chest"
+			log_warning("ResourceSpawner: TreasureChest name lookup failed — trying id treasure_chest")
+		end
+
+		-- 홈 포탈(0,-3)과 충분히 떨어뜨려 F 상호작용이 포탈에 먹히지 않게.
+		local offsets = {
+			hunt01 = { x = 6, y = 2 },
+			hunt02 = { x = -6, y = 2 },
+			hunt03 = { x = 6, y = 3 },
+		}
+		local c = offsets[mapName] or { x = 3, y = -1 }
+		local spawnPos = Vector3(c.x + 0.5, c.y + 0.5, 0)
+		-- 가능하면 안전 위치 보정
+		local safe = self:FindSafeSpawnPosition(mapName, c.x + 0.5, c.y + 0.5)
+		if safe ~= nil then
+			spawnPos = Vector3(safe.x, safe.y, 0)
+		end
+
+		local ent = _SpawnService:SpawnByModelId(modelId, "TreasureChest", spawnPos, map)
+		if not isvalid(ent) then
+			log_error("[TREASURE] spawn failed on " .. mapName .. " modelId=" .. tostring(modelId))
+			return
+		end
+		local sprite = ent.SpriteRendererComponent
+		if isvalid(sprite) then
+			sprite.IgnoreMapLayerCheck = true
+			sprite.SortingLayer = _RenderLayers.EntityLayer
+			sprite.OrderInLayer = math.max(_RenderLayers.MinEntityOrder, 80)
+			-- 금색 틴트로 원거리에서도 구분
+			sprite.Color = Color(1.0, 0.82, 0.15, 1.0)
+		end
+		local tr = ent.TransformComponent
+		if isvalid(tr) then
+			tr.Scale = Vector3(1.35, 1.35, 1)
+		end
+		log("[TREASURE] spawned on " .. mapName
+			.. " at (" .. string.format("%.1f,%.1f", spawnPos.x, spawnPos.y) .. ")")
 	end
 
 	@ExecSpace("ServerOnly")
@@ -1471,6 +1526,25 @@ script ResourceSpawner extends Logic
 			sprite.IgnoreMapLayerCheck = true
 			sprite.SortingLayer = _RenderLayers.EntityLayer
 			sprite.OrderInLayer = math.max(_RenderLayers.MinEntityOrder, math.floor((mapRadius - y) * 100))
+		end
+
+		-- T9: 3% 희귀 변종 — DropMultiplier↑ + 스케일/틴트 연출 (확률은 결정론 해시).
+		local rareRoll = self:Hash2D(x, y, seedVal + 4242)
+		if rareRoll < 0.03 then
+			local occ = resEntity:GetComponent("script.ResourceOccupiedArea")
+			if isvalid(occ) then
+				occ.IsRareVariant = true
+				occ.DropMultiplier = 2.0
+			end
+			local tr = resEntity.TransformComponent
+			if isvalid(tr) then
+				local s = tr.Scale
+				tr.Scale = Vector3(s.x * 1.15, s.y * 1.15, s.z)
+			end
+			if isvalid(sprite) then
+				sprite.Color = Color(1.0, 0.85, 0.25, 1.0)
+			end
+			log("[RARE] variant spawned " .. tostring(name) .. " at " .. tostring(x) .. "," .. tostring(y))
 		end
 	
 		for nx = xMin, xMax do
@@ -1985,14 +2059,29 @@ script ResourceSpawner extends Logic
 		end
 		
 		local placedFurniture = (furnitureJson ~= nil and furnitureJson ~= "") and _HttpService:JSONDecode(furnitureJson) or {}
+		local cropDs = _DataService:GetTable("CropDataSet")
 		for _, f in ipairs(placedFurniture) do
 			local fx, fy = math.floor(f.x), math.floor(f.y)
-			local modelId = _EntryService:GetModelIdByName("Furniture_" .. string.gsub(f.itemName, " ", ""))
+			-- 작물 씨앗이면 Crop_{CropId} 모델, 아니면 Furniture_ 경로 (가구 JSON 패턴 재사용 + plantedAt).
+			local cropRow = nil
+			if cropDs ~= nil and f.itemName ~= nil then
+				cropRow = cropDs:FindRow("SeedItem", f.itemName)
+			end
+			local isCrop = cropRow ~= nil or f.isCrop == true
+			local modelId = nil
+			local spawnName = f.itemName
+			if isCrop and cropRow ~= nil then
+				local cropId = cropRow:GetItem("CropId") or ""
+				spawnName = "Crop_" .. string.gsub(cropId, " ", "")
+				modelId = _EntryService:GetModelIdByName(spawnName)
+			else
+				modelId = _EntryService:GetModelIdByName("Furniture_" .. string.gsub(f.itemName, " ", ""))
+			end
 			if modelId ~= nil and modelId ~= "" then
 				local spawnPos = Vector3(fx + 0.5, fy + 0.5, 0)
 				local spawnedEntity = _SpawnService:SpawnByModelId(
 					modelId,
-					f.itemName,
+					spawnName,
 					spawnPos,
 					map
 				)
@@ -2003,8 +2092,27 @@ script ResourceSpawner extends Logic
 						sprite.SortingLayer = _RenderLayers.EntityLayer
 						sprite.OrderInLayer = math.max(_RenderLayers.MinEntityOrder, math.floor((self.MapRadius - fy) * 100))
 					end
-					
 
+					if isCrop then
+						local cropComp = spawnedEntity:GetComponent("script.Crop")
+						if not isvalid(cropComp) then
+							cropComp = spawnedEntity:GetComponent("Crop")
+						end
+						if not isvalid(cropComp) then
+							spawnedEntity:AddComponent("script.Crop")
+							cropComp = spawnedEntity:GetComponent("script.Crop")
+						end
+						if not isvalid(cropComp) then
+							spawnedEntity:AddComponent("Crop")
+							cropComp = spawnedEntity:GetComponent("script.Crop") or spawnedEntity:GetComponent("Crop")
+						end
+						if isvalid(cropComp) then
+							local plantedAt = math.floor(tonumber(f.plantedAt) or 0)
+							cropComp:InitializePlant(f.itemName, plantedAt)
+						else
+							log_error("ResourceSpawner: failed to attach Crop for " .. tostring(f.itemName))
+						end
+					end
 
 					-- Restore PortalGate state saved with the furniture. On estate (Home_*) maps these
 					-- values are informational only: estate portals always open the full destination
@@ -2029,7 +2137,16 @@ script ResourceSpawner extends Logic
 
 					
 					local key = fx .. "_" .. fy
-					gridToEntity[key] = { entity = spawnedEntity, pivotX = fx, pivotY = fy, isFurniture = true, itemName = f.itemName }
+					local plantedAt = math.floor(tonumber(f.plantedAt) or 0)
+					gridToEntity[key] = {
+						entity = spawnedEntity,
+						pivotX = fx,
+						pivotY = fy,
+						isFurniture = true,
+						isCrop = isCrop,
+						itemName = f.itemName,
+						plantedAt = plantedAt
+					}
 					spawnedEntities[key] = spawnedEntity
 				end
 			end
@@ -2073,10 +2190,12 @@ script ResourceSpawner extends Logic
 
 	@ExecSpace("ServerOnly")
 	method void AddPlacedFurniture(string mapName, string itemName, integer x, integer y, Entity spawnedEntity)
+		-- 가구/작물 설치 영속 델타. 작물은 plantedAt·isCrop 필드를 가구 JSON 패턴에 함께 저장.
 		local json = self:GetPlacedFurnitureJson(mapName)
 		local furniture = (json ~= nil and json ~= "") and _HttpService:JSONDecode(json) or {}
 		
 		local fData = { itemName = itemName, x = x, y = y }
+		local isCrop = false
 		if isvalid(spawnedEntity) then
 			local pg = spawnedEntity:GetComponent("script.PortalGate")
 			if isvalid(pg) then
@@ -2086,6 +2205,23 @@ script ResourceSpawner extends Logic
 				fData.destinationGroup = pg.DestinationGroup
 				fData.portalColor = pg.PortalColor
 			end
+			local cropComp = spawnedEntity:GetComponent("script.Crop")
+			if isvalid(cropComp) then
+				isCrop = true
+				fData.isCrop = true
+				fData.plantedAt = cropComp.PlantedAtUnix
+				if cropComp.SeedItem ~= nil and cropComp.SeedItem ~= "" then
+					fData.itemName = cropComp.SeedItem
+				end
+			end
+		end
+		if not isCrop then
+			local cropDs = _DataService:GetTable("CropDataSet")
+			if cropDs ~= nil and cropDs:FindRow("SeedItem", itemName) ~= nil then
+				isCrop = true
+				fData.isCrop = true
+				fData.plantedAt = math.floor(os.time())
+			end
 		end
 		table.insert(furniture, fData)
 		self:SetPlacedFurnitureJson(mapName, _HttpService:JSONEncode(furniture))
@@ -2093,9 +2229,20 @@ script ResourceSpawner extends Logic
 		local key = x .. "_" .. y
 		local gridToEntity = self:GetGridToEntity(mapName)
 		local spawnedEntities = self:GetSpawnedEntities(mapName)
-		gridToEntity[key] = { entity = spawnedEntity, pivotX = x, pivotY = y, isFurniture = true, itemName = itemName }
+		gridToEntity[key] = {
+			entity = spawnedEntity,
+			pivotX = x,
+			pivotY = y,
+			isFurniture = true,
+			isCrop = isCrop,
+			itemName = fData.itemName,
+			plantedAt = math.floor(tonumber(fData.plantedAt) or 0)
+		}
 		spawnedEntities[key] = spawnedEntity
-		log("Added placed furniture " .. itemName .. " at (" .. x .. ", " .. y .. ") in map " .. mapName)
+		log("Added placed furniture " .. tostring(fData.itemName)
+			.. " at (" .. x .. ", " .. y .. ") in map " .. mapName
+			.. " isCrop=" .. tostring(isCrop)
+			.. " plantedAt=" .. tostring(fData.plantedAt))
 	end
 
 	@ExecSpace("ServerOnly")

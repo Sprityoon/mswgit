@@ -67,6 +67,20 @@ function patchHUD() {
   });
   b.patch("SpawnFade", { display_order: 9999 });
 
+  // T16 Buff bar (top-center under quest toast)
+  if (!b.getId("/ui/HUDGroup/BuffBar")) {
+    b.panel("BuffBar", { anchor: "top-center", pos: [0, -220], rect_size: [520, 36], enable: false });
+    b.patch("BuffBar", { display_order: 55 });
+    b.sprite("BuffBar/Bg", {
+      anchor: "middle-center", pos: [0, 0], rect_size: [520, 36],
+      color: "#1E1A16", alpha: 0.75, raycast: false,
+    });
+    b.text("BuffBar/Text", "", {
+      anchor: "middle-center", pos: [0, 0], rect_size: [500, 32],
+      size: 16, color: "#F0A830", alignment: 4,
+    });
+  }
+
   // Quest tracker (top-left) — 온보딩 진행 퀘스트 표시. 컨트롤러가 자식/토스트를 런타임 조회하므로 별도 바인딩 없음.
   if (!b.getId("/ui/HUDGroup/QuestTracker")) {
     b.panel("QuestTracker", { anchor: "top-left", pos: [190, -120], rect_size: [340, 170] });
@@ -331,6 +345,107 @@ function patchPopups() {
     }
   }
 
+  // 9) ResearchPopup (T7) — craft-hybrid skeleton, forest dark + gold accent
+  // MUST be created before b.write so entities are persisted.
+  const RP = "ResearchPopup";
+  if (!b.getId(`/ui/PopupGroup/${RP}`)) {
+    b.panel(RP, { anchor: "middle-center", pos: [0, 0], rect_size: [900, 640], enable: false });
+    b.addComponent(RP, "script.UIResearchController");
+    b.patch(RP, { display_order: 43 });
+
+    b.sprite(`${RP}/Bg`, {
+      anchor: "middle-center", pos: [0, 0], rect_size: [860, 600],
+      color: "#2B2620", alpha: 0.97, raycast: true,
+    });
+    b.sprite(`${RP}/Bg/BgInner`, {
+      anchor: "middle-center", pos: [0, -8], rect_size: [832, 536],
+      color: "#3A332B", alpha: 1.0, raycast: false,
+    });
+    b.sprite(`${RP}/Bg/TopBar`, {
+      anchor: "middle-center", pos: [0, 268], rect_size: [860, 64],
+      color: "#1E1A16", alpha: 1.0, raycast: false,
+    });
+    b.sprite(`${RP}/Bg/AccentLine`, {
+      anchor: "middle-center", pos: [0, 236], rect_size: [860, 3],
+      color: "#F0A830", alpha: 1.0, raycast: false,
+    });
+    b.text(`${RP}/Bg/Title`, "연구소", {
+      anchor: "middle-center", pos: [0, 268], rect_size: [320, 40],
+      size: 28, color: "#F5EFE6", alignment: 4,
+    });
+    b.button(`${RP}/Bg/BtnClose`, "X", {
+      anchor: "middle-center", pos: [390, 268], rect_size: [40, 40],
+      font_size: 22, color: "#F5EFE6",
+    });
+    b.patchComponent(`${RP}/Bg/BtnClose`, "MOD.Core.SpriteGUIRendererComponent", {
+      Color: { r: 0.55, g: 0.18, b: 0.16, a: 1.0 },
+    });
+
+    b.panel(`${RP}/Bg/List`, {
+      anchor: "middle-center", pos: [-220, -20], rect_size: [340, 420], enable: true,
+    });
+    b.sprite(`${RP}/Bg/List/ListBg`, {
+      anchor: "middle-center", pos: [0, 0], rect_size: [340, 420],
+      color: "#241F1A", alpha: 0.9, raycast: false,
+    });
+    b.button(`${RP}/Bg/List/ResearchTemplate`, "", {
+      anchor: "middle-center", pos: [0, 160], rect_size: [320, 64], enable: false,
+    });
+    b.patchComponent(`${RP}/Bg/List/ResearchTemplate`, "MOD.Core.SpriteGUIRendererComponent", {
+      Color: { r: 0.22, g: 0.20, b: 0.17, a: 1.0 },
+    });
+    b.sprite(`${RP}/Bg/List/ResearchTemplate/Icon`, {
+      anchor: "middle-center", pos: [-120, 0], rect_size: [40, 40], image_ruid: "",
+    });
+    b.text(`${RP}/Bg/List/ResearchTemplate/Name`, "연구", {
+      anchor: "middle-center", pos: [20, 0], rect_size: [220, 36],
+      size: 20, color: "#F5EFE6", alignment: 3,
+    });
+
+    b.panel(`${RP}/Bg/Details`, {
+      anchor: "middle-center", pos: [200, -20], rect_size: [380, 420], enable: true,
+    });
+    b.sprite(`${RP}/Bg/Details/DetBg`, {
+      anchor: "middle-center", pos: [0, 0], rect_size: [380, 420],
+      color: "#241F1A", alpha: 0.9, raycast: false,
+    });
+    b.text(`${RP}/Bg/Details/Name`, "연구 선택", {
+      anchor: "middle-center", pos: [0, 170], rect_size: [340, 36],
+      size: 24, color: "#F0A830", alignment: 4,
+    });
+    b.sprite(`${RP}/Bg/Details/Icon`, {
+      anchor: "middle-center", pos: [0, 100], rect_size: [64, 64], image_ruid: "",
+    });
+    b.text(`${RP}/Bg/Details/Desc`, "", {
+      anchor: "middle-center", pos: [0, 30], rect_size: [340, 80],
+      size: 16, color: "#C9C0B2", alignment: 4,
+    });
+    b.sprite(`${RP}/Bg/Details/Slot1`, {
+      anchor: "middle-center", pos: [0, -50], rect_size: [72, 72],
+      color: "#3A332B", alpha: 1.0, raycast: false,
+    });
+    b.sprite(`${RP}/Bg/Details/Slot1/Icon`, {
+      anchor: "middle-center", pos: [0, 4], rect_size: [44, 44], image_ruid: "",
+    });
+    b.text(`${RP}/Bg/Details/Slot1/Count`, "0/0", {
+      anchor: "middle-center", pos: [0, -24], rect_size: [72, 22],
+      size: 14, color: "#F5EFE6", alignment: 4,
+    });
+    b.text(`${RP}/Bg/Details/ProgressText`, "", {
+      anchor: "middle-center", pos: [0, -110], rect_size: [340, 36],
+      size: 16, color: "#C9C0B2", alignment: 4,
+    });
+    b.button(`${RP}/Bg/Details/BtnStart`, "연구 시작", {
+      anchor: "middle-center", pos: [0, -170], rect_size: [200, 48],
+      font_size: 20, color: "#1E1A16",
+    });
+    b.patchComponent(`${RP}/Bg/Details/BtnStart`, "MOD.Core.SpriteGUIRendererComponent", {
+      Color: { r: 0.941, g: 0.659, b: 0.188, a: 1.0 },
+    });
+  } else if (!b.hasComponent(RP, "script.UIResearchController")) {
+    b.addComponent(RP, "script.UIResearchController");
+  }
+
   b.write(file, {
     bind: {
       mlua: path.join(rootUIDir, "UIInventoryController.mlua"),
@@ -401,6 +516,19 @@ function patchPopups() {
     shopProps[`slot${i}_price`] = `${SP}/Bg/Slot${i}/PriceText`;
   }
   b.injectBindings(path.join(rootUIDir, "UIShopController.mlua"), shopProps);
+
+  b.injectBindings(path.join(rootUIDir, "UIResearchController.mlua"), {
+    btnClose: `${RP}/Bg/BtnClose`,
+    researchList: `${RP}/Bg/List`,
+    researchTemplate: `${RP}/Bg/List/ResearchTemplate`,
+    detailName: `${RP}/Bg/Details/Name`,
+    detailDesc: `${RP}/Bg/Details/Desc`,
+    detailIcon: `${RP}/Bg/Details/Icon`,
+    ingIcon: `${RP}/Bg/Details/Slot1/Icon`,
+    ingCount: `${RP}/Bg/Details/Slot1/Count`,
+    progressText: `${RP}/Bg/Details/ProgressText`,
+    btnStart: `${RP}/Bg/Details/BtnStart`,
+  });
 
   const after = b.listEntities().length;
   console.log(`PopupGroup.ui patched: ${before} -> ${after} entities.`);

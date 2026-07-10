@@ -208,7 +208,7 @@ script PersistenceManager extends Logic
 				pc.SkillLevelsJson = data.skillLevels or "{}"
 				pc.SP = data.sp or 0
 				
-				-- Offline sleeping recovery
+				-- Offline sleeping recovery (T8): 10분(600s) 비례 회복. ≥600s면 풀충전.
 				local savedIsSleeping = data.isSleeping or false
 				local savedSleepStartTimeTicks = data.sleepStartTimeTicks or "0"
 				if savedIsSleeping and savedSleepStartTimeTicks ~= "0" then
@@ -218,19 +218,28 @@ script PersistenceManager extends Logic
 						local elapsedTicks = now.Ticks - startTime.Ticks
 						local elapsedSeconds = elapsedTicks / 10000000.0
 						if elapsedSeconds > 0 then
-							local hpRecovery = (elapsedSeconds / 600.0) * player.PlayerComponent.MaxHp
-							local staminaRecovery = (elapsedSeconds / 600.0) * pc.MaxStamina
-							
-							player.PlayerComponent.Hp = math.min(player.PlayerComponent.MaxHp, player.PlayerComponent.Hp + math.floor(hpRecovery))
-							pc.Stamina = math.min(pc.MaxStamina, pc.Stamina + math.floor(staminaRecovery))
-							
-							log("PersistenceManager: Offline sleeping recovery applied. Elapsed: " .. tostring(elapsedSeconds) .. "s. HP +" .. tostring(math.floor(hpRecovery)) .. ", Stamina +" .. tostring(math.floor(staminaRecovery)))
+							local maxHp = player.PlayerComponent.MaxHp
+							local maxSt = pc.MaxStamina
+							if elapsedSeconds >= 600.0 then
+								player.PlayerComponent.Hp = maxHp
+								pc.Stamina = maxSt
+								log("PersistenceManager: Offline sleep full restore (≥600s). Elapsed=" .. tostring(elapsedSeconds))
+							else
+								local ratio = elapsedSeconds / 600.0
+								local hpRecovery = ratio * maxHp
+								local staminaRecovery = ratio * maxSt
+								player.PlayerComponent.Hp = math.min(maxHp, player.PlayerComponent.Hp + math.floor(hpRecovery))
+								pc.Stamina = math.min(maxSt, pc.Stamina + math.floor(staminaRecovery))
+								log("PersistenceManager: Offline sleep proportional. Elapsed=" .. tostring(elapsedSeconds)
+									.. "s HP+" .. tostring(math.floor(hpRecovery))
+									.. " St+" .. tostring(math.floor(staminaRecovery)))
+							end
 						end
 					end)
 					if not success then
 						log_warning("PersistenceManager: Failed to calculate offline sleep recovery: " .. tostring(err))
 					end
-					-- Reset sleep status upon login for active play
+					-- 로그인 시 기상 상태로 입장 (Acceptance: 풀충전 입장 / 활성 플레이)
 					pc.IsSleeping = false
 					pc.SleepStartTimeTicks = "0"
 				else
@@ -260,7 +269,13 @@ script PersistenceManager extends Logic
 				inv.EquippedTool = data.equippedTool or ""
 				inv.QuickSlotsJson = data.quickSlots or "[\"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\"]"
 				inv.SelectedQuickSlotIndex = data.selectedSlot or 1
+				inv.UnlockedRecipesJson = data.unlockedRecipes or "[]"
+				inv.ActiveResearchId = data.activeResearchId or ""
+				inv.ResearchStartTime = data.researchStartTime or "0"
 				inv:ApplyHeldToolCostume()
+				inv:MigrateLegacyRecipeUnlocks()
+				-- T7: 오프라인 연구 경과 정산
+				inv:TryCompleteActiveResearch()
 				log("PersistenceManager: Inventory restored.")
 			end
 
@@ -470,6 +485,9 @@ script PersistenceManager extends Logic
 			equippedTool = inv.EquippedTool or "",
 			quickSlots = inv.QuickSlotsJson or "[\"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\"]",
 			selectedSlot = tonumber(inv.SelectedQuickSlotIndex) or 1,
+			unlockedRecipes = inv.UnlockedRecipesJson or "[]",
+			activeResearchId = inv.ActiveResearchId or "",
+			researchStartTime = inv.ResearchStartTime or "0",
 			unlockedWaypoints = pc.UnlockedWaypointsJson or "[]",
 			skillLevels = pc.SkillLevelsJson or "{}",
 			sp = tonumber(pc.SP) or 0,
