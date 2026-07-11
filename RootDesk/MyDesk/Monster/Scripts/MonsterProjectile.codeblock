@@ -1,0 +1,33 @@
+{
+  "Id": "",
+  "GameId": "",
+  "EntryKey": "codeblock://e80f4dd3-df1d-4ac2-9127-d85d6d2cf99b",
+  "ContentType": "x-mod/codeblock",
+  "Content": "",
+  "Usage": 0,
+  "UsePublish": 1,
+  "UseService": 0,
+  "CoreVersion": "26.5.0.0",
+  "StudioVersion": "",
+  "DynamicLoading": 0,
+  "ContentProto": {
+    "Use": "Json",
+    "Json": {
+      "CoreVersion": {
+        "Major": 0,
+        "Minor": 2
+      },
+      "ScriptVersion": {
+        "Major": 1,
+        "Minor": 1
+      },
+      "Description": "",
+      "Id": "e80f4dd3-df1d-4ac2-9127-d85d6d2cf99b",
+      "Language": 1,
+      "Name": "MonsterProjectile",
+      "Type": 1,
+      "Source": 0,
+      "Target": null
+    }
+  }
+}
