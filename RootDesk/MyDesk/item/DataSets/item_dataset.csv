@@ -36,3 +36,5 @@ carp,Carp,Item_Wood,2cb8f37e-ef6b-4e17-86fb-d940f18a7412,resource,,0,81f87a7137b
 shrimp,Shrimp,Item_Wood,2cb8f37e-ef6b-4e17-86fb-d940f18a7412,resource,,0,16ea5931c88346bd82736d34c40e82e3,,Common,true,A small common shrimp.,,,,,,,,,
 salmon,Salmon,Item_Wood,2cb8f37e-ef6b-4e17-86fb-d940f18a7412,resource,,0,2f38d677dadb452ca60b54df232de4db,,Uncommon,true,A fresh salmon from the river.,,,,,,,,,
 tuna,Tuna,Item_Wood,2cb8f37e-ef6b-4e17-86fb-d940f18a7412,resource,,0,37d18761d027453f9def876c2e34aa7c,,Rare,true,A large rare tuna fish.,,,,,,,,,
+raw_meat,Raw Meat,Item_Wood,2cb8f37e-ef6b-4e17-86fb-d940f18a7412,resource,,0,90386dd054bf4acfa2b363d5d1c45478,,Common,true,A chunk of raw boar meat. Cook it in a pot for a hearty meal.,,,,,,,,,
+roasted_meat,Roasted Meat,Item_Wood,2cb8f37e-ef6b-4e17-86fb-d940f18a7412,consumable,,0,1b1ccb37d5de4ae5837fad85c54a8e58,,Uncommon,true,Juicy roasted meat. Boosts attack power.,,,,,,atk_boost_small,,,

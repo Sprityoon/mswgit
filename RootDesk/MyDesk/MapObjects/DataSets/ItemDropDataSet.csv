@@ -19,6 +19,7 @@ GrownGrass,,carrot_seed,1,1,0.05
 IronNodeResource,,iron_ore,2,4,1.0
 slime_king,,recipe_scroll_copper,1,1,0.35
 slime_king,,recipe_scroll_iron,1,1,0.15
+boar,,raw_meat,1,2,1.0
 TreasureChest,,copper ore,2,4,1.0
 TreasureChest,,iron_ore,1,2,0.5
 TreasureChest,,recipe_scroll_copper,1,1,0.25

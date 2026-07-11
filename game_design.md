@@ -503,6 +503,8 @@ graph TD
     - ✅ 완료: 사망(HP0)→3s 후 (0,0) 리스폰 + 자원 50% 손실, 플레이어 피격 적색 플래시(아바타), 도구 등급별 공격력 스케일링(ToolPower * 4).
   - ✅ AI 추격 튜닝 완료: 몬스터가 플레이어에게 끝까지 달려들지 않고 바로 앞칸에서 공격을 멈추던 현상을 `DSq <= 0.81`(밀착) 및 공격 쿨타임 중에도 근접 타겟팅을 유지하도록 튜닝하여 해결.
   - [x] M3 완료: `MonsterSpawner`(@Logic, 맵당 인구캡, 바이옴별 변종 HpMul/AtkMul, 녹색섬 중앙 제외, 10분 주기 낮/밤 부스트 적용 완료) + `MonsterSpawnDataSet`.
+  - 🔶 **전투 체감 개선(T38 — 코드 완료 2026-07-11, Play 검증 보류)**: 접촉 데미지 틱(TouchDamage/i-frame 위임) + 공격 타이밍 정정(윈드업 만료 시점 타격) + 텔레그래프 틴트 + `AttackRange` 단일화(리터럴 0.81 제거 — 상단 "AI 추격 튜닝"의 밀착 기준 대체)·`StopDistance` 신설. handoff §3 T38.
+  - 🔶 **원거리 투사체(T39 — ⚖️ 2026-07-12 보스 확정: 1호=HornMushroom, 배치 D 진행)**: `MonsterProjectile`(AttackComponent 확장, Fire 주입식·Translate 비행·attackInfo="projectile") + MonsterAI `ProjectileModelId` 프로퍼티 분기(빈 값=근접) + 포자 투사체 모델. handoff §3 T39.
   - 중력이 없는 `KinematicbodyComponent`를 사용하는 몬스터 모델(예: Slime 또는 Zombie) 제작.
   - 상태 기반 AI 컴포넌트 (`MonsterAI.mlua`) 설계:
     - **배회(Wander)**: 스폰 위치 반경 5칸 이내의 랜덤 셀을 목표로 저속 이동 후 대기.
@@ -635,6 +637,7 @@ graph TD
 > **배경**: Phase 14가 수직 진행(농사·연구·침대·희귀드롭)을 채운 뒤에도 남는 5대 공백 — ① 산출물의 소비처 ② 일일 접속 훅 ③ 수집/기록 메타 ④ 정적인 월드 ⑤ 제3의 액티비티 — 을 8개 시스템으로 채운다. 상세 기획·통합 루프·비범위 판단은 기획서 참조. 구현 티켓은 `docs/agents/subagent-handoff.md` §3 **T16~T23** (배치 B: T16→T17→T20→T18 / 배치 C: T19→T21→T22→T23 — Phase 14 잔여 배치 A 이후 순차).
 >
 > **진행(2026-07-11)**: 15-A(T16)·15-B(T17) Play 검증 PASS. 다음 = **15-D(T20 의뢰 게시판) → 15-C(T18 낚시)** → 배치 C.
+> **진행(2026-07-12 지휘자 갱신)**: 15-C(T18)·15-D(T20)+T27 코드 완료 — **Play 검증 대기**(버그픽스 T36·T37🔴·T38, 도구 아트 T15와 함께 총 7건, 제작자 수행). ⚖️ 보스 확정: T31② 고기 축 지금 채택 / T32② Bed=50코인 / T39 원거리 1호=HornMushroom → **배치 D(T32→T31→T39) 발행**. 배치 C(15-E~H)는 Play PASS 후 발행(지휘자 결정 — 파일 소유 겹침).
 
 - [x] **15-A 공통 버프 시스템** (T16 — 선행 인프라 / **Play 검증 PASS 2026-07-11**): `BuffDataSet` + `PlayerBuffs` 세션 버프(StatKey: MoveSpeed/GatherSpeed/AttackPower/StaminaRegen 훅) + `Category=consumable`+`UseBuffId` 퀵슬롯 Ctrl 사용 경로(진입점 `ServerRequestUseItem` — 14-E와 공유) + HUD BuffBar. ⚖️ 세션 한정(영속화 없음), 재적용=시간 갱신. 실증템 Roasted Grass. 계획: handoff §3 T16.
 - [x] **15-B 요리** (T17 — **Play 검증 PASS 2026-07-11**): 조리 냄비 — `Furnace`를 레시피 테이블/제목/기간 컬럼 **프로퍼티로 일반화**(기존 제련 무회귀), `CookingRecipeDataSet` + 음식 3종(consumable+`UseBuffId`). 농사/사냥/낚시 산출물의 소비처. 잔여: 다재료(2-input) 요리·냄비 전용 아이콘. 계획: handoff §3 T17.

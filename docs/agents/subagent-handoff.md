@@ -96,6 +96,13 @@
 >   - **레인 2 (낚시 완결 축)**: **T18(반려 재작업 — 스폿 실체화) → T15(도구 아트 잔여)**. 소유: `Furniture/Scripts/FishingSpot.mlua`, 낚시터 모델 신규, `map/map01.map`·`map/town.map`·`map/template_field.map`, `FishDataSet.csv`, `item_dataset.csv`, `RecipeDataSet.csv`. ⚠️ **PlayerController/ResourceSpawner 수정 절대 금지(레인 1 소유)** — 필요해 보이면 [보류]+질문.
 >   - **병렬 규약 (2026-07-11 개정)**: ① 상대 레인 소유 파일은 읽기만, 수정 절대 금지 ② 이 문서 상태 갱신은 자기 T항목 블록 라인만 편집 ③ 보고서 파일은 티켓별 분리 ④ **refresh는 티켓 완료마다 1회 수행하고 빌드 Error 수를 보고서 §4에 기재**(레인 말미 몰기 폐지 — 직전 두 배치 연속 검증 공백의 원인). "refresh 진행 중" 에러 시 대기 후 재시도 ⑤ 레인 내부 순서 엄수.
 > - **보류 유지**: 배치 C(T19→T21→T22→T23 — T36 완료 후 발행 검토), T4(테라스 아트).
+>
+> 🧭 **실행 계획 갱신 (지휘자 2026-07-12)**
+> - **Play 검증 대기 7건 (제작자 수행)**: T36 · **T37🔴(세이브 유실 핫픽스 — 최우선)** · T38 / T18 · T15 / T20 · T27. 체크리스트는 각 보고서 §6.
+> - **⚖️ 2026-07-12 보스 확정**: ① T31② **지금 채택**(T19 가축과 식재료 축 분리 — 독립 진행) ② T32② Bed **BuyPrice=50** ③ T39 원거리 1호 = **HornMushroom**.
+> - **🍖 배치 D 발행 (2026-07-12 — 단일 에이전트 순차)**: **T32 → T31 → T39**. 소유: `item/DataSets/*.csv`(+userdataset), `Furniture/DataSets/CookingRecipeDataSet.csv`, `MapObjects/DataSets/ItemDropDataSet.csv`, `Monster/Scripts/MonsterAI.mlua`, `Monster/Models/*`(HornMushroom + 신규 투사체 모델). ⚠️ Play 대기 티켓(T36~38·T18·T15·T20·T27)의 재작업이 발생하면 지휘자가 조정 — 배치 D는 해당 파일 중 `MonsterAI.mlua`만 겹침(보스가 리스크 수용).
+> - **T39 경위**: 직전 세션이 큐 항목 없이 착수 후 무보고 종료(커밋 d335015 — 무보고 4회차). `MonsterProjectile.mlua` 컴포넌트만 존재. 지휘자가 실사 후 소급 발행.
+> - **배치 C는 버그픽스 배치 Play PASS 후 발행** (지휘자 결정 2026-07-12 — `PersistenceManager` 등 소유 겹침으로 재작업 충돌 방지).
 ### T4. [대기] 경계 테라스/절벽 아트 정리
 - **배경**: `TerraceTop`/`CliffFace`/`Big Wall`은 이전 스킴의 임시 아트 그대로다. 신규 grass 기준 아트와 톤이 안 맞을 수 있고, 상위 레이어 테라스 타일이 깔린 뒤 플레이어 아바타 SortingLayer 최종 판정도 미완(`docs/design/skill-tree-plan.md` §5 4번).
 - **Target**: `RootDesk/MyDesk/wall.tileset`(Maker에서 아트 교체) + 필요 시 `scripts/build_maps.cjs` 밴드/데코 페인팅
@@ -180,13 +187,22 @@
 - **구현 요약 (2026-07-11)**: Change ①~③ 이행. Complete 훅 GrantRecipeUnlock. 보고서: `docs/agents/reports/T27-quest-reward-unlock.md`.
 - **검증**: Maker refresh 빌드 **Error=0** (total 433 / Warning 9 / Info 424). **런타임 검증 보류(제작자 수행)**.
 
-### T31. [보류 — ② 보스 확정 대기] 요리 고기 축 — 멧돼지 고기 드롭 + 구운 고기(AttackPower) (T31② 잔여)
+### T31. [완료 — 배치 D 2026-07-12 | 코드 수정 0 (CSV-only) | refresh 검증 보류(Maker 미가동) | Play 보류(제작자)] 요리 고기 축 — 멧돼지 고기 드롭 + 구운 고기(AttackPower) (T31② 잔여)
 
-- ①(gather_boost_big 신설·Feast Dish 재배정)은 완료 — §2 감사 배치 포인터. 잔여는 ②: `Raw Meat`/`Roasted Meat` 아이템 + 멧돼지 `ItemDropDataSet` 행 + `CookingRecipeDataSet` 행 + `atk_boost_small`(AttackPower) 버프. **T19(가축)와 식재료 축이 겹치므로 보스가 채택/시점 확정 후 착수.** AttackPower·StaminaRegen 훅은 코드에 이미 살아있음(콘텐츠만 없음).
+- **② 완결(2026-07-12 배치 D)**: `item_dataset`(raw_meat/roasted_meat 행 추가 — 아이콘 2종 msw-search 확보) + `ItemDropDataSet`(boar→raw_meat 1~2 @1.0) + `CookingRecipeDataSet`(Raw Meat 2→Roasted Meat, 10s) + `BuffDataSet`(atk_boost_small=AttackPower mult 1.25/60s). 코드 수정 0. 보고서 `reports/T31-feast-dish-buff-reassignment.md` §7 append.
+- ①(gather_boost_big 신설·Feast Dish 재배정)은 완료 — §2 감사 배치 포인터. **⚖️ 2026-07-12 보스 확정: 지금 채택** (T19 가축은 달걀/양털 축이라 식재료 중복 아님 — 독립 진행). AttackPower·StaminaRegen 훅은 코드에 이미 살아있음(T16 산출물 — 콘텐츠만 없음).
+- **Target**: `item/DataSets/item_dataset.csv`(Raw Meat/Roasted Meat 행 추가), `MapObjects/DataSets/ItemDropDataSet.csv`(Boar→Raw Meat 행), `Furniture/DataSets/CookingRecipeDataSet.csv`(Raw Meat→Roasted Meat 행), `item/DataSets/BuffDataSet.csv`(`atk_boost_small` 행). **CSV-only가 이상 — 코드 수정 0이 기대값.**
+- **Change**: ① `item_dataset`에 Raw Meat(재료)·Roasted Meat(`Category=consumable`+`UseBuffId=atk_boost_small`) 행 — 아이콘 RUID는 msw-search로 확보(없으면 placeholder+보고) ② `ItemDropDataSet`에 Boar 드롭 행 — **T28 `MonsterId` 체계·기존 드롭 행 스키마 그대로 준수** ③ `CookingRecipeDataSet` 1행(기존 행 패턴 준수 — 예: Raw Meat 2 → Roasted Meat, CookDuration은 기존 행 범위 내) ④ `BuffDataSet`에 `atk_boost_small`(StatKey=`AttackPower`) — **기존 `gather_boost_small` 행 패턴 미러**(mult 1.25/60s 제안 — CSV 튜닝 자유).
+- **Acceptance**: 멧돼지 처치→Raw Meat 드롭 / 냄비 조리→Roasted Meat / 사용 시 AttackPower 버프가 HUD BuffBar 표시 / 코드 수정 0(불가피하면 [보류]+질문) / refresh(가능 시) Error 수 보고서 기재. Play는 제작자.
+- **충돌 주의**: **배치 D** — T32 완료 후 착수. `item_dataset`은 T15(Play 대기)가 셀 단위로 만진 파일 — **행 추가만** 하고 기존 행 수정 금지.
 
-### T32. [보류 — ② 보스 확정 대기] 상점 Bed 가격 정상화 (T32② 잔여)
+### T32. [완료 — 배치 D 2026-07-12 | refresh 검증 보류(Maker 미가동) | Play 보류(제작자)] 상점 Bed 가격 정상화 (T32② 잔여)
 
-- ①③(RecipeDataSet Category 정합·Description 인용부호 통일)은 완료 — §2 감사 배치 포인터. 잔여는 ②: `ShopItemDataSet` Bed `BuyPrice=1`(테스트 잔재 의심 — 제작 원가 Wood 10 대비 붕괴). **보스가 정상가 확정하면 셀 1건 교체만.**
+- ①③(RecipeDataSet Category 정합·Description 인용부호 통일)은 완료 — §2 감사 배치 포인터. **⚖️ 2026-07-12 보스 확정: `BuyPrice=50`** (제작 원가 Wood×10=판매가 환산 20코인의 2.5배 — 직접 제작 동기 유지+지름길 허용).
+- **② 완결(2026-07-12 배치 D)**: `ShopItemDataSet.csv` Bed `BuyPrice` 1→50, 해당 셀 외 변경 0. 보고서 `reports/T32-data-hygiene.md` §7 append.
+- **Target**: `item/DataSets/ShopItemDataSet.csv` Bed 행 — `BuyPrice` 셀 1→50.
+- **Acceptance**: 해당 셀 1건 외 변경 0. refresh(가능 시) Error 수 보고서 기재.
+- **충돌 주의**: **배치 D 첫 항목**.
 
 ### T36. [코드 완료 — 2026-07-11 재작업 | refresh Error=0 | 런타임 검증 보류(제작자 수행)] 자원/가구 통과 버그 수정 — ResolveOverlaps 원-대-AABB (재작업 지시 포함)
 
@@ -250,6 +266,21 @@
 - **충돌 주의**: **레인 1** — T37 완료 후 착수. 레인 2 파일 수정 금지.
 - **구현 요약 (2026-07-11)**: Touch 틱·윈드업 타격·TelegraphOn·AttackRange/StopDistance. 보고서 `docs/agents/reports/T38-monster-combat-feel.md`.
 - **검증**: refresh 빌드 **Error=0** (total 439). **런타임 검증 보류(제작자 수행)**.
+
+### T39. [진행 — 배치 D 2026-07-12] 몬스터 원거리 공격 — HornMushroom 포자 투사체 (T38 후속)
+
+- **경위(지휘자 소급 발행 2026-07-12)**: 직전 세션이 **큐 항목 없이 착수 후 무보고 종료**(커밋 d335015 — §5 조항 11 위반 4회차). 지휘자 실사 후 이 항목으로 소급 정식화. 배경: T38로 근접 전투는 정비됐으나 전 몬스터가 근접 단일 패턴 — 원거리 1종으로 전투 다양화. **⚖️ 2026-07-12 보스 확정: HornMushroom**(버섯 포자 — 원거리 전형).
+- **현재 자산 실사(지휘자 2026-07-12 — 그대로 사용, 재구현 금지)**:
+  - `Monster/Scripts/MonsterProjectile.mlua`(+`.codeblock` 쌍): **컴포넌트 완성** — `AttackComponent` 확장, `Fire(owner, dir, dmg, speed, hitRadius, lifeTime)` 주입식(모델 프로퍼티 아님 — 스폰 시점 결정 설계), `OnUpdate` Translate 비행+수명 소멸, HitBox 오버랩 시 `AttackFast(shape, "projectile")`→Destroy, `CalcDamage` attackInfo 태깅 분기, `IsAttackTarget` 플레이어 한정. **로직 수정 금지** — 주석 오타 2건("시뫤레이터"→"시뮬레이터", "덄백"→"넉백")만 수정 허용.
+  - 없음: 투사체 **모델**(.model) / MonsterAI **발사 분기** / HornMushroom 원거리 설정.
+- **Target**: 신규 `Monster/Models/Projectile_Spore.model`(ModelBuilder — Model Work Preflight 필수), `Monster/Scripts/MonsterAI.mlua`(원거리 분기), `Monster/Models/HornMushroom.model`(프로퍼티 오버라이드 — ModelBuilder), (로직 수정 없음) `MonsterProjectile.mlua`.
+- **Change**:
+  ① **투사체 모델 신설**: TransformComponent + SpriteRendererComponent + `MonsterProjectile` 컴포넌트. SpriteRUID는 msw-search로 포자/구체 탄환 확보(없으면 msw-painter 제작) — **빈 RUID 금지(8대 규칙 3)**. Body 없음(Translate 비행 설계 유지).
+  ② **MonsterAI 원거리 프로퍼티 신설**: `property string ProjectileModelId = ""`(빈 값=근접 전용 — 모델 ID 데이터 주도, **이름 분기 금지**) + `ProjectileSpeed`/`ProjectileDamage`/`ProjectileLifeTime`/`ProjectileHitRadius`(전부 프로퍼티 — 코드 리터럴 0).
+  ③ **발사 분기**: T38이 만든 **ATTACK 윈드업 만료 시점**(StateTimer 만료 → 현 `DoAttack()` 지점)에서 `ProjectileModelId ~= ""`이면 근접 대신 `_SpawnService:SpawnByModelId(..., parent=self.Entity.CurrentMap)`(**parent nil 금지 — 8대 규칙 4**) 후 `Fire(...)` — 방향 = 최근접 플레이어 방향. 텔레그래프/쿨다운/StopDistance 등 **T38 파이프라인 그대로 재사용**(신규 상태 발명 금지).
+  ④ **HornMushroom 설정**: 모델에 `ProjectileModelId`+수치 오버라이드, 원거리답게 `AttackRange` 상향(3.0 제안)+`StopDistance` 상향(2.5 제안) — 전부 모델 프로퍼티(튜닝 자유). Slime/Boar/SlimeKing은 무변경(빈 `ProjectileModelId`).
+- **Acceptance**: ① HornMushroom이 AttackRange 경계에서 윈드업 텔레그래프→포자 발사→명중 시 정식 히트 파이프라인(i-frame/데미지 스킨) 경유 데미지 ② 빗나감 시 LifeTime 후 소멸(잔존 엔티티 0) ③ Slime/Boar/SlimeKing 근접 회귀 0 ④ 수치/이름 하드코딩 0 ⑤ refresh(가능 시) Error 수 보고서 기재 + §4 보고 3종. Play는 제작자(발사·명중·소멸·근접몹 회귀).
+- **충돌 주의**: **배치 D 마지막** — T31 완료 후 착수. `MonsterAI.mlua`는 T38(Play 대기) 산출물 — T38 재작업 발생 시 지휘자가 조정(보스 리스크 수용 2026-07-12). `MonsterMeleeAttack.mlua`·`PlayerController.mlua` 수정 금지.
 
 ### (신규 작업 추가 템플릿)
 ```

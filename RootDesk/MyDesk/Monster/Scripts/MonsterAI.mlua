@@ -32,6 +32,14 @@ script MonsterAI extends Component
 	property number StandMin = 1.0
 	property number StandMax = 2.0
 
+	-- T39: 원거리 투사체 설정. ProjectileModelId가 빈 값이면 근접 전용(현행 유지),
+	-- 모델명이 들어가면 윈드업 만료 시점에 근접 대신 투사체를 발사한다(모델 프로퍼티 = 데이터 주도, 이름 분기 금지).
+	property string ProjectileModelId = ""
+	property number ProjectileSpeed = 4.5
+	property integer ProjectileDamage = 5
+	property number ProjectileLifeTime = 1.5
+	property number ProjectileHitRadius = 0.4
+
 	-- T38: 윈드업 텔레그래프 (클라 OnSyncProperty 연출)
 	@Sync
 	property boolean TelegraphOn = false
@@ -127,10 +135,15 @@ script MonsterAI extends Component
 				if self.AttackStrikePending then
 					self.AttackStrikePending = false
 					self.TelegraphOn = false
-					local atk = self:GetAttack()
-					if isvalid(atk) then
-						if self.AttackType == "CONTACT" or self.AttackType == "MELEE_WEAPON" then
-							atk:DoAttack()
+					if self.ProjectileModelId ~= "" then
+						-- T39: 원거리 분기 — 근접 대신 투사체 발사 (텔레그래프/쿨다운 파이프라인 공유)
+						self:FireProjectile()
+					else
+						local atk = self:GetAttack()
+						if isvalid(atk) then
+							if self.AttackType == "CONTACT" or self.AttackType == "MELEE_WEAPON" then
+								atk:DoAttack()
+							end
 						end
 					end
 				end
@@ -227,6 +240,39 @@ script MonsterAI extends Component
 			atk:DoTouchAttack()
 			self.TouchCooldownTimer = atk.TouchTickInterval or 0.5
 		end
+	end
+
+	@ExecSpace("ServerOnly")
+	method void FireProjectile()
+		-- T39: ProjectileModelId 모델을 스폰해 최근접 플레이어 방향으로 발사.
+		-- 모델명 → 모델 ID 해석(_EntryService) 후 원문 폴백 — MonsterSpawner와 동일 패턴.
+		-- parent는 CurrentMap(8대 규칙 4 — nil 금지). 수치는 전부 프로퍼티(코드 리터럴 0).
+		local map = self.Entity.CurrentMap
+		if not isvalid(map) then return end
+		local target = self:FindNearestPlayer()
+		if not isvalid(target) then return end
+		local myPos = self:Pos2D()
+		local tp = self:EntityPos2D(target)
+		local dir = Vector2(tp.x - myPos.x, tp.y - myPos.y)
+		self:Face(dir.x)
+		local modelId = _EntryService:GetModelIdByName(self.ProjectileModelId)
+		if modelId == nil or modelId == "" then
+			modelId = self.ProjectileModelId
+		end
+		local proj = _SpawnService:SpawnByModelId(modelId, "Projectile_" .. self.Entity.Name, Vector3(myPos.x, myPos.y, 0), map)
+		if not isvalid(proj) then
+			log_warning("[MONSTER] projectile model spawn failed: " .. self.ProjectileModelId)
+			return
+		end
+		---@type MonsterProjectile
+		local pc = proj:GetComponent("script.MonsterProjectile")
+		if not isvalid(pc) then
+			log_warning("[MONSTER] script.MonsterProjectile missing on model: " .. self.ProjectileModelId)
+			proj:Destroy()
+			return
+		end
+		pc:Fire(self.Entity, dir, self.ProjectileDamage, self.ProjectileSpeed, self.ProjectileHitRadius, self.ProjectileLifeTime)
+		log("[MONSTER] projectile fired by " .. self.Entity.Name)
 	end
 
 	@ExecSpace("ServerOnly")

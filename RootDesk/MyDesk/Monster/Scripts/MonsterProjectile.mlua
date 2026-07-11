@@ -45,7 +45,7 @@ script MonsterProjectile extends AttackComponent
 		local pos = transform.WorldPosition
 		transform.WorldPosition = pos + Vector3(self.Direction.x * self.Speed * delta, self.Direction.y * self.Speed * delta, 0)
 
-		-- 플레이어 HitBox 근접 판정 (Body 없는 투사체 → 시뫤레이터 Overlap).
+		-- 플레이어 HitBox 근접 판정 (Body 없는 투사체 → 시뮬레이터 Overlap).
 		local myPos2D = transform.WorldPosition:ToVector2()
 		local sim = _CollisionService:GetSimulator(self.Entity)
 		if not sim then return end
@@ -55,7 +55,7 @@ script MonsterProjectile extends AttackComponent
 			for _, hb in ipairs(overlaps) do
 				local target = hb.Entity
 				if isvalid(target) and target ~= self.Owner and isvalid(target.PlayerComponent) then
-					-- 정식 히트 파이프라인(데미지 스킨/i-frame/덄백 훅) 경유.
+					-- 정식 히트 파이프라인(데미지 스킨/i-frame/넉백 훅) 경유.
 					self:AttackFast(shape, "projectile", CollisionGroups.HitBox)
 					self.Entity:Destroy()
 					return
