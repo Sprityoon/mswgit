@@ -1,4 +1,4 @@
-﻿Id,Description,CondEnum,CondArg,CondExtra,Value,Disable
+Id,Description,CondEnum,CondArg,CondExtra,Value,Disable
 101,풀 채집,Gather,Grass,,3,
 102,손도끼 제작,Craft,Hand Axe,,1,
 103,나무 채집,Gather,Wood,,5,

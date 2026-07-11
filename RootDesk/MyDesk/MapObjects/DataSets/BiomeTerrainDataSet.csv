@@ -1,4 +1,4 @@
-﻿BiomeId,TileName,NoiseMin,NoiseMax
+BiomeId,TileName,NoiseMin,NoiseMax
 green_island,BaseEarth,0,0.40
 green_island,BaseGrass,0.40,1.01
 earth_field,BaseEarth,0,1.01

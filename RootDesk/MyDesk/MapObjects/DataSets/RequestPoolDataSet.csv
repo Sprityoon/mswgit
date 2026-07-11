@@ -1,4 +1,4 @@
-﻿RequestId,RequiredItem,RequiredCount,RewardItem,RewardCount,Weight
+RequestId,RequiredItem,RequiredCount,RewardItem,RewardCount,Weight
 req_wood_5,Wood,5,Coin,15,100
 req_stone_5,Stone,5,Coin,15,100
 req_grass_8,Grass,8,Coin,12,100

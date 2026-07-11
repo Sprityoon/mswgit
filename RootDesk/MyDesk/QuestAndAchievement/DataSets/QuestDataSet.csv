@@ -1,4 +1,4 @@
-﻿Id,Name,Desc,ProgressingDesc,CategoryEnum,CycleEnum,IsRepeatable,LinkedPrevId,RequiredId,AutoAccept,CannotAbandon,ConsumeItems,RewardItems,Priority,Disable,RewardUnlockId
+Id,Name,Desc,ProgressingDesc,CategoryEnum,CycleEnum,IsRepeatable,LinkedPrevId,RequiredId,AutoAccept,CannotAbandon,ConsumeItems,RewardItems,Priority,Disable,RewardUnlockId
 101,첫 걸음 - 풀 뜯기,맨손으로 들판의 풀을 뜯어 모아보세요.,풀을 3개 채집하세요. (맨손으로 가능),Sub,,,,,O,O,,Stone:5,1,,
 102,도구 제작 - 손도끼,모은 돌로 첫 도구인 손도끼를 만들어보세요.,C 키로 제작창을 열고 손도끼(Hand Axe)를 제작하세요.,Sub,,,101,,O,O,,Wood:2,2,,
 103,나무 베기,손도끼로 나무를 베어 목재를 모으세요.,나무를 베어 Wood 5개를 모으세요.,Sub,,,102,,O,O,,Stone:3,3,,

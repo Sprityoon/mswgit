@@ -1,0 +1,6 @@
+# MSW DataSet CSVs: the MSW Maker re-saves them with a UTF-8 BOM while agent
+# scripts write them without one. Strip the BOM on the way into the repo so the
+# stored blob is always identical regardless of which tool last wrote the file.
+# Requires a one-time local config on each machine:
+#   git config filter.msw-stripbom.clean "node scripts/git-stripbom.cjs"
+*.csv filter=msw-stripbom

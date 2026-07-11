@@ -1,4 +1,4 @@
-﻿SkillId,Name,Cooldown,DamageMultiplier,StaminaCost,EffectRUID,Description,Type,ParentSkillId,RequiredLevel,UnlockAchievementId,MaxLevel,SPCost,DamagePerLevel,CooldownPerLevel,TreeRow,TreeCol,PassiveStat,PassiveValuePerLevel
+SkillId,Name,Cooldown,DamageMultiplier,StaminaCost,EffectRUID,Description,Type,ParentSkillId,RequiredLevel,UnlockAchievementId,MaxLevel,SPCost,DamagePerLevel,CooldownPerLevel,TreeRow,TreeCol,PassiveStat,PassiveValuePerLevel
 power_strike,강타,1.2,1.5,8,,"""전방 좁은 부채꼴 범위에 1.5배 피해를 입힙니다. 주력기.""",Melee,,1,1001,5,1,0.3,-0.05,1,1,,
 fireball,화염구,5.0,2.2,18,,"""전방으로 비행하는 화염 구체를 발사하여 충돌 시 2.2배 폭발 피해를 입힙니다. 보조기.""",Projectile,power_strike,3,,5,1,0.4,-0.3,2,1,,
 dash,대시,3.0,0.0,15,,"""바라보는 방향으로 짧은 거리 순간 돌진 가속합니다. 이동기.""",Dash,,2,1002,3,1,0,-0.3,1,2,,

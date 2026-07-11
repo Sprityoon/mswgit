@@ -1,4 +1,4 @@
-﻿BuffId,DisplayName,StatKey,ModifierType,Value,Duration,IconRUID,StackRule
+BuffId,DisplayName,StatKey,ModifierType,Value,Duration,IconRUID,StackRule
 gather_boost_small,가벼운 집중,GatherSpeed,mult,1.25,60,f0bce7f800f140559f35a12a93de9c9e,refresh
 move_boost_small,가벼운 발걸음,MoveSpeed,mult,1.15,45,f0bce7f800f140559f35a12a93de9c9e,refresh
 gather_boost_big,강한 집중,GatherSpeed,mult,1.5,120,f0bce7f800f140559f35a12a93de9c9e,refresh

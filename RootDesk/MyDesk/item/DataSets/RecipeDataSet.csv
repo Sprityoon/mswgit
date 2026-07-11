@@ -1,4 +1,4 @@
-﻿RecipeName,Desc,Icon,Ing1Name,Ing1Count,Ing2Name,Ing2Count,Tier,Category,UnlockId,UnlockHint
+RecipeName,Desc,Icon,Ing1Name,Ing1Count,Ing2Name,Ing2Count,Tier,Category,UnlockId,UnlockHint
 Hand Axe,A simple axe made of stone. Used to cut trees.,57345d4aa6a640419af19e340c29940f,Stone,2,,0,1,tool,,
 Stone Pickaxe,A sturdy tool for mining ores and breaking large stones.,428577ffb2964719b8ab0bb18e5171e1,Wood,1,Stone,3,1,tool,,
 Stone Axe,A sturdy axe made of stone and wood. Used to cut trees faster.,2e0751aabbb14ccf85cfb99c024511c9,Stone,3,Wood,1,1,tool,,

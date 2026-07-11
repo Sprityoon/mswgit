@@ -1,4 +1,4 @@
-﻿Id,ParentId,Name,CategoryEnum,CycleEnum,CondEnum,CondArg,CondExtra,Priority,Disable
+Id,ParentId,Name,CategoryEnum,CycleEnum,CondEnum,CondArg,CondExtra,Priority,Disable
 1001,,첫 사냥,Normal,,Kill,,,1,
 1002,,채집 입문,Normal,,Gather,,,2,
 1003,,제작 입문,Normal,,Craft,,,3,

@@ -1,4 +1,4 @@
-﻿DestinationId,MapName,DisplayName,ArriveX,ArriveY,UnlockType,Group,TemplateMap,Biome,IsDefault
+DestinationId,MapName,DisplayName,ArriveX,ArriveY,UnlockType,Group,TemplateMap,Biome,IsDefault
 town,town,마을,3,0,always,town,,,true
 hunt01,hunt01,사냥터 1구역,-3,0,always,rookie,template_field,earth_field,false
 hunt02,hunt02,사냥터 2구역,0,0,waypoint,rookie,template_field,rocky,false
