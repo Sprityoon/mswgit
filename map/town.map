@@ -100,7 +100,7 @@
               "IgnoreMapLayerCheck": true,
               "RenderSetting": 0,
               "SortingLayer": "MapLayer2",
-              "SpriteRUID": "",
+              "SpriteRUID": "ecb83722d7fa4a3ab425302401032701",
               "Color": {
                 "r": 0.2,
                 "g": 1.0,
@@ -74075,7 +74075,7 @@
       {
         "id": "939cc00d-0813-4ded-9e2e-984faf84b8fc",
         "path": "/maps/town/PortalToHome",
-        "componentNames": "MOD.Core.TransformComponent,MOD.Core.SpriteRendererComponent,MOD.Core.TriggerComponent,script.PortalGate",
+        "componentNames": "MOD.Core.TransformComponent,MOD.Core.SpriteRendererComponent,MOD.Core.TriggerComponent,script.PortalGate,script.PlaceableFurniture",
         "jsonString": {
           "name": "PortalToHome",
           "path": "/maps/town/PortalToHome",
@@ -74158,6 +74158,10 @@
                 "x": -3.0,
                 "y": 0.0
               }
+            },
+            {
+              "@type": "script.PlaceableFurniture",
+              "Enable": true
             }
           ],
           "@version": 1
@@ -74166,7 +74170,7 @@
       {
         "id": "31e3ee9b-02de-4728-b43c-17444882888d",
         "path": "/maps/town/ResearchLab",
-        "componentNames": "MOD.Core.TransformComponent,MOD.Core.SpriteRendererComponent",
+        "componentNames": "MOD.Core.TransformComponent,MOD.Core.SpriteRendererComponent,MOD.Core.TouchReceiveComponent,script.ResearchLab",
         "jsonString": {
           "name": "ResearchLab",
           "path": "/maps/town/ResearchLab",
@@ -74225,6 +74229,14 @@
                 "b": 1.0,
                 "a": 1.0
               },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.TouchReceiveComponent",
+              "Enable": true
+            },
+            {
+              "@type": "script.ResearchLab",
               "Enable": true
             }
           ],
@@ -87619,6 +87631,172 @@
               "RenderSetting": 0,
               "SortingLayer": "MapLayer2",
               "Enable": true
+            }
+          ],
+          "@version": 1
+        }
+      },
+      {
+        "id": "b99b1425-0d22-49c7-b5c7-ff1a153b370c",
+        "path": "/maps/town/BulletinBoard",
+        "componentNames": "MOD.Core.TransformComponent,MOD.Core.SpriteRendererComponent,MOD.Core.TouchReceiveComponent,script.BulletinBoard",
+        "jsonString": {
+          "name": "BulletinBoard",
+          "path": "/maps/town/BulletinBoard",
+          "nameEditable": true,
+          "enable": true,
+          "visible": true,
+          "localize": false,
+          "displayOrder": 17,
+          "pathConstraints": "///",
+          "revision": 1,
+          "origin": {
+            "type": "Model",
+            "entry_id": "bulletinboard",
+            "sub_entity_id": null,
+            "root_entity_id": "b99b1425-0d22-49c7-b5c7-ff1a153b370c",
+            "replaced_model_id": null
+          },
+          "modelId": "bulletinboard",
+          "@components": [
+            {
+              "@type": "MOD.Core.TransformComponent",
+              "Position": {
+                "x": 2.5,
+                "y": 1.5,
+                "z": 0.0
+              },
+              "QuaternionRotation": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0,
+                "w": 1.0
+              },
+              "Scale": {
+                "x": 1.0,
+                "y": 1.0,
+                "z": 1.0
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.SpriteRendererComponent",
+              "ActionSheet": {},
+              "DrawMode": 0,
+              "EndFrameIndex": 2147483647,
+              "FlipX": false,
+              "FlipY": false,
+              "OrderInLayer": 10,
+              "PlayRate": 1.0,
+              "RenderSetting": 0,
+              "SortingLayer": "MapLayer5",
+              "SpriteRUID": "7b4b2408585b49e89d2ee61dc9c87e43",
+              "StartFrameIndex": 0,
+              "Color": {
+                "r": 1.0,
+                "g": 1.0,
+                "b": 1.0,
+                "a": 1.0
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.TouchReceiveComponent",
+              "AutoFitToSize": true,
+              "TouchArea": {
+                "x": 1.8,
+                "y": 2.2
+              },
+              "Enable": true
+            },
+            {
+              "@type": "script.BulletinBoard",
+              "Enable": true
+            }
+          ],
+          "@version": 1
+        }
+      },
+      {
+        "id": "3aa215ca-0aa8-4c87-922e-3063c3b2c215",
+        "path": "/maps/town/FishingSpot",
+        "componentNames": "MOD.Core.TransformComponent,MOD.Core.SpriteRendererComponent,MOD.Core.TriggerComponent,script.FishingSpot",
+        "jsonString": {
+          "name": "FishingSpot",
+          "path": "/maps/town/FishingSpot",
+          "nameEditable": true,
+          "enable": true,
+          "visible": true,
+          "localize": false,
+          "displayOrder": 18,
+          "pathConstraints": "///",
+          "revision": 1,
+          "origin": {
+            "type": "Model",
+            "entry_id": "fishingspot_pond",
+            "sub_entity_id": null,
+            "root_entity_id": "3aa215ca-0aa8-4c87-922e-3063c3b2c215",
+            "replaced_model_id": null
+          },
+          "modelId": "fishingspot_pond",
+          "@components": [
+            {
+              "@type": "MOD.Core.TransformComponent",
+              "Position": {
+                "x": -2.15881062,
+                "y": -3.71734715,
+                "z": 0.0
+              },
+              "QuaternionRotation": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0,
+                "w": 1.0
+              },
+              "Scale": {
+                "x": 1.0,
+                "y": 1.0,
+                "z": 1.0
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.SpriteRendererComponent",
+              "ActionSheet": {},
+              "DrawMode": 0,
+              "EndFrameIndex": 2147483647,
+              "FlipX": false,
+              "FlipY": false,
+              "OrderInLayer": 2,
+              "PlayRate": 1.0,
+              "RenderSetting": 0,
+              "SpriteRUID": "6796165eeb2944a380321e3f1b9cdf68",
+              "StartFrameIndex": 0,
+              "Color": {
+                "r": 1.0,
+                "g": 1.0,
+                "b": 1.0,
+                "a": 1.0
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.TriggerComponent",
+              "BoxSize": {
+                "x": 2.0,
+                "y": 0.8311377
+              },
+              "ColliderOffset": {
+                "x": 9.536743E-07,
+                "y": 0.718562841
+              },
+              "IsLegacy": false,
+              "Enable": true
+            },
+            {
+              "@type": "script.FishingSpot",
+              "Enable": true,
+              "SpotType": "town"
             }
           ],
           "@version": 1

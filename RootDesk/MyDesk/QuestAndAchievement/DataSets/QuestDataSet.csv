@@ -1,8 +1,8 @@
-﻿Id,Name,Desc,ProgressingDesc,CategoryEnum,CycleEnum,IsRepeatable,LinkedPrevId,RequiredId,AutoAccept,CannotAbandon,ConsumeItems,RewardItems,Priority,Disable
-101,첫 걸음 - 풀 뜯기,맨손으로 들판의 풀을 뜯어 모아보세요.,풀을 3개 채집하세요. (맨손으로 가능),Sub,,,,,O,O,,Stone:5,1,
-102,도구 제작 - 손도끼,모은 돌로 첫 도구인 손도끼를 만들어보세요.,C 키로 제작창을 열고 손도끼(Hand Axe)를 제작하세요.,Sub,,,101,,O,O,,Wood:2,2,
-103,나무 베기,손도끼로 나무를 베어 목재를 모으세요.,나무를 베어 Wood 5개를 모으세요.,Sub,,,102,,O,O,,Stone:3,3,
-104,도구 제작 - 곡괭이,목재와 돌로 돌 곡괭이를 제작하세요.,제작창에서 돌 곡괭이(Stone Pickaxe)를 제작하세요.,Sub,,,103,,O,O,,Wood:8,4,
-105,광물 채광 - 돌 캐기,곡괭이로 단단한 돌을 캐보세요.,곡괭이로 돌을 캐 Stone 3개를 모으세요.,Sub,,,104,,O,O,,Wood:5,5,
-106,나만의 창고 짓기,나무 상자를 만들어 영지에 설치하세요.,나무 상자(Wooden Chest)를 제작한 뒤 Ctrl로 설치하세요.,Sub,,,105,,O,O,,Stone:4,6,
-107,넓은 세계로,영지의 포탈을 이용해 바깥으로 떠나보세요.,포탈에 상호작용해 다른 지역으로 이동하세요.,Sub,,,106,,O,O,,Wood:10|Stone:10,7,
+﻿Id,Name,Desc,ProgressingDesc,CategoryEnum,CycleEnum,IsRepeatable,LinkedPrevId,RequiredId,AutoAccept,CannotAbandon,ConsumeItems,RewardItems,Priority,Disable,RewardUnlockId
+101,첫 걸음 - 풀 뜯기,맨손으로 들판의 풀을 뜯어 모아보세요.,풀을 3개 채집하세요. (맨손으로 가능),Sub,,,,,O,O,,Stone:5,1,,
+102,도구 제작 - 손도끼,모은 돌로 첫 도구인 손도끼를 만들어보세요.,C 키로 제작창을 열고 손도끼(Hand Axe)를 제작하세요.,Sub,,,101,,O,O,,Wood:2,2,,
+103,나무 베기,손도끼로 나무를 베어 목재를 모으세요.,나무를 베어 Wood 5개를 모으세요.,Sub,,,102,,O,O,,Stone:3,3,,
+104,도구 제작 - 곡괭이,목재와 돌로 돌 곡괭이를 제작하세요.,제작창에서 돌 곡괭이(Stone Pickaxe)를 제작하세요.,Sub,,,103,,O,O,,Wood:8,4,,
+105,광물 채광 - 돌 캐기,곡괭이로 단단한 돌을 캐보세요.,곡괭이로 돌을 캐 Stone 3개를 모으세요.,Sub,,,104,,O,O,,Wood:5,5,,
+106,나만의 창고 짓기,나무 상자를 만들어 영지에 설치하세요.,나무 상자(Wooden Chest)를 제작한 뒤 Ctrl로 설치하세요.,Sub,,,105,,O,O,,Stone:4,6,,
+107,넓은 세계로,영지의 포탈을 이용해 바깥으로 떠나보세요.,포탈에 상호작용해 다른 지역으로 이동하세요.,Sub,,,106,,O,O,,Wood:10|Stone:10,7,,quest_cooking_pot

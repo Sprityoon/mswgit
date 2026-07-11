@@ -4,6 +4,8 @@ script PersistenceManager extends Logic
 	property table DirtyPlayers = {}
 	property table GuestPermissions = {}
 	property any PeriodicSaveTimerId = nil
+	-- T37 재작업: 세션 중 마지막 영지 좌표 캐시 (세이브 경로 GetAndWait 금지)
+	property table LastHomePos = {}
 
 	-- 월드 밤낮 시간 영속화 관련 속성
 	@HideFromInspector property number AccumulatedTime = 0
@@ -15,6 +17,7 @@ script PersistenceManager extends Logic
 	method void OnBeginPlay()
 		self.DirtyPlayers = {}
 		self.GuestPermissions = {}
+		self.LastHomePos = {}
 
 		_UserService:ConnectEvent(UserEnterEvent, self.OnUserEnter)
 		_UserService:ConnectEvent(UserLeaveEvent, self.OnUserLeave)
@@ -272,10 +275,14 @@ script PersistenceManager extends Logic
 				inv.UnlockedRecipesJson = data.unlockedRecipes or "[]"
 				inv.ActiveResearchId = data.activeResearchId or ""
 				inv.ResearchStartTime = data.researchStartTime or "0"
+				inv.DailyRequestDay = data.dailyRequestDay or "0"
+				inv.DailyCompletedRequestsJson = data.dailyCompletedRequests or "[]"
 				inv:ApplyHeldToolCostume()
 				inv:MigrateLegacyRecipeUnlocks()
 				-- T7: 오프라인 연구 경과 정산
 				inv:TryCompleteActiveResearch()
+				-- T20: 일 변경 시 완료 목록 리셋
+				inv:EnsureDailyRequestState()
 				log("PersistenceManager: Inventory restored.")
 			end
 
@@ -298,13 +305,40 @@ script PersistenceManager extends Logic
 				
 				-- 포탈 설정 보정 (구버전 세이브 호환성)
 				for _, furn in ipairs(furnList) do
-					if furn.itemName == "Portal" then
+					local isPortal = false
+					local itemDs = _DataService:GetTable("item_dataset")
+					if itemDs ~= nil then
+						local row = itemDs:FindRow("Name", furn.itemName)
+						if row ~= nil then
+							isPortal = row:GetItem("FurnitureKind") == "portal"
+						end
+					end
+					if isPortal then
 						if furn.destinationGroup == nil or furn.destinationGroup == "" then
-							furn.destinationGroup = "town"
+							local targetMap = "town"
+							local group = "town"
+							local arriveX = 3
+							local arriveY = 0
+							
+							local destDs = _DataService:GetTable("PortalDestinationDataSet")
+							if destDs ~= nil then
+								local rowCount = destDs:GetRowCount()
+								for i = 1, rowCount do
+									if destDs:GetCell(i, "IsDefault") == "true" or destDs:GetCell(i, "IsDefault") == true then
+										targetMap = destDs:GetCell(i, "MapName") or targetMap
+										group = destDs:GetCell(i, "Group") or group
+										arriveX = tonumber(destDs:GetCell(i, "ArriveX")) or arriveX
+										arriveY = tonumber(destDs:GetCell(i, "ArriveY")) or arriveY
+										break
+									end
+								end
+							end
+							
+							furn.destinationGroup = group
 							furn.portalColor = "white"
-							furn.targetMapName = "town"
-							furn.targetPositionX = 3
-							furn.targetPositionY = 0
+							furn.targetMapName = targetMap
+							furn.targetPositionX = arriveX
+							furn.targetPositionY = arriveY
 						end
 					end
 				end
@@ -346,9 +380,32 @@ script PersistenceManager extends Logic
 				end
 			end
 
-			-- Remember saved position; the single warp happens after this branch.
+			-- Remember saved home position; warp target depends on lastMapKind (T37).
 			spawnX = data.posX or -3.0
 			spawnY = data.posY or 0.0
+			-- 세션 캐시 초기화 (비홈 저장 시 GetAndWait 없이 사용)
+			self.LastHomePos[userId] = { x = spawnX, y = spawnY }
+			-- 구세이브 폴백 or "home" = 현행 동작
+			local lastKind = data.lastMapKind or "home"
+			if lastKind == "town" or lastKind == "hunt" then
+				-- 마을·사냥터 종료 → 마을 기본 스폰 (IsDefault 행)
+				local dest = { mapName = "town", x = 3.0, y = 0.0 }
+				self:GetDefaultTownSpawn(dest)
+				local townMap = dest.mapName or "town"
+				local tx = tonumber(dest.x) or 3.0
+				local ty = tonumber(dest.y) or 0.0
+				local townSafe = Vector2(tx + 0.5, ty + 0.5)
+				if _ResourceSpawner ~= nil then
+					local sp = _ResourceSpawner:FindSafeSpawnPosition(townMap, tx + 0.5, ty + 0.5)
+					if sp ~= nil then townSafe = sp end
+				end
+				player.PlayerComponent:MoveToMapPosition(townMap, townSafe)
+				log("PersistenceManager: Player warped to " .. townMap
+					.. " (lastMapKind=" .. tostring(lastKind) .. ") at ("
+					.. tostring(townSafe.x) .. ", " .. tostring(townSafe.y) .. ")")
+				self.DirtyPlayers[userId] = false
+				return
+			end
 		else
 			if errorCode == 1000002 or raw == nil or raw == "" or raw == "{}" then
 				log("PersistenceManager: No save data found (New Player) for " .. userId)
@@ -369,7 +426,7 @@ script PersistenceManager extends Logic
 			_ResourceSpawner:ReconstructWorldPlacementsForMap(map)
 		end
 
-		-- Single warp from the start map straight to the resolved home position (no double-jump).
+		-- home (또는 구세이브): 영지 저장 좌표로 단일 워프
 		local safePos = _ResourceSpawner:FindSafeSpawnPosition(mapName, spawnX, spawnY)
 		player.PlayerComponent:MoveToMapPosition(mapName, safePos)
 		log("PersistenceManager: Player warped to home " .. mapName .. " at (" .. safePos.x .. ", " .. safePos.y .. ") (original: " .. spawnX .. ", " .. spawnY .. ")")
@@ -396,9 +453,37 @@ script PersistenceManager extends Logic
 		end
 	end
 
+	method string ClassifyMapKind(string mapName)
+		-- T37: Home_ 접두=home / town=town / 그 외=hunt
+		if mapName == nil or mapName == "" then return "home" end
+		if string.sub(mapName, 1, 5) == "Home_" then return "home" end
+		if mapName == "town" then return "town" end
+		return "hunt"
+	end
+
+	method void GetDefaultTownSpawn(table outDest)
+		-- PortalDestinationDataSet IsDefault 행 (T33) — 좌표 하드코딩 금지
+		outDest.mapName = "town"
+		outDest.x = 3.0
+		outDest.y = 0.0
+		local destDs = _DataService:GetTable("PortalDestinationDataSet")
+		if destDs == nil then return end
+		local n = destDs:GetRowCount()
+		for i = 1, n do
+			local isDef = destDs:GetCell(i, "IsDefault")
+			if isDef == "true" or isDef == true or isDef == "True" then
+				outDest.mapName = destDs:GetCell(i, "MapName") or outDest.mapName
+				outDest.x = tonumber(destDs:GetCell(i, "ArriveX")) or outDest.x
+				outDest.y = tonumber(destDs:GetCell(i, "ArriveY")) or outDest.y
+				return
+			end
+		end
+	end
+
 	@ExecSpace("ServerOnly")
 	method void SavePlayerData(Entity player, boolean isSynchronous)
 		if not isvalid(player) then return end
+		-- §1.2 규칙 9: 진입 직후 컴포넌트 값 선캡처 — 세이브 경로 GetAndWait 금지 (T37 재작업)
 		local userId = player.PlayerComponent.UserId
 		local mapName = "Home_" .. userId
 		
@@ -406,8 +491,50 @@ script PersistenceManager extends Logic
 		local inv = player:GetComponent("script.PlayerInventory")
 		if not isvalid(pc) or not isvalid(inv) then return end
 
-		local posX = player.TransformComponent.WorldPosition.x
-		local posY = player.TransformComponent.WorldPosition.y
+		local currentMapName = ""
+		if isvalid(player.CurrentMap) then
+			currentMapName = player.CurrentMap.Name or ""
+		end
+		local mapKind = self:ClassifyMapKind(currentMapName)
+		local livePosX = player.TransformComponent.WorldPosition.x
+		local livePosY = player.TransformComponent.WorldPosition.y
+
+		local capLevel = tonumber(pc.Level) or 1
+		local capXp = tonumber(pc.XP) or 0
+		local capMaxXp = tonumber(pc.MaxXP) or 100
+		local capStamina = tonumber(pc.Stamina) or 100
+		local capMaxStamina = tonumber(pc.MaxStamina) or 100
+		local capGather = tonumber(pc.GatheringSpeed) or 1.0
+		local capWaypoints = pc.UnlockedWaypointsJson or "[]"
+		local capSkills = pc.SkillLevelsJson or "{}"
+		local capSp = tonumber(pc.SP) or 0
+		local capSleeping = pc.IsSleeping == true
+		local capSleepTicks = pc.SleepStartTimeTicks or "0"
+		local capCoin = tonumber(inv.Coin) or 0
+		local capInvJson = inv.InventoryDataJson or "{}"
+		local capEquipped = inv.EquippedTool or ""
+		local capQuick = inv.QuickSlotsJson or "[\"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\"]"
+		local capSlot = tonumber(inv.SelectedQuickSlotIndex) or 1
+		local capRecipes = inv.UnlockedRecipesJson or "[]"
+		local capResearchId = inv.ActiveResearchId or ""
+		local capResearchStart = inv.ResearchStartTime or "0"
+		local capDailyDay = inv.DailyRequestDay or "0"
+		local capDailyDone = inv.DailyCompletedRequestsJson or "[]"
+
+		local posX = livePosX
+		local posY = livePosY
+		if mapKind == "home" then
+			self.LastHomePos[userId] = { x = posX, y = posY }
+		else
+			local cached = self.LastHomePos[userId]
+			if cached ~= nil then
+				posX = tonumber(cached.x) or -3.0
+				posY = tonumber(cached.y) or 0.0
+			else
+				posX = -3.0
+				posY = 0.0
+			end
+		end
 
 		-- Retrieve home map placements and destroyed resources to save to player user data
 		local tilesJson = _ResourceSpawner:GetPlacedTilesJson(mapName)
@@ -474,27 +601,30 @@ script PersistenceManager extends Logic
 		local permJson = self:SafeEncodeJson(permList, "[]")
 
 		local data = {
-			level = tonumber(pc.Level) or 1,
-			xp = tonumber(pc.XP) or 0,
-			maxRawXp = tonumber(pc.MaxXP) or 100,
-			stamina = tonumber(pc.Stamina) or 100,
-			maxStamina = tonumber(pc.MaxStamina) or 100,
-			gatheringSpeed = tonumber(pc.GatheringSpeed) or 1.0,
-			coin = tonumber(inv.Coin) or 0,
-			inventoryData = inv.InventoryDataJson or "{}",
-			equippedTool = inv.EquippedTool or "",
-			quickSlots = inv.QuickSlotsJson or "[\"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\"]",
-			selectedSlot = tonumber(inv.SelectedQuickSlotIndex) or 1,
-			unlockedRecipes = inv.UnlockedRecipesJson or "[]",
-			activeResearchId = inv.ActiveResearchId or "",
-			researchStartTime = inv.ResearchStartTime or "0",
-			unlockedWaypoints = pc.UnlockedWaypointsJson or "[]",
-			skillLevels = pc.SkillLevelsJson or "{}",
-			sp = tonumber(pc.SP) or 0,
-			isSleeping = pc.IsSleeping == true,
-			sleepStartTimeTicks = pc.SleepStartTimeTicks or "0",
+			level = capLevel,
+			xp = capXp,
+			maxRawXp = capMaxXp,
+			stamina = capStamina,
+			maxStamina = capMaxStamina,
+			gatheringSpeed = capGather,
+			coin = capCoin,
+			inventoryData = capInvJson,
+			equippedTool = capEquipped,
+			quickSlots = capQuick,
+			selectedSlot = capSlot,
+			unlockedRecipes = capRecipes,
+			activeResearchId = capResearchId,
+			researchStartTime = capResearchStart,
+			dailyRequestDay = capDailyDay,
+			dailyCompletedRequests = capDailyDone,
+			unlockedWaypoints = capWaypoints,
+			skillLevels = capSkills,
+			sp = capSp,
+			isSleeping = capSleeping,
+			sleepStartTimeTicks = capSleepTicks,
 			posX = tonumber(posX) or 0.0,
 			posY = tonumber(posY) or 0.0,
+			lastMapKind = mapKind,
 			homeTiles = tilesJson or "[]",
 			homeFurniture = furnJson,
 			homeTerrainEdits = _ResourceSpawner:GetTerrainEditsJson(mapName) or "[]",

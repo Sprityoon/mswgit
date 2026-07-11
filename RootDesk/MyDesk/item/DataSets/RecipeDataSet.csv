@@ -1,17 +1,18 @@
-RecipeName,Desc,Icon,Ing1Name,Ing1Count,Ing2Name,Ing2Count,Tier,Category,UnlockId,UnlockHint
+﻿RecipeName,Desc,Icon,Ing1Name,Ing1Count,Ing2Name,Ing2Count,Tier,Category,UnlockId,UnlockHint
 Hand Axe,A simple axe made of stone. Used to cut trees.,57345d4aa6a640419af19e340c29940f,Stone,2,,0,1,tool,,
 Stone Pickaxe,A sturdy tool for mining ores and breaking large stones.,428577ffb2964719b8ab0bb18e5171e1,Wood,1,Stone,3,1,tool,,
 Stone Axe,A sturdy axe made of stone and wood. Used to cut trees faster.,2e0751aabbb14ccf85cfb99c024511c9,Stone,3,Wood,1,1,tool,,
 Wooden Chest,A simple chest to store your extra materials.,22e9f409617b4e4180f9c92fb26b13f7,Wood,8,,0,1,furniture,,
 Bed,A wooden bed. Sleep to recover HP and stamina over 10 minutes.,22e9f409617b4e4180f9c92fb26b13f7,Wood,10,,0,1,furniture,,
 Furnace,A stone furnace for smelting metal ores.,8cb667c940834bb9b19c11ae242a0aa1,Stone,8,Wood,4,1,furniture,,
-Cooking Pot,A cooking pot for making food with buffs.,8cb667c940834bb9b19c11ae242a0aa1,Stone,6,Wood,4,1,furniture,,
+Cooking Pot,A cooking pot for making food with buffs.,8cb667c940834bb9b19c11ae242a0aa1,Stone,6,Wood,4,1,furniture,quest_cooking_pot,퀘스트 '넓은 세계로' 보상
 Wood Floor,A wooden floor tile for construction.,22e9f409617b4e4180f9c92fb26b13f7,Wood,2,,0,1,furniture,,
 Shovel,A sturdy shovel for digging dirt path lanes.,428577ffb2964719b8ab0bb18e5171e1,Wood,2,Stone,1,1,tool,,
 Hoe,A sturdy hoe for digging soil holes with grass fringe.,428577ffb2964719b8ab0bb18e5171e1,Wood,2,Stone,1,1,tool,,
-Grass Seed,Plants grass to restore green cover on bare soil.,f0bce7f800f140559f35a12a93de9c9e,Grass,1,,0,1,material,,
-Roasted Grass,Lightly roasted grass. Slight gather focus buff when eaten.,f0bce7f800f140559f35a12a93de9c9e,Grass,1,,0,1,material,,
+Grass Seed,Plants grass to restore green cover on bare soil.,f0bce7f800f140559f35a12a93de9c9e,Grass,1,,0,1,resource,,
+Roasted Grass,Lightly roasted grass. Slight gather focus buff when eaten.,f0bce7f800f140559f35a12a93de9c9e,Grass,1,,0,1,consumable,,
 Copper Pickaxe,A refined copper pickaxe.,thumbnail://79904036a8a1457cb9b5c624084383b8,Copper Bar,3,Wood,1,2,tool,research_copper_tools,연구소: '구리 도구' 연구
 Copper Axe,A refined copper axe.,thumbnail://233fd0760c124458b57928542f77bdc2,Copper Bar,3,Wood,1,2,tool,research_copper_tools,연구소: '구리 도구' 연구
 Iron Pickaxe,A sturdy iron pickaxe.,thumbnail://475260585aa44acba3bca0e4b820e208,Iron Bar,3,Wood,1,3,tool,research_iron_tools,연구소: '철 도구' 연구
 Iron Axe,A sturdy iron axe.,thumbnail://963cde7d88654f4a94b045e035ca1cae,Iron Bar,3,Wood,1,3,tool,research_iron_tools,연구소: '철 도구' 연구
+Fishing Rod,A simple fishing rod made of wood.,460cfed8406645d7a145883a3e51bc4c,Wood,2,,0,1,tool,,

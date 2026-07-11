@@ -197,6 +197,24 @@
             "y": 1.25,
             "z": 1
           }
+        },
+        {
+          "TargetType": "script.Monster",
+          "Name": "MonsterId",
+          "ValueType": {
+            "$type": "MODNativeType",
+            "type": "System.String, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089"
+          },
+          "Value": "boar"
+        },
+        {
+          "TargetType": "script.MonsterMeleeAttack",
+          "Name": "TouchDamage",
+          "ValueType": {
+            "$type": "MODNativeType",
+            "type": "number"
+          },
+          "Value": 4
         }
       ],
       "EventLinks": [],

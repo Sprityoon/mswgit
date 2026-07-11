@@ -446,6 +446,85 @@ function patchPopups() {
     b.addComponent(RP, "script.UIResearchController");
   }
 
+  // 10) RequestPopup (T20) — 3-row daily request board, same forest/gold identity
+  const RQP = "RequestPopup";
+  if (!b.getId(`/ui/PopupGroup/${RQP}`)) {
+    b.panel(RQP, { anchor: "middle-center", pos: [0, 0], rect_size: [720, 560], enable: false });
+    b.addComponent(RQP, "script.UIRequestController");
+    b.patch(RQP, { display_order: 44 });
+
+    b.sprite(`${RQP}/Bg`, {
+      anchor: "middle-center", pos: [0, 0], rect_size: [680, 520],
+      color: "#2B2620", alpha: 0.97, raycast: true,
+    });
+    b.sprite(`${RQP}/Bg/BgInner`, {
+      anchor: "middle-center", pos: [0, -12], rect_size: [648, 448],
+      color: "#3A332B", alpha: 1.0, raycast: false,
+    });
+    b.sprite(`${RQP}/Bg/TopBar`, {
+      anchor: "middle-center", pos: [0, 228], rect_size: [680, 56],
+      color: "#1E1A16", alpha: 1.0, raycast: false,
+    });
+    b.sprite(`${RQP}/Bg/AccentLine`, {
+      anchor: "middle-center", pos: [0, 200], rect_size: [680, 3],
+      color: "#F0A830", alpha: 1.0, raycast: false,
+    });
+    b.text(`${RQP}/Bg/Title`, "의뢰 게시판", {
+      anchor: "middle-center", pos: [0, 228], rect_size: [360, 36],
+      size: 28, color: "#F5EFE6", alignment: 4,
+    });
+    b.button(`${RQP}/Bg/BtnClose`, "X", {
+      anchor: "middle-center", pos: [300, 228], rect_size: [40, 40],
+      font_size: 22, color: "#F5EFE6",
+    });
+    b.patchComponent(`${RQP}/Bg/BtnClose`, "MOD.Core.SpriteGUIRendererComponent", {
+      Color: { r: 0.55, g: 0.18, b: 0.16, a: 1.0 },
+    });
+    b.text(`${RQP}/Bg/DayText`, "오늘의 의뢰", {
+      anchor: "middle-center", pos: [0, 168], rect_size: [600, 28],
+      size: 18, color: "#F0A830", alignment: 4,
+    });
+    b.text(`${RQP}/Bg/HintText`, "전 서버 공통 · 의뢰당 하루 1회", {
+      anchor: "middle-center", pos: [0, 140], rect_size: [600, 24],
+      size: 14, color: "#857D6F", alignment: 4,
+    });
+
+    b.panel(`${RQP}/Bg/List`, {
+      anchor: "middle-center", pos: [0, -40], rect_size: [620, 340], enable: true,
+    });
+    b.sprite(`${RQP}/Bg/List/ListBg`, {
+      anchor: "middle-center", pos: [0, 0], rect_size: [620, 340],
+      color: "#241F1A", alpha: 0.9, raycast: false,
+    });
+    // Template row (cloned at runtime for up to 3 requests)
+    b.button(`${RQP}/Bg/List/RequestTemplate`, "", {
+      anchor: "middle-center", pos: [0, 100], rect_size: [580, 88], enable: false,
+    });
+    b.patchComponent(`${RQP}/Bg/List/RequestTemplate`, "MOD.Core.SpriteGUIRendererComponent", {
+      Color: { r: 0.22, g: 0.20, b: 0.17, a: 1.0 },
+    });
+    b.sprite(`${RQP}/Bg/List/RequestTemplate/Icon`, {
+      anchor: "middle-center", pos: [-240, 0], rect_size: [48, 48], image_ruid: "",
+    });
+    b.text(`${RQP}/Bg/List/RequestTemplate/Name`, "아이템 xN", {
+      anchor: "middle-center", pos: [-40, 16], rect_size: [300, 28],
+      size: 20, color: "#F5EFE6", alignment: 3,
+    });
+    b.text(`${RQP}/Bg/List/RequestTemplate/Progress`, "보유 0/0", {
+      anchor: "middle-center", pos: [-40, -18], rect_size: [300, 24],
+      size: 15, color: "#C9C0B2", alignment: 3,
+    });
+    b.button(`${RQP}/Bg/List/RequestTemplate/BtnDeliver`, "납품", {
+      anchor: "middle-center", pos: [220, 0], rect_size: [100, 44],
+      font_size: 18, color: "#1E1A16",
+    });
+    b.patchComponent(`${RQP}/Bg/List/RequestTemplate/BtnDeliver`, "MOD.Core.SpriteGUIRendererComponent", {
+      Color: { r: 0.941, g: 0.659, b: 0.188, a: 1.0 },
+    });
+  } else if (!b.hasComponent(RQP, "script.UIRequestController")) {
+    b.addComponent(RQP, "script.UIRequestController");
+  }
+
   b.write(file, {
     bind: {
       mlua: path.join(rootUIDir, "UIInventoryController.mlua"),
@@ -528,6 +607,14 @@ function patchPopups() {
     ingCount: `${RP}/Bg/Details/Slot1/Count`,
     progressText: `${RP}/Bg/Details/ProgressText`,
     btnStart: `${RP}/Bg/Details/BtnStart`,
+  });
+
+  b.injectBindings(path.join(rootUIDir, "UIRequestController.mlua"), {
+    btnClose: `${RQP}/Bg/BtnClose`,
+    requestList: `${RQP}/Bg/List`,
+    requestTemplate: `${RQP}/Bg/List/RequestTemplate`,
+    dayText: `${RQP}/Bg/DayText`,
+    hintText: `${RQP}/Bg/HintText`,
   });
 
   const after = b.listEntities().length;

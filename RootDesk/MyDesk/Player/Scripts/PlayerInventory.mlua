@@ -27,6 +27,13 @@ script PlayerInventory extends Component
 	@Sync
 	property string ResearchStartTime = "0"
 
+	-- T20: 일일 의뢰 (서버 day index + 당일 완료 RequestId 목록 JSON).
+	@Sync
+	property string DailyRequestDay = "0"
+
+	@Sync
+	property string DailyCompletedRequestsJson = "[]"
+
 	property table Items = {}
 
 	property number _researchTickAccum = 0.0
@@ -43,6 +50,8 @@ script PlayerInventory extends Component
 		self.UnlockedRecipesJson = "[]"
 		self.ActiveResearchId = ""
 		self.ResearchStartTime = "0"
+		self.DailyRequestDay = "0"
+		self.DailyCompletedRequestsJson = "[]"
 		self._researchTickAccum = 0.0
 		log("PlayerInventory initialized on server for player: " .. self.Entity.Name)
 	end
@@ -55,6 +64,156 @@ script PlayerInventory extends Component
 		if self._researchTickAccum < 1.0 then return end
 		self._researchTickAccum = 0.0
 		self:TryCompleteActiveResearch()
+	end
+
+	-- ── T20 Daily request board ──────────────────────────────────────────────
+
+	method integer GetServerDayIndex()
+		-- UTC day number — same seed for all players (전 서버 공통 의뢰).
+		return math.floor(os.time() / 86400)
+	end
+
+	method void EnsureDailyRequestState()
+		-- Day change → clear completed list (client + server safe).
+		local today = tostring(self:GetServerDayIndex())
+		if self.DailyRequestDay ~= today then
+			self.DailyRequestDay = today
+			self.DailyCompletedRequestsJson = "[]"
+		end
+	end
+
+	method table GetTodaysRequestIds()
+		-- Deterministic weighted pick of 3 RequestIds from RequestPoolDataSet (day seed).
+		self:EnsureDailyRequestState()
+		local ds = _DataService:GetTable("RequestPoolDataSet")
+		if ds == nil then return {} end
+		local pool = {}
+		local n = ds:GetRowCount()
+		for i = 1, n do
+			local id = ds:GetCell(i, "RequestId") or ""
+			if id ~= "" then
+				local w = math.floor(tonumber(ds:GetCell(i, "Weight")) or 100)
+				if w < 1 then w = 1 end
+				table.insert(pool, { id = id, weight = w })
+			end
+		end
+		if #pool == 0 then return {} end
+
+		local day = self:GetServerDayIndex()
+		local seed = (day * 1103515245 + 12345) % 2147483648
+		local function nextRand()
+			seed = (seed * 1103515245 + 12345) % 2147483648
+			return seed / 2147483648.0
+		end
+
+		local picked = {}
+		local remaining = {}
+		for _, e in ipairs(pool) do table.insert(remaining, e) end
+		local count = 3
+		if count > #remaining then count = #remaining end
+		for _ = 1, count do
+			local totalW = 0
+			for _, e in ipairs(remaining) do totalW = totalW + e.weight end
+			local roll = nextRand() * totalW
+			local acc = 0
+			local idx = 1
+			for j, e in ipairs(remaining) do
+				acc = acc + e.weight
+				if roll <= acc then
+					idx = j
+					break
+				end
+			end
+			table.insert(picked, remaining[idx].id)
+			table.remove(remaining, idx)
+		end
+		return picked
+	end
+
+	method boolean IsDailyRequestCompleted(string requestId)
+		self:EnsureDailyRequestState()
+		if requestId == nil or requestId == "" then return false end
+		local list = self:SafeDecodeJson(self.DailyCompletedRequestsJson, {})
+		for _, id in ipairs(list) do
+			if id == requestId then return true end
+		end
+		return false
+	end
+
+	@ExecSpace("Server")
+	method void ServerRequestDeliver(string requestId)
+		-- 납품 RPC: day 검증 · 당일 1회 · 보유량 · 차감 · 보상 · 완료 기록.
+		local userId = senderUserId
+		if userId == nil or userId == "" then return end
+		if self.Entity.PlayerComponent == nil or self.Entity.PlayerComponent.UserId ~= userId then
+			return
+		end
+		if requestId == nil or requestId == "" then return end
+
+		self:EnsureDailyRequestState()
+
+		-- Must be one of today's 3
+		local todayIds = self:GetTodaysRequestIds()
+		local isToday = false
+		for _, id in ipairs(todayIds) do
+			if id == requestId then isToday = true break end
+		end
+		if not isToday then
+			local pc = self.Entity:GetComponent("script.PlayerController")
+			if isvalid(pc) then pc:ShowMineFeedback("오늘의 의뢰가 아닙니다.") end
+			return
+		end
+		if self:IsDailyRequestCompleted(requestId) then
+			local pc = self.Entity:GetComponent("script.PlayerController")
+			if isvalid(pc) then pc:ShowMineFeedback("이미 납품한 의뢰입니다.") end
+			return
+		end
+
+		local ds = _DataService:GetTable("RequestPoolDataSet")
+		if ds == nil then return end
+		local row = ds:FindRow("RequestId", requestId)
+		if row == nil then return end
+		local function cell(col, def)
+			local ok, v = pcall(function() return row:GetItem(col) end)
+			if ok and v ~= nil and v ~= "" then return v end
+			return def
+		end
+		local reqItem = tostring(cell("RequiredItem", ""))
+		local reqCnt = math.floor(tonumber(cell("RequiredCount", "1")) or 1)
+		local rewItem = tostring(cell("RewardItem", "Coin"))
+		local rewCnt = math.floor(tonumber(cell("RewardCount", "1")) or 1)
+		if reqItem == "" or reqCnt < 1 then return end
+
+		if not self:HasItem(reqItem, reqCnt) then
+			local pc = self.Entity:GetComponent("script.PlayerController")
+			if isvalid(pc) then
+				pc:ShowMineFeedback("재료가 부족합니다: " .. reqItem .. " x" .. tostring(reqCnt))
+			end
+			return
+		end
+		if not self:RemoveItem(reqItem, reqCnt) then
+			local pc = self.Entity:GetComponent("script.PlayerController")
+			if isvalid(pc) then pc:ShowMineFeedback("재료 차감에 실패했습니다.") end
+			return
+		end
+
+		if rewItem ~= "" and rewCnt > 0 then
+			self:AddItem(rewItem, rewCnt)
+		end
+
+		local list = self:SafeDecodeJson(self.DailyCompletedRequestsJson, {})
+		table.insert(list, requestId)
+		self.DailyCompletedRequestsJson = self:SafeEncodeJson(list, "[]")
+		if _PersistenceManager then
+			_PersistenceManager:MarkPlayerDirty(userId)
+		end
+
+		local pc = self.Entity:GetComponent("script.PlayerController")
+		if isvalid(pc) then
+			pc:ShowMineFeedback("의뢰 완료! " .. rewItem .. " x" .. tostring(rewCnt))
+		end
+		log("[REQUEST] deliver " .. requestId .. " by " .. tostring(userId)
+			.. " day=" .. tostring(self.DailyRequestDay))
 	end
 
 	method boolean HasRecipeUnlock(string unlockId)
@@ -340,14 +499,14 @@ script PlayerInventory extends Component
 		-- Adds count items and pushes the synced JSON snapshot to clients.
 		if count <= 0 then return "" end
 		
-		if itemName == "Coin" then
+		if self:IsCurrencyItem(itemName) then
 			self.Coin = self.Coin + count
-			log("Inventory updated: added coin. Total: " .. self.Coin)
-			self:ClientShowPickupMessage("Coin", count, self.Coin)
+			log("Inventory updated: added currency item. Total: " .. self.Coin)
+			self:ClientShowPickupMessage(itemName, count, self.Coin)
 			if _PersistenceManager and self.Entity.PlayerComponent then
 				_PersistenceManager:MarkPlayerDirty(self.Entity.PlayerComponent.UserId)
 			end
-			return "Coin"
+			return itemName
 		end
 		
 		local isTool = false
@@ -410,7 +569,7 @@ script PlayerInventory extends Component
 		-- Removes count items if owned; returns false when insufficient.
 		if count <= 0 then return true end
 		
-		if itemName == "Coin" then
+		if self:IsCurrencyItem(itemName) then
 			if self.Coin < count then return false end
 			self.Coin = self.Coin - count
 			if _PersistenceManager and self.Entity.PlayerComponent then
@@ -594,7 +753,7 @@ script PlayerInventory extends Component
 
 	method boolean HasItem(string itemName, integer requiredCount)
 		-- Checks whether at least requiredCount of itemName is owned.
-		if itemName == "Coin" then
+		if self:IsCurrencyItem(itemName) then
 			return self.Coin >= requiredCount
 		end
 		return self:GetItemCount(itemName) >= requiredCount
@@ -619,7 +778,7 @@ script PlayerInventory extends Component
 
 	method integer GetItemCount(string itemName)
 		-- Returns the owned count; on the client it reads the synced JSON snapshot.
-		if itemName == "Coin" then
+		if self:IsCurrencyItem(itemName) then
 			return self.Coin
 		end
 		local count = 0
@@ -1505,6 +1664,34 @@ script PlayerInventory extends Component
 	@ExecSpace("Client")
 	method void ClientShowFeedback(string message)
 		_ScreenMessageLogic:PrivateMsg(message)
+	end
+
+	method boolean IsCurrencyItem(string itemName)
+		if itemName == nil or itemName == "" then return false end
+		if self._T.CurrencyCache == nil then
+			self._T.CurrencyCache = {}
+		end
+		if self._T.CurrencyCache[itemName] ~= nil then
+			return self._T.CurrencyCache[itemName]
+		end
+		
+		local ds = _DataService:GetTable("item_dataset")
+		if ds ~= nil then
+			local row = ds:FindRow("Name", itemName)
+			if row ~= nil then
+				local isCurr = row:GetItem("IsCurrency") == "true" or row:GetItem("IsCurrency") == true
+				self._T.CurrencyCache[itemName] = isCurr
+				return isCurr
+			end
+			row = ds:FindRow("id", itemName)
+			if row ~= nil then
+				local isCurr = row:GetItem("IsCurrency") == "true" or row:GetItem("IsCurrency") == true
+				self._T.CurrencyCache[itemName] = isCurr
+				return isCurr
+			end
+		end
+		self._T.CurrencyCache[itemName] = false
+		return false
 	end
 
 end

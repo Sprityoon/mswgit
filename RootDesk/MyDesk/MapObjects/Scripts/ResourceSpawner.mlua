@@ -1046,56 +1046,112 @@ script ResourceSpawner extends Logic
 		log("ResourceSpawner: Hunting-ground chain ready (hunt01..hunt04).")
 	end
 
+	method any ParseHexColor(string hex)
+		-- #RRGGBB (또는 RRGGBB) → Color. 미니맵/바이옴/보물 틴트 공용 파서(단일 정의).
+		if hex == nil or hex == "" then return nil end
+		local s = tostring(hex)
+		if string.sub(s, 1, 1) == "#" then
+			s = string.sub(s, 2)
+		end
+		if #s < 6 then return nil end
+		local function hexByte(i)
+			local h = string.sub(s, i, i + 1)
+			return (tonumber(h, 16) or 0) / 255.0
+		end
+		return Color(hexByte(1), hexByte(3), hexByte(5), 1.0)
+	end
+
+	method string GetBiomeMonsterTintHex(string biomeId)
+		-- BiomeDataSet.MonsterTint (#RRGGBB). 공란/미존재 = "".
+		-- UserDataRow has GetItem only (no RowIndex) — §1.2 rule 7 / T35.
+		if biomeId == nil or biomeId == "" then return "" end
+		local ds = _DataService:GetTable("BiomeDataSet")
+		if ds == nil then return "" end
+		local row = ds:FindRow("BiomeId", biomeId)
+		if row == nil then return "" end
+		-- 없는 컬럼 GetItem은 LEA-3011 — pcall 가드 (Furnace readDur 선례)
+		local ok, hex = pcall(function() return row:GetItem("MonsterTint") end)
+		if not ok or hex == nil or hex == "" then return "" end
+		return tostring(hex)
+	end
+
 	@ExecSpace("ServerOnly")
 	method void SpawnTreasureChestsForMap(Entity map, string mapName)
-		-- T9: 사냥터 홈 포탈 근처 눈에 띄는 위치에 보물 상자 1개 (멱등).
+		-- T34: TreasureChestSpawnDataSet 행 필터 기반 N개 스폰 (행 없으면 스폰 없음).
+		-- 멱등: 해당 맵 기존 상자 수 ≥ 행 수면 스킵.
 		if not isvalid(map) then return end
+
+		local ds = _DataService:GetTable("TreasureChestSpawnDataSet")
+		if ds == nil then
+			log_warning("[TREASURE] TreasureChestSpawnDataSet missing — skip " .. tostring(mapName))
+			return
+		end
+
+		local rows = {}
+		local n = ds:GetRowCount()
+		for i = 1, n do
+			local mn = ds:GetCell(i, "MapName") or ""
+			if mn == mapName then
+				table.insert(rows, {
+					x = math.floor(tonumber(ds:GetCell(i, "CellX")) or 0),
+					y = math.floor(tonumber(ds:GetCell(i, "CellY")) or 0),
+					scale = tonumber(ds:GetCell(i, "Scale")) or 1.0,
+					tint = ds:GetCell(i, "TintColor") or "",
+				})
+			end
+		end
+		if #rows == 0 then return end
+
 		local existing = map:GetChildComponentsByTypeName("script.TreasureChest", true)
-		if existing and #existing > 0 then return end
+		local existingCount = (existing and #existing) or 0
+		if existingCount >= #rows then return end
 
 		local modelId = _EntryService:GetModelIdByName("TreasureChest")
 		if modelId == nil or modelId == "" then
 			modelId = _EntryService:GetModelIdByName("treasure_chest")
 		end
 		if modelId == nil or modelId == "" then
-			-- model Id 필드 / EntryKey 폴백
 			modelId = "treasure_chest"
 			log_warning("ResourceSpawner: TreasureChest name lookup failed — trying id treasure_chest")
 		end
 
-		-- 홈 포탈(0,-3)과 충분히 떨어뜨려 F 상호작용이 포탈에 먹히지 않게.
-		local offsets = {
-			hunt01 = { x = 6, y = 2 },
-			hunt02 = { x = -6, y = 2 },
-			hunt03 = { x = 6, y = 3 },
-		}
-		local c = offsets[mapName] or { x = 3, y = -1 }
-		local spawnPos = Vector3(c.x + 0.5, c.y + 0.5, 0)
-		-- 가능하면 안전 위치 보정
-		local safe = self:FindSafeSpawnPosition(mapName, c.x + 0.5, c.y + 0.5)
-		if safe ~= nil then
-			spawnPos = Vector3(safe.x, safe.y, 0)
-		end
+		-- 이미 있는 상자 수만큼 건너뛰고 부족분만 추가 (멱등 확장)
+		for idx = existingCount + 1, #rows do
+			local c = rows[idx]
+			local spawnPos = Vector3(c.x + 0.5, c.y + 0.5, 0)
+			local safe = self:FindSafeSpawnPosition(mapName, c.x + 0.5, c.y + 0.5)
+			if safe ~= nil then
+				spawnPos = Vector3(safe.x, safe.y, 0)
+			end
 
-		local ent = _SpawnService:SpawnByModelId(modelId, "TreasureChest", spawnPos, map)
-		if not isvalid(ent) then
-			log_error("[TREASURE] spawn failed on " .. mapName .. " modelId=" .. tostring(modelId))
-			return
+			local entName = "TreasureChest"
+			if idx > 1 then entName = "TreasureChest_" .. tostring(idx) end
+			local ent = _SpawnService:SpawnByModelId(modelId, entName, spawnPos, map)
+			if not isvalid(ent) then
+				log_error("[TREASURE] spawn failed on " .. mapName .. " modelId=" .. tostring(modelId)
+					.. " idx=" .. tostring(idx))
+			else
+				local sprite = ent.SpriteRendererComponent
+				if isvalid(sprite) then
+					sprite.IgnoreMapLayerCheck = true
+					sprite.SortingLayer = _RenderLayers.EntityLayer
+					sprite.OrderInLayer = math.max(_RenderLayers.MinEntityOrder, 80)
+					local tint = self:ParseHexColor(c.tint)
+					if tint ~= nil then
+						sprite.Color = tint
+					end
+				end
+				local tr = ent.TransformComponent
+				if isvalid(tr) then
+					local sc = c.scale
+					if sc == nil or sc <= 0 then sc = 1.0 end
+					tr.Scale = Vector3(sc, sc, 1)
+				end
+				log("[TREASURE] spawned on " .. mapName
+					.. " at (" .. string.format("%.1f,%.1f", spawnPos.x, spawnPos.y) .. ")"
+					.. " scale=" .. tostring(c.scale))
+			end
 		end
-		local sprite = ent.SpriteRendererComponent
-		if isvalid(sprite) then
-			sprite.IgnoreMapLayerCheck = true
-			sprite.SortingLayer = _RenderLayers.EntityLayer
-			sprite.OrderInLayer = math.max(_RenderLayers.MinEntityOrder, 80)
-			-- 금색 틴트로 원거리에서도 구분
-			sprite.Color = Color(1.0, 0.82, 0.15, 1.0)
-		end
-		local tr = ent.TransformComponent
-		if isvalid(tr) then
-			tr.Scale = Vector3(1.35, 1.35, 1)
-		end
-		log("[TREASURE] spawned on " .. mapName
-			.. " at (" .. string.format("%.1f,%.1f", spawnPos.x, spawnPos.y) .. ")")
 	end
 
 	@ExecSpace("ServerOnly")
@@ -1115,10 +1171,17 @@ script ResourceSpawner extends Logic
 		if modelId == nil or modelId == "" then modelId = bossModelId end
 
 		local spawnPos = Vector3(bx + 0.5, by + 0.5, 0)
+		-- Entity.Name is display/debug only; MonsterId is the data key (model id slug).
 		local boss = _SpawnService:SpawnByModelId(modelId, "Boss_" .. bossModelId, spawnPos, map)
 		if not isvalid(boss) then
 			log_error("ResourceSpawner: failed to spawn boss " .. bossModelId .. " in " .. map.Name)
 			return
+		end
+
+		local mComp = boss:GetComponent("script.Monster")
+		if isvalid(mComp) then
+			-- Authoritative MonsterId injection (model default is fallback only)
+			mComp.MonsterId = bossModelId
 		end
 
 		-- Anchor the AI leash to the spawn cell so the boss patrols its arena.

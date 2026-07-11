@@ -8,6 +8,10 @@ script Furnace extends Component
 
 	property string DurationColumn = "SmeltDuration"
 
+	property string IdleSpriteRUID = "a3b810b8178847a0b9ec54bc4b63ba96"
+
+	property string ActiveSpriteRUID = "3f06b48247e5497190ca26e57bf4729e"
+
 	@Sync
 	property string InputItemName = ""
 
@@ -146,9 +150,9 @@ script Furnace extends Component
 		-- Visual representation toggle based on smelting state
 		local sprite = self.Entity.SpriteRendererComponent
 		if isvalid(sprite) then
-			local targetRuid = "a3b810b8178847a0b9ec54bc4b63ba96" -- stand
+			local targetRuid = self.IdleSpriteRUID
 			if self.IsSmelting then
-				targetRuid = "3f06b48247e5497190ca26e57bf4729e" -- condition2/stand
+				targetRuid = self.ActiveSpriteRUID
 			end
 		
 			if sprite.SpriteRUID ~= targetRuid then

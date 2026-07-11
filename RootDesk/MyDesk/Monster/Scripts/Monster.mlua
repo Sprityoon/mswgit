@@ -21,6 +21,10 @@ script Monster extends Component
 	property string UnlockWaypointId = ""
 	property string UnlockWaypointName = ""
 
+	-- Stable data key (model id slug: slime / boar / horn_mushroom / slime_king).
+	-- Spawner injects after spawn; empty falls back to Entity.Name for hand-placed monsters.
+	property string MonsterId = ""
+
 	-- Last entity that damaged this monster (the killer credit, server-side only).
 	@HideFromInspector property any LastAttacker = nil
 
@@ -33,6 +37,14 @@ script Monster extends Component
 		end
 	end
 
+	method string GetMonsterId()
+		-- Data-lookup key: MonsterId property preferred over unstable Entity.Name.
+		if self.MonsterId ~= nil and self.MonsterId ~= "" then
+			return self.MonsterId
+		end
+		return self.Entity.Name or ""
+	end
+
 	@ExecSpace("ServerOnly")
 	method void Dead()
 		-- Flags death, drives the DEAD state, then hides/destroys (or keeps for respawn).
@@ -40,22 +52,35 @@ script Monster extends Component
 		local sc = self.Entity.StateComponent
 		if isvalid(sc) then sc:ChangeState("DEAD") end
 
-		-- Coin drop based on MonsterCoinDropDataSet
+		local mid = self:GetMonsterId()
+
+		-- Coin drop based on MonsterCoinDropDataSet (key = MonsterId model slug)
 		local map = self.Entity.CurrentMap
 		local transform = self.Entity.TransformComponent
 		if isvalid(map) and isvalid(transform) and _TileDurabilityManager ~= nil then
 			local dropDs = _DataService:GetTable("MonsterCoinDropDataSet")
-			if dropDs ~= nil then
-				local row = dropDs:FindRow("MonsterName", self.Entity.Name)
+			if dropDs ~= nil and mid ~= "" then
+				local row = dropDs:FindRow("MonsterId", mid)
 				if row ~= nil then
-					local dropChance = tonumber(dropDs:GetCell(row.RowIndex, "DropChance")) or 0.0
+					-- UserDataRow: GetItem only (no RowIndex) — §1.2 rule 7 / T35.
+					-- 없는 컬럼 GetItem은 LEA-3011 — pcall 가드 (Furnace readDur 선례)
+					local function rowNum(col, defaultVal)
+						local ok, v = pcall(function() return row:GetItem(col) end)
+						if ok and v ~= nil and v ~= "" then
+							return tonumber(v) or defaultVal
+						end
+						return defaultVal
+					end
+					local dropChance = rowNum("DropChance", 0.0)
 					if math.random() <= dropChance then
-						local minAmt = tonumber(dropDs:GetCell(row.RowIndex, "MinAmount")) or 1
-						local maxAmt = tonumber(dropDs:GetCell(row.RowIndex, "MaxAmount")) or 1
+						local minAmt = math.floor(rowNum("MinAmount", 1))
+						local maxAmt = math.floor(rowNum("MaxAmount", 1))
+						if maxAmt < minAmt then maxAmt = minAmt end
 						local count = math.random(minAmt, maxAmt)
 						local p = transform.WorldPosition
-						_TileDurabilityManager:SpawnResourceDrop(map, Vector3(p.x, p.y, 0), "Coin", count, count, 0)
-						log("[MONSTER] Dropped " .. count .. " Coins from " .. self.Entity.Name)
+						-- item_dataset id column (Name "Coin" → id "coin")
+						_TileDurabilityManager:SpawnResourceDrop(map, Vector3(p.x, p.y, 0), "coin", count, count, 0)
+						log("[MONSTER] Dropped " .. count .. " Coins from " .. mid)
 					end
 				end
 			end
@@ -66,9 +91,9 @@ script Monster extends Component
 			self:GrantBossRewards()
 		end
 
-		-- 업적/퀘스트 진행: 막타 플레이어에게 처치 액션 발행
-		if _ActionSignals ~= nil and isvalid(self.LastAttacker) then
-			_ActionSignals:EmitToPlayer(self.LastAttacker, _ActionEnum.Kill, self.Entity.Name, 1)
+		-- 업적/퀘스트 진행: 막타 플레이어에게 처치 액션 발행 (CondArg = MonsterId)
+		if _ActionSignals ~= nil and isvalid(self.LastAttacker) and mid ~= "" then
+			_ActionSignals:EmitToPlayer(self.LastAttacker, _ActionEnum.Kill, mid, 1)
 		end
 
 		local delayHide = function()
@@ -109,15 +134,15 @@ script Monster extends Component
 
 	@ExecSpace("ServerOnly")
 	method void DropFromItemDropDataSet(Entity map, any worldPos)
-		-- ItemDropDataSet에서 SourceId==Entity.Name 행을 확률 드롭. ItemId = item_dataset.id.
+		-- ItemDropDataSet에서 SourceId==MonsterId 행을 확률 드롭. ItemId = item_dataset.id.
 		local ds = _DataService:GetTable("ItemDropDataSet")
 		if ds == nil then return end
-		local sourceName = self.Entity.Name or ""
-		if sourceName == "" then return end
+		local sourceId = self:GetMonsterId()
+		if sourceId == "" then return end
 		local rowCount = ds:GetRowCount()
 		for i = 1, rowCount do
 			local sid = ds:GetCell(i, "SourceId") or ""
-			if sid == sourceName then
+			if sid == sourceId then
 				local prob = tonumber(ds:GetCell(i, "Probability")) or 0.0
 				if math.random() <= prob then
 					local itemId = ds:GetCell(i, "ItemId") or ""
@@ -127,7 +152,7 @@ script Monster extends Component
 					local count = math.random(minC, maxC)
 					if itemId ~= "" and count > 0 then
 						_TileDurabilityManager:SpawnResourceDrop(map, Vector3(worldPos.x, worldPos.y, 0), itemId, count, count, 0)
-						log("[MONSTER] ItemDropDataSet drop id=" .. itemId .. " x" .. tostring(count) .. " from " .. sourceName)
+						log("[MONSTER] ItemDropDataSet drop id=" .. itemId .. " x" .. tostring(count) .. " from " .. sourceId)
 					end
 				end
 			end

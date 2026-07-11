@@ -33,12 +33,12 @@
               "@type": "MOD.Core.MapComponent",
               "IsInstanceMap": false,
               "LeftBottom": {
-                "x": -50,
-                "y": -50
+                "x": -50.0,
+                "y": -50.0
               },
               "RightTop": {
-                "x": 50,
-                "y": 50
+                "x": 50.0,
+                "y": 50.0
               },
               "TileMapMode": 1,
               "UseCustomBound": false,
@@ -72,27 +72,27 @@
             {
               "@type": "MOD.Core.TransformComponent",
               "Rotation": {
-                "x": 0,
-                "y": 0,
-                "z": 0
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
               },
               "Position": {
-                "x": 0,
-                "y": 0,
-                "z": 0
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
               },
               "QuaternionRotation": {
-                "x": 0,
-                "y": 0,
-                "z": 0,
-                "w": 1
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0,
+                "w": 1.0
               },
               "Scale": {
-                "x": 1,
-                "y": 1,
-                "z": 1
+                "x": 1.0,
+                "y": 1.0,
+                "z": 1.0
               },
-              "ZRotation": 0,
+              "ZRotation": 0.0,
               "Enable": true
             },
             {
@@ -101,10 +101,10 @@
               "IgnoreMapLayerCheck": true,
               "RenderSetting": 0,
               "SortingLayer": "MapLayer3",
-              "SpriteRUID": "",
+              "SpriteRUID": "ecb83722d7fa4a3ab425302401032701",
               "Color": {
                 "r": 0.2,
-                "g": 1,
+                "g": 1.0,
                 "b": 0.2,
                 "a": 0.6
               },
@@ -133,10 +133,10 @@
             {
               "@type": "MOD.Core.BackgroundComponent",
               "SolidColor": {
-                "r": 1,
-                "g": 1,
-                "b": 1,
-                "a": 1
+                "r": 1.0,
+                "g": 1.0,
+                "b": 1.0,
+                "a": 1.0
               },
               "TemplateRUID": "794ad8421e2543d8a6d2c70307637450",
               "Type": 2,
@@ -208,15 +208,15 @@
             {
               "@type": "MOD.Core.TransformComponent",
               "Position": {
-                "x": 0,
-                "y": 0,
-                "z": 1000
+                "x": 0.0,
+                "y": 0.0,
+                "z": 1000.0
               },
               "QuaternionRotation": {
-                "x": 0,
-                "y": 0,
-                "z": 0,
-                "w": 1
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0,
+                "w": 1.0
               },
               "Enable": true
             },
@@ -30062,15 +30062,15 @@
             {
               "@type": "MOD.Core.TransformComponent",
               "Position": {
-                "x": 0,
-                "y": 0,
-                "z": 1000
+                "x": 0.0,
+                "y": 0.0,
+                "z": 1000.0
               },
               "QuaternionRotation": {
-                "x": 0,
-                "y": 0,
-                "z": 0,
-                "w": 1
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0,
+                "w": 1.0
               },
               "Enable": true
             },
@@ -55732,15 +55732,15 @@
             {
               "@type": "MOD.Core.TransformComponent",
               "Position": {
-                "x": 0,
-                "y": 0,
-                "z": 1000
+                "x": 0.0,
+                "y": 0.0,
+                "z": 1000.0
               },
               "QuaternionRotation": {
-                "x": 0,
-                "y": 0,
-                "z": 0,
-                "w": 1
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0,
+                "w": 1.0
               },
               "Enable": true
             },
@@ -55817,15 +55817,15 @@
             {
               "@type": "MOD.Core.TransformComponent",
               "Position": {
-                "x": 0,
-                "y": 0,
-                "z": 1000
+                "x": 0.0,
+                "y": 0.0,
+                "z": 1000.0
               },
               "QuaternionRotation": {
-                "x": 0,
-                "y": 0,
-                "z": 0,
-                "w": 1
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0,
+                "w": 1.0
               },
               "Enable": true
             },
@@ -61471,15 +61471,15 @@
             {
               "@type": "MOD.Core.TransformComponent",
               "Position": {
-                "x": 0,
-                "y": 0,
-                "z": 1000
+                "x": 0.0,
+                "y": 0.0,
+                "z": 1000.0
               },
               "QuaternionRotation": {
-                "x": 0,
-                "y": 0,
-                "z": 0,
-                "w": 1
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0,
+                "w": 1.0
               },
               "Enable": true
             },
@@ -67509,15 +67509,15 @@
             {
               "@type": "MOD.Core.TransformComponent",
               "Position": {
-                "x": 0,
-                "y": 0,
-                "z": 1000
+                "x": 0.0,
+                "y": 0.0,
+                "z": 1000.0
               },
               "QuaternionRotation": {
-                "x": 0,
-                "y": 0,
-                "z": 0,
-                "w": 1
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0,
+                "w": 1.0
               },
               "Enable": true
             },
@@ -67527,6 +67527,91 @@
               "TileSetRUID": "tileset://7e240dde-c5fe-4d2e-ad41-0a80f4b3ec7d",
               "Enable": true,
               "tileMap": []
+            }
+          ],
+          "@version": 1
+        }
+      },
+      {
+        "id": "35f52dc0-c757-45b9-ac00-cd4404d7fcc5",
+        "path": "/maps/template_field/FishingSpot",
+        "componentNames": "MOD.Core.TransformComponent,MOD.Core.SpriteRendererComponent,MOD.Core.TriggerComponent,script.FishingSpot",
+        "jsonString": {
+          "name": "FishingSpot",
+          "path": "/maps/template_field/FishingSpot",
+          "nameEditable": true,
+          "enable": true,
+          "visible": true,
+          "localize": false,
+          "displayOrder": 14,
+          "pathConstraints": "///",
+          "revision": 1,
+          "origin": {
+            "type": "Model",
+            "entry_id": "fishingspot_pond",
+            "sub_entity_id": null,
+            "root_entity_id": "35f52dc0-c757-45b9-ac00-cd4404d7fcc5",
+            "replaced_model_id": null
+          },
+          "modelId": "fishingspot_pond",
+          "@components": [
+            {
+              "@type": "MOD.Core.TransformComponent",
+              "Position": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+              },
+              "QuaternionRotation": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0,
+                "w": 1.0
+              },
+              "Scale": {
+                "x": 1.0,
+                "y": 1.0,
+                "z": 1.0
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.SpriteRendererComponent",
+              "ActionSheet": {},
+              "DrawMode": 0,
+              "EndFrameIndex": 2147483647,
+              "FlipX": false,
+              "FlipY": false,
+              "OrderInLayer": 2,
+              "PlayRate": 1.0,
+              "RenderSetting": 0,
+              "SpriteRUID": "6796165eeb2944a380321e3f1b9cdf68",
+              "StartFrameIndex": 0,
+              "Color": {
+                "r": 1.0,
+                "g": 1.0,
+                "b": 1.0,
+                "a": 1.0
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.TriggerComponent",
+              "BoxSize": {
+                "x": 2.23,
+                "y": 0.8983234
+              },
+              "ColliderOffset": {
+                "x": 0.0849990845,
+                "y": 0.760359049
+              },
+              "IsLegacy": false,
+              "Enable": true
+            },
+            {
+              "@type": "script.FishingSpot",
+              "Enable": true,
+              "SpotType": "field"
             }
           ],
           "@version": 1

@@ -1,0 +1,9 @@
+﻿RequestId,RequiredItem,RequiredCount,RewardItem,RewardCount,Weight
+req_wood_5,Wood,5,Coin,15,100
+req_stone_5,Stone,5,Coin,15,100
+req_grass_8,Grass,8,Coin,12,100
+req_carrot_3,Carrot,3,Coin,20,80
+req_copper_3,Copper Ore,3,Coin,25,70
+req_wood_12,Wood,12,Coin,30,60
+req_stone_12,Stone,12,Coin,30,60
+req_carrot_6,Carrot,6,Coin,40,50

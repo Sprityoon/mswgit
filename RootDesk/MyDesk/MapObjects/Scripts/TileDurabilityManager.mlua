@@ -70,7 +70,17 @@ script TileDurabilityManager extends Logic
 		
 		-- Portals are placeable/movable ONLY in a personal estate (Home_*). In town, hunting grounds,
 		-- and every other map they are fixed fixtures and must never be mined/picked up.
-		if isFurniture and gridData.itemName == "Portal" and string.sub(mapName, 1, 5) ~= "Home_" then
+		local isPortal = false
+		if isFurniture then
+			local ds = _DataService:GetTable("item_dataset")
+			if ds ~= nil then
+				local row = ds:FindRow("Name", gridData.itemName)
+				if row ~= nil then
+					isPortal = row:GetItem("FurnitureKind") == "portal"
+				end
+			end
+		end
+		if isFurniture and isPortal and string.sub(mapName, 1, 5) ~= "Home_" then
 			log("TileDurabilityManager: Portal in non-estate map '" .. mapName .. "' is indestructible.")
 			return
 		end
@@ -512,13 +522,12 @@ script TileDurabilityManager extends Logic
 					local pc = attacker:GetComponent("script.PlayerController")
 					if isvalid(pc) then
 						local xpAmount = 5
-						if sourceName == "GrownGrass" then xpAmount = 5
-						elseif sourceName == "Stone" then xpAmount = 10
-						elseif sourceName == "Tree1" then xpAmount = 15
-						elseif sourceName == "Big Stone1" then xpAmount = 20
-						elseif sourceName == "Tree2" then xpAmount = 25
-						elseif sourceName == "Big Stone2" then xpAmount = 30
-						elseif sourceName == "IronNodeResource" then xpAmount = 40
+						local ds = _DataService:GetTable("ResourceDataSet")
+						if ds ~= nil then
+							local row = ds:FindRow("SourceId", sourceName)
+							if row ~= nil then
+								xpAmount = math.floor(tonumber(row:GetItem("XpReward")) or 5)
+							end
 						end
 						pc:AddXP(xpAmount)
 					end
@@ -636,6 +645,9 @@ script TileDurabilityManager extends Logic
 		end
 		
 		local row = ds:FindRow("id", itemId)
+		if row == nil then
+			row = ds:FindRow("Name", itemId)
+		end
 		if row == nil then
 			log_warning("item_dataset에서 해당 아이템을 찾을 수 없습니다: " .. tostring(itemId))
 			return

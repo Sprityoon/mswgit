@@ -1,9 +1,9 @@
-SourceId,MaxDurability,RequiredToolType,RequiredToolPower,SeedDropChance,SeedDropCount,RespawnDuration
-Stone,2,pickaxe,0,0.3,1,1800
-Big Stone1,20,pickaxe,2,0.4,1,7200
-Big Stone2,30,pickaxe,2,0.5,1,7200
-Tree1,15,axe,0,0,0,3600
-Tree2,30,axe,2,0,0,3600
-GrownGrass,1,,,0,0,300
-IronNodeResource,30,pickaxe,3,0.3,1,10800
-AroundItem_Stone,1,,0,0,0,1800
+SourceId,MaxDurability,RequiredToolType,RequiredToolPower,RespawnDuration,XpReward
+Stone,2,pickaxe,0,1800,10
+Big Stone1,20,pickaxe,2,7200,20
+Big Stone2,30,pickaxe,2,7200,30
+Tree1,15,axe,0,3600,15
+Tree2,30,axe,2,3600,25
+GrownGrass,1,,,300,5
+IronNodeResource,30,pickaxe,3,10800,40
+AroundItem_Stone,1,,0,1800,5

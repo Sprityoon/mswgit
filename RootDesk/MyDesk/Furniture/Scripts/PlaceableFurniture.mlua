@@ -3,4 +3,7 @@ script PlaceableFurniture extends Component
 
 	property string ItemId = ""
 
+	-- T36 재작업: 플레이어 이동 차단. 포탈 등 통과 필요 시 모델에서 false.
+	property boolean BlocksMovement = true
+
 end

@@ -9,6 +9,9 @@ script ResourceOccupiedArea extends Component
 
 	property number OffsetYMax = 0
 
+	-- T36: 플레이어 이동 차단 여부. GrownGrass 등 통과 허용 자원은 모델에서 false.
+	property boolean BlocksMovement = true
+
 	-- T9: 희귀 변종 드롭 배율 (1.0=보통). 스폰 시 데이터 주도 확률로 설정.
 	@Sync
 	property number DropMultiplier = 1.0

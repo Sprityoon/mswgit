@@ -1,0 +1,229 @@
+@Component
+script UIRequestController extends Component
+
+	-- Daily request board UI (3 rows + deliver). Identity: forest dark + gold #F0A830.
+
+	property Entity btnClose = "d8f156e7-8934-4d15-9761-5f97584ad83b"
+	property Entity requestList = "ebf383d2-b845-4575-9e76-ef0d156bff4e"
+	property Entity requestTemplate = "8c757950-0ad9-4d8b-8b7f-6e3697962b36"
+	property Entity dayText = "f0508707-94d1-4fc1-8943-c7174f814c8f"
+	property Entity hintText = "8a25c360-a28d-4295-9e89-c4766aa0534c"
+
+	property table rowButtons = {}
+	property table rowEntities = {}
+	property table rowHandlers = {}
+	property any closeHandler = nil
+
+	@ExecSpace("ClientOnly")
+	method void OnBeginPlay()
+		self.Entity.Enable = false
+		self:ResolveRefs()
+		if isvalid(self.btnClose) then
+			self.closeHandler = self.btnClose:ConnectEvent(ButtonClickEvent, function() self:Close() end)
+		end
+	end
+
+	@ExecSpace("ClientOnly")
+	method void OnEndPlay()
+		if self.closeHandler and isvalid(self.btnClose) then
+			self.btnClose:DisconnectEvent(ButtonClickEvent, self.closeHandler)
+		end
+		self:ClearRows()
+	end
+
+	@ExecSpace("ClientOnly")
+	method void ResolveRefs()
+		local bg = self.Entity:GetChildByName("Bg")
+		if not isvalid(bg) then return end
+		if not isvalid(self.btnClose) then self.btnClose = bg:GetChildByName("BtnClose") end
+		if not isvalid(self.requestList) then self.requestList = bg:GetChildByName("List") end
+		if isvalid(self.requestList) and not isvalid(self.requestTemplate) then
+			self.requestTemplate = self.requestList:GetChildByName("RequestTemplate")
+		end
+		if not isvalid(self.dayText) then self.dayText = bg:GetChildByName("DayText") end
+		if not isvalid(self.hintText) then self.hintText = bg:GetChildByName("HintText") end
+	end
+
+	@ExecSpace("ClientOnly")
+	method void Open()
+		self:ResolveRefs()
+		self.Entity.Enable = true
+		self:Refresh()
+	end
+
+	@ExecSpace("ClientOnly")
+	method void Close()
+		self.Entity.Enable = false
+	end
+
+	@ExecSpace("ClientOnly")
+	method integer GetServerDayIndex()
+		return math.floor(os.time() / 86400)
+	end
+
+	@ExecSpace("ClientOnly")
+	method table GetTodaysRequestIds()
+		-- Same deterministic pick as PlayerInventory (server-shared day seed).
+		local inv = self:GetLocalInventory()
+		if isvalid(inv) then
+			return inv:GetTodaysRequestIds()
+		end
+		return {}
+	end
+
+	@ExecSpace("ClientOnly")
+	method any GetLocalInventory()
+		local lp = _UserService.LocalPlayer
+		if not isvalid(lp) then return nil end
+		return lp:GetComponent("script.PlayerInventory")
+	end
+
+	@ExecSpace("ClientOnly")
+	method void Refresh()
+		self:ClearRows()
+		local day = self:GetServerDayIndex()
+		if isvalid(self.dayText) then
+			local tc = self.dayText.TextComponent
+			if isvalid(tc) then tc.Text = "오늘의 의뢰  ·  Day " .. tostring(day) end
+		end
+		if isvalid(self.hintText) then
+			local tc = self.hintText.TextComponent
+			if isvalid(tc) then tc.Text = "전 서버 공통 · 의뢰당 하루 1회 납품" end
+		end
+
+		local inv = self:GetLocalInventory()
+		if not isvalid(inv) then return end
+		inv:EnsureDailyRequestState()
+
+		local ids = inv:GetTodaysRequestIds()
+		if not isvalid(self.requestList) or not isvalid(self.requestTemplate) then return end
+		self.requestTemplate.Enable = false
+
+		local ds = _DataService:GetTable("RequestPoolDataSet")
+		if ds == nil then
+			log_error("UIRequestController: RequestPoolDataSet missing")
+			return
+		end
+
+		local y0 = 140
+		local gap = 100
+		for i, reqId in ipairs(ids) do
+			local row = ds:FindRow("RequestId", reqId)
+			if row ~= nil then
+				local function cell(col, def)
+					local ok, v = pcall(function() return row:GetItem(col) end)
+					if ok and v ~= nil and v ~= "" then return v end
+					return def
+				end
+				local reqItem = tostring(cell("RequiredItem", ""))
+				local reqCnt = math.floor(tonumber(cell("RequiredCount", "1")) or 1)
+				local rewItem = tostring(cell("RewardItem", "Coin"))
+				local rewCnt = math.floor(tonumber(cell("RewardCount", "1")) or 1)
+				local owned = inv:GetItemCount(reqItem)
+				local done = inv:IsDailyRequestCompleted(reqId)
+
+				-- Clone(name) 문자열 인자 — Entity parent 전달 시 LEA-1103 (Research BuildList 선례)
+				local clone = self.requestTemplate:Clone("ReqRow_" .. tostring(i))
+				if isvalid(clone) then
+					clone.Enable = true
+					local tr = clone.UITransformComponent
+					if isvalid(tr) then
+						tr.anchoredPosition = Vector2(0, y0 - (i - 1) * gap)
+						tr.RectSize = Vector2(580, 88)
+					end
+
+					local nameEnt = clone:GetChildByName("Name")
+					if isvalid(nameEnt) and isvalid(nameEnt.TextComponent) then
+						if done then
+							nameEnt.TextComponent.Text = "[완료] " .. reqItem .. " x" .. tostring(reqCnt)
+							nameEnt.TextComponent.FontColor = Color(0.52, 0.49, 0.43, 1)
+						else
+							nameEnt.TextComponent.Text = reqItem .. " x" .. tostring(reqCnt)
+							nameEnt.TextComponent.FontColor = Color(0.96, 0.94, 0.90, 1)
+						end
+					end
+					local progEnt = clone:GetChildByName("Progress")
+					if isvalid(progEnt) and isvalid(progEnt.TextComponent) then
+						if done then
+							progEnt.TextComponent.Text = "납품 완료"
+							progEnt.TextComponent.FontColor = Color(0.49, 0.72, 0.36, 1)
+						else
+							progEnt.TextComponent.Text = "보유 " .. tostring(owned) .. " / " .. tostring(reqCnt)
+								.. "  →  보상 " .. rewItem .. " x" .. tostring(rewCnt)
+							if owned >= reqCnt then
+								progEnt.TextComponent.FontColor = Color(0.94, 0.66, 0.19, 1)
+							else
+								progEnt.TextComponent.FontColor = Color(0.79, 0.75, 0.70, 1)
+							end
+						end
+					end
+					local iconEnt = clone:GetChildByName("Icon")
+					if isvalid(iconEnt) then
+						local itemDs = _DataService:GetTable("item_dataset")
+						if itemDs ~= nil then
+							local ir = itemDs:FindRow("Name", reqItem)
+							if ir ~= nil then
+								local okI, icon = pcall(function() return ir:GetItem("IconRUID") end)
+								if okI and icon ~= nil and icon ~= "" and isvalid(iconEnt.SpriteGUIRendererComponent) then
+									iconEnt.SpriteGUIRendererComponent.ImageRUID = icon
+								end
+							end
+						end
+					end
+
+					local btn = clone:GetChildByName("BtnDeliver")
+					if isvalid(btn) then
+						local btc = btn.TextComponent
+						if isvalid(btc) then
+							if done then btc.Text = "완료"
+							elseif owned >= reqCnt then btc.Text = "납품"
+							else btc.Text = "부족" end
+						end
+						local rid = reqId
+						local h = btn:ConnectEvent(ButtonClickEvent, function()
+							self:OnDeliverClick(rid)
+						end)
+						self.rowHandlers[rid] = h
+						self.rowButtons[rid] = btn
+					end
+					self.rowEntities[reqId] = clone
+				end
+			end
+		end
+	end
+
+	@ExecSpace("ClientOnly")
+	method void ClearRows()
+		for id, btn in pairs(self.rowButtons) do
+			if isvalid(btn) and self.rowHandlers[id] then
+				btn:DisconnectEvent(ButtonClickEvent, self.rowHandlers[id])
+			end
+		end
+		for id, ent in pairs(self.rowEntities) do
+			if isvalid(ent) then ent:Destroy() end
+		end
+		self.rowButtons = {}
+		self.rowHandlers = {}
+		self.rowEntities = {}
+	end
+
+	@ExecSpace("ClientOnly")
+	method void OnDeliverClick(string requestId)
+		local inv = self:GetLocalInventory()
+		if not isvalid(inv) then return end
+		if inv:IsDailyRequestCompleted(requestId) then
+			local lp = _UserService.LocalPlayer
+			if isvalid(lp) then
+				local pc = lp:GetComponent("script.PlayerController")
+				if isvalid(pc) then pc:ShowMineFeedback("이미 납품한 의뢰입니다.") end
+			end
+			return
+		end
+		inv:ServerRequestDeliver(requestId)
+		-- Refresh shortly after server responds (synced props)
+		_TimerService:SetTimerOnce(function()
+			if isvalid(self) and self.Entity.Enable then self:Refresh() end
+		end, 0.25)
+	end
+
+end

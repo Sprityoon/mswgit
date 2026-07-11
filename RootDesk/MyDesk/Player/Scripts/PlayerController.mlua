@@ -99,6 +99,12 @@ script PlayerController extends Component
 	@Sync
 	property string SleepStartTimeTicks = "0"
 
+	@Sync
+	property string FishingState = "None"
+
+	@Sync
+	property Entity ActiveFishingSpot = nil
+
 	method void OnBeginPlay()
 		-- description: Initialize key and screen touch event listeners on the client.
 		self.CooldownMap = {}
@@ -275,6 +281,22 @@ script PlayerController extends Component
 			   _InputService:IsKeyPressed(KeyboardKey.S) or
 			   _InputService:IsKeyPressed(KeyboardKey.D) then
 				self:ServerRequestWakeUp()
+			end
+			return
+		end
+
+		if self.FishingState ~= "None" then
+			local movement = self.Entity.MovementComponent
+			if isvalid(movement) then movement:Stop() end
+			if _InputService:IsKeyPressed(KeyboardKey.LeftArrow) or
+			   _InputService:IsKeyPressed(KeyboardKey.RightArrow) or
+			   _InputService:IsKeyPressed(KeyboardKey.UpArrow) or
+			   _InputService:IsKeyPressed(KeyboardKey.DownArrow) or
+			   _InputService:IsKeyPressed(KeyboardKey.W) or
+			   _InputService:IsKeyPressed(KeyboardKey.A) or
+			   _InputService:IsKeyPressed(KeyboardKey.S) or
+			   _InputService:IsKeyPressed(KeyboardKey.D) then
+				self:ServerRequestCancelFishing()
 			end
 			return
 		end
@@ -661,6 +683,10 @@ script PlayerController extends Component
 				end
 			end
 		elseif key == KeyboardKey.F then
+			if self.FishingState ~= "None" and isvalid(self.ActiveFishingSpot) then
+				self:ServerRequestFishingInteract(self.ActiveFishingSpot.Id)
+				return
+			end
 			-- 보물 상자: 포탈보다 우선 (홈 포탈 옆 스폰 시 F가 워프로만 먹히던 문제)
 			local nearbyTreasure = self:FindNearbyTreasureChest()
 			if isvalid(nearbyTreasure) then
@@ -717,6 +743,13 @@ script PlayerController extends Component
 						end
 					end
 				end
+				return
+			end
+			
+			local nearbyFishingSpot = self:FindNearbyFishingSpot()
+			if isvalid(nearbyFishingSpot) then
+				self:ServerRequestFishingInteract(nearbyFishingSpot.Id)
+				return
 			end
 		else
 			-- Numeric Keys (1 to 0)
@@ -957,6 +990,7 @@ script PlayerController extends Component
 		local isPlaceable = false
 		local iconRuid = ""
 		local placedTileName = ""
+		local previewRuid = ""
 		
 		if activeItem ~= "" then
 			local baseName = inv:GetBaseItemName(activeItem)
@@ -967,6 +1001,7 @@ script PlayerController extends Component
 					isPlaceable = true
 					iconRuid = row:GetItem("IconRUID") or ""
 					placedTileName = row:GetItem("PlacedTileName") or ""
+					previewRuid = row:GetItem("PreviewRUID") or ""
 				end
 			end
 		end
@@ -995,8 +1030,8 @@ script PlayerController extends Component
 					if isvalid(sprite) then
 						local spriteRuid = iconRuid
 						if placedTileName == "" then
-							if activeItem == "Furnace" then
-								spriteRuid = "a3b810b8178847a0b9ec54bc4b63ba96"
+							if previewRuid ~= "" then
+								spriteRuid = previewRuid
 							end
 						end
 						if sprite.SpriteRUID ~= spriteRuid then
@@ -1451,10 +1486,105 @@ script PlayerController extends Component
 		log("Permissions synced: mine=" .. tostring(canMine) .. ", place=" .. tostring(canPlace) .. ", interact=" .. tostring(canInteract))
 	end
 
+	-- T36: 이전 프레임 ResolveOverlaps 후 위치 (터널링 시 진입 면 판정용)
+	property number OverlapSafeX = 0
+	property number OverlapSafeY = 0
+	property boolean OverlapSafeInit = false
+	-- T36 재작업: 후보 수집 질의 반경 (해소 AABB와 분리 — 트리거 크기 의존 제거)
+	property number OverlapQueryRadius = 2.5
+
+	@ExecSpace("ClientOnly")
+	method boolean IsBlockingOverlapEntity(Entity entity)
+		-- 데이터 주도 필터: 이름 분기 금지.
+		-- 차단 = ResourceOccupiedArea 또는 PlaceableFurniture (각 BlocksMovement).
+		if not isvalid(entity) or entity == self.Entity then return false end
+		if isvalid(entity:GetComponent("script.itemreact")) then return false end
+		local occ = entity:GetComponent("script.ResourceOccupiedArea")
+		if isvalid(occ) then
+			return occ.BlocksMovement ~= false
+		end
+		local furn = entity:GetComponent("script.PlaceableFurniture")
+		if isvalid(furn) then
+			return furn.BlocksMovement ~= false
+		end
+		return false
+	end
+
+	@ExecSpace("ClientOnly")
+	method void GetObstacleAABB(Entity entity, table outBox)
+		-- ResourceSpawner 점유 산식 미러: pivot=(cellX+0.5,cellY+0.5), 셀 범위 floor(cell+Offset).
+		local transform = entity.TransformComponent
+		local px = transform.WorldPosition.x
+		local py = transform.WorldPosition.y
+		local cellX = px - 0.5
+		local cellY = py - 0.5
+		local oxMin, oxMax, oyMin, oyMax = 0, 0, 0, 0
+		local occ = entity:GetComponent("script.ResourceOccupiedArea")
+		if isvalid(occ) then
+			oxMin = tonumber(occ.OffsetXMin) or 0
+			oxMax = tonumber(occ.OffsetXMax) or 0
+			oyMin = tonumber(occ.OffsetYMin) or 0
+			oyMax = tonumber(occ.OffsetYMax) or 0
+		end
+		local xMin = math.floor(cellX + oxMin)
+		local xMax = math.floor(cellX + oxMax)
+		local yMin = math.floor(cellY + oyMin)
+		local yMax = math.floor(cellY + oyMax)
+		outBox.minX = xMin
+		outBox.maxX = xMax + 1
+		outBox.minY = yMin
+		outBox.maxY = yMax + 1
+	end
+
+	@ExecSpace("ClientOnly")
+	method Vector2 ResolveCircleAABB(number cx, number cy, number radius, table box, number startX, number startY)
+		-- 원-대-AABB MTV. 내부 침투 시 start 쪽 면을 우선해 방향 뒤집힘 방지.
+		local minX, maxX, minY, maxY = box.minX, box.maxX, box.minY, box.maxY
+		local closestX = cx
+		if closestX < minX then closestX = minX elseif closestX > maxX then closestX = maxX end
+		local closestY = cy
+		if closestY < minY then closestY = minY elseif closestY > maxY then closestY = maxY end
+
+		local dx = cx - closestX
+		local dy = cy - closestY
+		local distSq = dx * dx + dy * dy
+		local r2 = radius * radius
+
+		-- 중심이 AABB 내부 (closest == center)
+		if distSq < 0.0000001 then
+			local midX = (minX + maxX) * 0.5
+			local midY = (minY + maxY) * 0.5
+			-- start 위치에 따라 선호 축/방향 결정
+			local preferLeft = startX < midX
+			local preferDown = startY < midY
+			local pushLeft = (minX - radius) - cx
+			local pushRight = (maxX + radius) - cx
+			local pushDown = (minY - radius) - cy
+			local pushUp = (maxY + radius) - cy
+			local candX = preferLeft and pushLeft or pushRight
+			local candY = preferDown and pushDown or pushUp
+			if math.abs(candX) <= math.abs(candY) then
+				return Vector2(candX, 0)
+			end
+			return Vector2(0, candY)
+		end
+
+		if distSq >= r2 then
+			return Vector2.zero
+		end
+
+		local dist = math.sqrt(distSq)
+		local pen = radius - dist
+		local nx = dx / dist
+		local ny = dy / dist
+		return Vector2(nx * pen, ny * pen)
+	end
+
 	@ExecSpace("ClientOnly")
 	method void ResolveOverlaps(number delta)
+		-- T36: 원(r=0.3) 대 AABB 전량 해소. 이름 분기 없음.
 		if self.IsDead then return end
-		
+
 		local body = self.Entity.KinematicbodyComponent
 		local currentPos = nil
 		if isvalid(body) then
@@ -1466,54 +1596,64 @@ script PlayerController extends Component
 			end
 		end
 		if not currentPos then return end
-		
+
+		if not self.OverlapSafeInit then
+			self.OverlapSafeX = currentPos.x
+			self.OverlapSafeY = currentPos.y
+			self.OverlapSafeInit = true
+		end
+		local startX = self.OverlapSafeX
+		local startY = self.OverlapSafeY
+
 		local simulator = _CollisionService:GetSimulator(self.Entity)
 		local r = 0.3
-		local checkShape = CircleShape(currentPos, r)
+		-- 후보 수집만 넓은 원 — 침투 판정은 AABB가 전담 (재작업 ①)
+		local queryR = self.OverlapQueryRadius
+		if queryR == nil or queryR < r then queryR = 2.5 end
+		local checkShape = CircleShape(currentPos, queryR)
 		local overlaps = simulator:OverlapAll(CollisionGroups.TriggerBox, checkShape)
-		
-		local pushVector = Vector2.zero
-		local overlapCount = 0
-		
+
+		local pushX, pushY = 0.0, 0.0
+		local hit = false
+		local box = { minX = 0, maxX = 0, minY = 0, maxY = 0 }
+
 		for _, comp in ipairs(overlaps) do
 			if isvalid(comp) and isvalid(comp.Entity) then
 				local entity = comp.Entity
-				pcall(function()
-					if entity ~= self.Entity and entity.Name ~= "GrownGrass" and entity.Name ~= "ItemDrop" then
-						local transform = entity.TransformComponent
-						if isvalid(transform) then
-							local obstaclePos = transform.WorldPosition:ToVector2()
-							local dir = currentPos - obstaclePos
-							local dist = dir:Magnitude()
-							if dist < 0.01 then
-								dir = Vector2(math.random() - 0.5, math.random() - 0.5):Normalize()
-								dist = 0.01
-							else
-								dir = dir:Normalize()
-							end
-							
-							-- Standard obstacle radius set to 0.45.
-							local obstacleRadius = 0.45
-							local overlapDepth = (r + obstacleRadius) - dist
-							if overlapDepth > 0 then
-								pushVector = pushVector + dir * overlapDepth
-								overlapCount = overlapCount + 1
-							end
-						end
+				if self:IsBlockingOverlapEntity(entity) and isvalid(entity.TransformComponent) then
+					self:GetObstacleAABB(entity, box)
+					local mtv = self:ResolveCircleAABB(currentPos.x, currentPos.y, r, box, startX, startY)
+					if mtv.x ~= 0 or mtv.y ~= 0 then
+						pushX = pushX + mtv.x
+						pushY = pushY + mtv.y
+						hit = true
 					end
-				end)
+				end
 			end
 		end
-		
-		if overlapCount > 0 then
-			-- Smooth pushback correction: push player out by 20% of overlap depth per frame
-			local finalPush = pushVector * 0.20
-			local targetPos = currentPos + finalPush
-		
+
+		if hit then
+			-- 당 프레임 전량 해소 + 클램프 0.5
+			local mag = math.sqrt(pushX * pushX + pushY * pushY)
+			local maxPush = 0.5
+			if mag > maxPush and mag > 0.0001 then
+				local s = maxPush / mag
+				pushX = pushX * s
+				pushY = pushY * s
+			end
+			local targetX = currentPos.x + pushX
+			local targetY = currentPos.y + pushY
 			local transform = self.Entity.TransformComponent
 			if isvalid(transform) then
-				transform.WorldPosition = Vector3(targetPos.x, targetPos.y, transform.WorldPosition.z)
+				transform.WorldPosition = Vector3(targetX, targetY, transform.WorldPosition.z)
 			end
+			-- SafePos는 해소 후 위치만 갱신 (차단 AABB 내부 오염 방지 — 재작업 ②)
+			self.OverlapSafeX = targetX
+			self.OverlapSafeY = targetY
+		else
+			-- hit=false: 넓은 질의로 근처 차단 AABB 침투가 없음이 보장될 때만 갱신
+			self.OverlapSafeX = currentPos.x
+			self.OverlapSafeY = currentPos.y
 		end
 	end
 
@@ -1940,6 +2080,10 @@ script PlayerController extends Component
 		if self.IsDead then return end
 		if self.IFrameTimer > 0 then return end
 		
+		if self.FishingState ~= "None" then
+			self:ServerRequestCancelFishing()
+		end
+		
 		local playerComp = self.Entity.PlayerComponent
 		if playerComp == nil then return end
 		if not isvalid(event.AttackerEntity) then return end
@@ -2147,6 +2291,90 @@ script PlayerController extends Component
 			end
 		end
 		return closest
+	end
+
+	@ExecSpace("ClientOnly")
+	method Entity FindNearbyFishingSpot()
+		local currentMap = self.Entity.CurrentMap
+		if not isvalid(currentMap) then return nil end
+		local myPos = self.Entity.TransformComponent.WorldPosition:ToVector2()
+		local closest = nil
+		local minDist = 2.5
+		local comps = currentMap:GetChildComponentsByTypeName("script.FishingSpot", true)
+		if not comps then return nil end
+		for _, comp in ipairs(comps) do
+			if isvalid(comp) then
+				local ent = comp.Entity
+				if isvalid(ent) then
+					local fPos = ent.TransformComponent.WorldPosition:ToVector2()
+					local dist = (myPos - fPos):Magnitude()
+					if dist < minDist then
+						minDist = dist
+						closest = ent
+					end
+				end
+			end
+		end
+		return closest
+	end
+
+	method boolean IsEquippedFishingRod()
+		local inv = self.Entity:GetComponent("script.PlayerInventory")
+		if not isvalid(inv) then return false end
+		local toolKey = inv.EquippedTool
+		if toolKey == nil or toolKey == "" then return false end
+		local baseName = inv:GetBaseItemName(toolKey)
+		local ds = _DataService:GetTable("item_dataset")
+		if ds == nil then return false end
+		local row = ds:FindRow("Name", baseName)
+		if row == nil then return false end
+		return row:GetItem("ToolType") == "rod"
+	end
+
+	@ExecSpace("Server")
+	method void ServerRequestFishingInteract(string spotEntityId)
+		local playerComp = self.Entity.PlayerComponent
+		if playerComp == nil or senderUserId ~= playerComp.UserId then return end
+		if self.IsDead or self.IsSleeping then return end
+		
+		local spotEnt = _EntityService:GetEntity(spotEntityId)
+		if not isvalid(spotEnt) then return end
+		local spot = spotEnt:GetComponent("script.FishingSpot")
+		if not isvalid(spot) then return end
+		
+		local myPos = self.Entity.TransformComponent.WorldPosition
+		local spotPos = spotEnt.TransformComponent.WorldPosition
+		local dist = Vector2.Distance(Vector2(myPos.x, myPos.y), Vector2(spotPos.x, spotPos.y))
+		if dist > 2.5 then return end
+		
+		if not self:IsEquippedFishingRod() then
+			self:ClientShowMineFeedback("낚싯대를 장착해야 합니다.")
+			return
+		end
+		
+		if self.FishingState == "None" then
+			spot:StartFishing(self.Entity)
+		elseif self.FishingState == "Casting" then
+			spot:PullRod(self.Entity)
+		elseif self.FishingState == "Bite" then
+			spot:PullRod(self.Entity)
+		end
+	end
+
+	@ExecSpace("Server")
+	method void ServerRequestCancelFishing()
+		local playerComp = self.Entity.PlayerComponent
+		if playerComp == nil or senderUserId ~= playerComp.UserId then return end
+		if self.FishingState == "None" then return end
+		if isvalid(self.ActiveFishingSpot) then
+			local spot = self.ActiveFishingSpot:GetComponent("script.FishingSpot")
+			if isvalid(spot) then
+				spot:CancelFishing(self.Entity)
+			end
+		end
+		self.FishingState = "None"
+		self.ActiveFishingSpot = nil
+		self:ClientShowMineFeedback("낚시가 취소되었습니다.")
 	end
 
 end

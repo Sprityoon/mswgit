@@ -6,20 +6,39 @@ script MonsterMeleeAttack extends AttackComponent
 	property number ContactDamage = 5
 	property number AttackBoxSize = 2.2
 
+	-- T38: 접촉 데미지 (겹침 시 주기 타격)
+	property number TouchDamage = 2
+	property number TouchTickInterval = 0.5
+	property number TouchRadius = 0.55
+	property number TouchBoxSize = 1.1
+
 	@ExecSpace("ServerOnly")
 	method void DoAttack()
-		-- Emits a contact-damage box centered on the monster against HitBox-group colliders;
-		-- IsAttackTarget narrows the actual victims to player entities only.
+		-- 윈드업 만료 시점 정식 공격 (attackInfo="attack")
+		self:DoAttackWithInfo("attack", self.AttackBoxSize)
+	end
+
+	@ExecSpace("ServerOnly")
+	method void DoTouchAttack()
+		-- 접촉 틱 공격 (attackInfo="touch")
+		self:DoAttackWithInfo("touch", self.TouchBoxSize)
+	end
+
+	@ExecSpace("ServerOnly")
+	method void DoAttackWithInfo(string attackInfo, number boxSize)
 		local t = self.Entity.TransformComponent
 		if not isvalid(t) then return end
 		local p = t.WorldPosition
-		local shape = BoxShape(Vector2(p.x, p.y), Vector2(self.AttackBoxSize, self.AttackBoxSize), 0)
-		self:AttackFast(shape, nil, CollisionGroups.HitBox)
+		local shape = BoxShape(Vector2(p.x, p.y), Vector2(boxSize, boxSize), 0)
+		self:AttackFast(shape, attackInfo, CollisionGroups.HitBox)
 	end
 
 	method integer CalcDamage(Entity attacker, Entity defender, string attackInfo)
-		-- Flat contact damage tuned per-model via ContactDamage.
-		return self.ContactDamage
+		-- attackInfo 태깅으로 분기 (이름 분기 아님). ⚠ AttackComponent 훅에 @ExecSpace 금지.
+		if attackInfo == "touch" then
+			return math.floor(self.TouchDamage)
+		end
+		return math.floor(self.ContactDamage)
 	end
 
 	method boolean IsAttackTarget(Entity defender, string attackInfo)

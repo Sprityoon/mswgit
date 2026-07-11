@@ -1,0 +1,216 @@
+@Component
+script FishingSpot extends Component
+
+	property string SpotType = "estate"
+	
+	property table Sessions = {}
+
+	method void OnBeginPlay()
+		self.Sessions = {}
+	end
+	
+	@ExecSpace("ServerOnly")
+	method void StartFishing(Entity playerEntity)
+		if not isvalid(playerEntity) then return end
+		local playerComp = playerEntity.PlayerComponent
+		if playerComp == nil then return end
+		local userId = playerComp.UserId
+		
+		self:CancelFishing(playerEntity)
+		
+		local minTime = 2.0
+		local maxTime = 5.0
+		local fishDs = _DataService:GetTable("FishDataSet")
+		if fishDs ~= nil then
+			local rows = fishDs:GetAllRow()
+			local matches = {}
+			for _, row in ipairs(rows) do
+				if row:GetItem("SpotType") == self.SpotType then
+					table.insert(matches, row)
+				end
+			end
+			if #matches > 0 then
+				local selectedRow = matches[math.random(#matches)]
+				minTime = tonumber(selectedRow:GetItem("BiteTimeMin")) or minTime
+				maxTime = tonumber(selectedRow:GetItem("BiteTimeMax")) or maxTime
+			end
+		end
+		
+		local waitTime = minTime + math.random() * (maxTime - minTime)
+		
+		local pc = playerEntity:GetComponent("script.PlayerController")
+		if isvalid(pc) then
+			pc.FishingState = "Casting"
+			pc.ActiveFishingSpot = self.Entity
+			pc:ClientShowMineFeedback("찌를 던졌습니다. 기다리는 중...")
+			log("[FISHING] Casting started by User: " .. userId .. " at " .. self.SpotType)
+			
+			local movement = playerEntity.MovementComponent
+			if isvalid(movement) then movement:Stop() end
+		end
+		
+		local timerId = _TimerService:SetTimerOnce(function()
+			self:TriggerBite(playerEntity)
+		end, waitTime)
+		
+		self.Sessions[userId] = {
+			state = "Casting",
+			castingTimer = timerId,
+			windowTimer = nil
+		}
+	end
+	
+	@ExecSpace("ServerOnly")
+	method void TriggerBite(Entity playerEntity)
+		if not isvalid(playerEntity) then return end
+		local playerComp = playerEntity.PlayerComponent
+		if playerComp == nil then return end
+		local userId = playerComp.UserId
+		
+		local session = self.Sessions[userId]
+		if session == nil or session.state ~= "Casting" then return end
+		
+		session.state = "Bite"
+		session.castingTimer = nil
+		
+		local pc = playerEntity:GetComponent("script.PlayerController")
+		if isvalid(pc) then
+			pc.FishingState = "Bite"
+			pc:ClientShowMineFeedback("!!! 입질이 왔습니다! 지금입니다 !!!")
+			log("[FISHING] Bite triggered for User: " .. userId .. " at " .. self.SpotType)
+		end
+		
+		local winTimerId = _TimerService:SetTimerOnce(function()
+			self:TimeoutBite(playerEntity)
+		end, 0.8)
+		
+		session.windowTimer = winTimerId
+	end
+	
+	@ExecSpace("ServerOnly")
+	method void TimeoutBite(Entity playerEntity)
+		if not isvalid(playerEntity) then return end
+		local playerComp = playerEntity.PlayerComponent
+		if playerComp == nil then return end
+		local userId = playerComp.UserId
+		
+		local session = self.Sessions[userId]
+		if session == nil or session.state ~= "Bite" then return end
+		
+		self:CancelFishing(playerEntity)
+		
+		local pc = playerEntity:GetComponent("script.PlayerController")
+		if isvalid(pc) then
+			pc:ClientShowMineFeedback("물고기를 놓쳤습니다!")
+			log("[FISHING] Timeout (Miss) for User: " .. userId .. " at " .. self.SpotType)
+		end
+	end
+	
+	@ExecSpace("ServerOnly")
+	method void PullRod(Entity playerEntity)
+		if not isvalid(playerEntity) then return end
+		local playerComp = playerEntity.PlayerComponent
+		if playerComp == nil then return end
+		local userId = playerComp.UserId
+		
+		local session = self.Sessions[userId]
+		if session == nil then return end
+		
+		if session.state == "Casting" then
+			self:CancelFishing(playerEntity)
+			local pc = playerEntity:GetComponent("script.PlayerController")
+			if isvalid(pc) then
+				pc:ClientShowMineFeedback("너무 일찍 낚싯대를 걷어올렸습니다!")
+				log("[FISHING] Pull early (Fail) for User: " .. userId .. " at " .. self.SpotType)
+			end
+		elseif session.state == "Bite" then
+			if session.windowTimer ~= nil then
+				_TimerService:ClearTimer(session.windowTimer)
+			end
+			self.Sessions[userId] = nil
+			
+			local pc = playerEntity:GetComponent("script.PlayerController")
+			if isvalid(pc) then
+				pc.FishingState = "None"
+				pc.ActiveFishingSpot = nil
+			end
+			
+			local selectedFish = self:RollFish()
+			if selectedFish ~= "" then
+				local inv = playerEntity:GetComponent("script.PlayerInventory")
+				if isvalid(inv) then
+					inv:AddItem(selectedFish, 1)
+					if isvalid(pc) then
+						pc:ClientShowMineFeedback("[성공] " .. selectedFish .. "을(를) 낚았습니다!")
+						log("[FISHING] Success! Caught " .. selectedFish .. " by User: " .. userId .. " at " .. self.SpotType)
+					end
+				end
+			else
+				if isvalid(pc) then
+					pc:ClientShowMineFeedback("낚시에 실패했습니다.")
+					log("[FISHING] Fail to catch (empty pool) for User: " .. userId .. " at " .. self.SpotType)
+				end
+			end
+		end
+	end
+	
+	@ExecSpace("ServerOnly")
+	method void CancelFishing(Entity playerEntity)
+		if not isvalid(playerEntity) then return end
+		local playerComp = playerEntity.PlayerComponent
+		if playerComp == nil then return end
+		local userId = playerComp.UserId
+		
+		local session = self.Sessions[userId]
+		if session == nil then return end
+		
+		if session.castingTimer ~= nil then
+			_TimerService:ClearTimer(session.castingTimer)
+		end
+		if session.windowTimer ~= nil then
+			_TimerService:ClearTimer(session.windowTimer)
+		end
+		
+		self.Sessions[userId] = nil
+		
+		local pc = playerEntity:GetComponent("script.PlayerController")
+		if isvalid(pc) then
+			pc.FishingState = "None"
+			pc.ActiveFishingSpot = nil
+			log("[FISHING] Cancelled for User: " .. userId .. " at " .. self.SpotType)
+		end
+	end
+	
+	@ExecSpace("ServerOnly")
+	method string RollFish()
+		local fishDs = _DataService:GetTable("FishDataSet")
+		if fishDs == nil then return "" end
+		
+		local rows = fishDs:GetAllRow()
+		local pool = {}
+		local totalWeight = 0
+		for _, row in ipairs(rows) do
+			if row:GetItem("SpotType") == self.SpotType then
+				local fishItem = row:GetItem("FishItem")
+				local weight = tonumber(row:GetItem("Weight")) or 0
+				if weight > 0 then
+					table.insert(pool, { item = fishItem, w = weight })
+					totalWeight = totalWeight + weight
+				end
+			end
+		end
+		
+		if totalWeight <= 0 then return "" end
+		
+		local rng = math.random() * totalWeight
+		local acc = 0
+		for _, entry in ipairs(pool) do
+			acc = acc + entry.w
+			if rng <= acc then
+				return entry.item
+			end
+		end
+		return ""
+	end
+
+end

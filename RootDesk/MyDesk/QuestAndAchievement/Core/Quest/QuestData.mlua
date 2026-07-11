@@ -27,6 +27,9 @@ script QuestData
 
 	property integer Priority = 0
 
+	-- T27: 레시피 해금 키 (공란=없음). GrantRecipeUnlock 연동.
+	property string RewardUnlockId = ""
+
 	property table ConditionDatas = nil
 
 	property integer ConditionCount = 0
@@ -84,6 +87,13 @@ script QuestData
 		
 		local priority = math.tointeger(tonumber(row:GetItem("Priority")))
 		self.Priority = priority or math.maxinteger
+
+		-- T27: RewardUnlockId (없는 컬럼 GetItem은 LEA-3011 — pcall)
+		self.RewardUnlockId = ""
+		local okRu, ru = pcall(function() return row:GetItem("RewardUnlockId") end)
+		if okRu and ru ~= nil and not _Util:IsNilorEmptyString(ru) then
+			self.RewardUnlockId = ru
+		end
 		
 		return true
 	end

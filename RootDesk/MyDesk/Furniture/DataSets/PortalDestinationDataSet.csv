@@ -1,6 +1,6 @@
-﻿DestinationId,MapName,DisplayName,ArriveX,ArriveY,UnlockType,Group,TemplateMap,Biome
-town,town,마을,3,0,always,town,,
-hunt01,hunt01,사냥터 1구역,-3,0,always,rookie,template_field,earth_field
-hunt02,hunt02,사냥터 2구역,0,0,waypoint,rookie,template_field,rocky
-hunt03,hunt03,사냥터 3구역,0,0,waypoint,rookie,template_field,desert
-hunt04,hunt04,보스 사냥터,0,-5,waypoint,rookie,template_boss,green_island
+﻿DestinationId,MapName,DisplayName,ArriveX,ArriveY,UnlockType,Group,TemplateMap,Biome,IsDefault
+town,town,마을,3,0,always,town,,,true
+hunt01,hunt01,사냥터 1구역,-3,0,always,rookie,template_field,earth_field,false
+hunt02,hunt02,사냥터 2구역,0,0,waypoint,rookie,template_field,rocky,false
+hunt03,hunt03,사냥터 3구역,0,0,waypoint,rookie,template_field,desert,false
+hunt04,hunt04,보스 사냥터,0,-5,waypoint,rookie,template_boss,green_island,false

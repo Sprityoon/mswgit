@@ -6,11 +6,39 @@ script MonsterSpawner extends Logic
 	property any SpawnTimerId = nil
 
 	@HideFromInspector property boolean IsNight = false
+	-- T34: SpawnTuningDataSet 1회 캐시 (야간 배율)
+	@HideFromInspector property number NightCapMult = 2.0
+	@HideFromInspector property number NightHpMult = 1.5
+	@HideFromInspector property number NightAtkMult = 1.5
+	@HideFromInspector property boolean TuningLoaded = false
 
 	@ExecSpace("ServerOnly")
 	method void OnBeginPlay()
 		log("MonsterSpawner: Spawner logic system starting...")
 		self:TryStartSpawner()
+	end
+
+	@ExecSpace("ServerOnly")
+	method void LoadSpawnTuning()
+		-- SpawnTuningDataSet(Key,Value) 1회 로드. 행 추가만으로 전역 스폰 상수 확장.
+		if self.TuningLoaded then return end
+		local ds = _DataService:GetTable("SpawnTuningDataSet")
+		if ds == nil then return end
+		local n = ds:GetRowCount()
+		for i = 1, n do
+			local key = ds:GetCell(i, "Key") or ""
+			local val = tonumber(ds:GetCell(i, "Value"))
+			if key == "NightMonsterCapMult" and val ~= nil then
+				self.NightCapMult = val
+			elseif key == "NightMonsterHpMult" and val ~= nil then
+				self.NightHpMult = val
+			elseif key == "NightMonsterAtkMult" and val ~= nil then
+				self.NightAtkMult = val
+			end
+		end
+		self.TuningLoaded = true
+		log("MonsterSpawner: SpawnTuning loaded Cap=" .. tostring(self.NightCapMult)
+			.. " Hp=" .. tostring(self.NightHpMult) .. " Atk=" .. tostring(self.NightAtkMult))
 	end
 
 	@ExecSpace("ServerOnly")
@@ -21,6 +49,8 @@ script MonsterSpawner extends Logic
 			_TimerService:SetTimerOnce(function() self:TryStartSpawner() end, 0.5)
 			return
 		end
+
+		self:LoadSpawnTuning()
 
 		self.SpawnTimerId = _TimerService:SetTimerRepeat(function()
 			self:TickMonsterSpawn()
@@ -86,13 +116,18 @@ script MonsterSpawner extends Logic
 			end
 		end
 
-		local effectiveCap = self.IsNight and (self.MonsterCap * 2) or self.MonsterCap
+		if not self.TuningLoaded then
+			self:LoadSpawnTuning()
+		end
+
+		local effectiveCap = self.IsNight and (self.MonsterCap * self.NightCapMult) or self.MonsterCap
 
 		if activeCount >= effectiveCap then
 			return
 		end
 
-		local toSpawn = effectiveCap - activeCount
+		local toSpawn = math.floor(effectiveCap - activeCount)
+		if toSpawn < 1 then return end
 		log("MonsterSpawner: Map " .. mapName .. " needs " .. toSpawn .. " monster(s). Active: " .. activeCount .. " (IsNight: " .. tostring(self.IsNight) .. ")")
 
 		local spawnDs = _DataService:GetTable("MonsterSpawnDataSet")
@@ -184,9 +219,11 @@ script MonsterSpawner extends Logic
 								end
 
 								local spawnPos = Vector3(rx + 0.5, ry + 0.5, 0)
+								-- Entity.Name = display/debug only; data keys use MonsterId (model id slug).
+								local entityName = chosenOpt.modelId .. "_" .. biomeId
 								local spawnedMonster = _SpawnService:SpawnByModelId(
 									modelId,
-									"Slime_" .. biomeId,
+									entityName,
 									spawnPos,
 									map
 								)
@@ -195,7 +232,10 @@ script MonsterSpawner extends Logic
 									-- Attach & tune Monster script properties
 									local mComp = spawnedMonster:GetComponent("script.Monster")
 									if isvalid(mComp) then
-										local finalHpMul = self.IsNight and (chosenOpt.hpMul * 1.5) or chosenOpt.hpMul
+										-- Stable data key for coin/ItemDrop/Kill (not Entity.Name)
+										mComp.MonsterId = chosenOpt.modelId
+										local nightHp = self.IsNight and self.NightHpMult or 1.0
+										local finalHpMul = chosenOpt.hpMul * nightHp
 										mComp.MaxHp = mComp.MaxHp * finalHpMul
 										mComp.Hp = mComp.MaxHp
 									end
@@ -203,7 +243,8 @@ script MonsterSpawner extends Logic
 									-- Tune attack damage
 									local atkComp = spawnedMonster:GetComponent("script.MonsterMeleeAttack")
 									if isvalid(atkComp) then
-										local finalAtkMul = self.IsNight and (chosenOpt.atkMul * 1.5) or chosenOpt.atkMul
+										local nightAtk = self.IsNight and self.NightAtkMult or 1.0
+										local finalAtkMul = chosenOpt.atkMul * nightAtk
 										atkComp.ContactDamage = atkComp.ContactDamage * finalAtkMul
 									end
 
@@ -213,22 +254,21 @@ script MonsterSpawner extends Logic
 										aiComp.SpawnPos = Vector2(rx + 0.5, ry + 0.5)
 									end
 
-									-- Tint sprite color based on biome aesthetics
+									-- Tint from BiomeDataSet.MonsterTint (#RRGGBB; blank = white)
 									local sprite = spawnedMonster.SpriteRendererComponent
 									if isvalid(sprite) then
 										sprite.IgnoreMapLayerCheck = true
 										sprite.SortingLayer = _RenderLayers.EntityLayer
 										sprite.OrderInLayer = math.max(_RenderLayers.MinEntityOrder, math.floor((radius - ry) * 100))
-
-										if biomeId == "desert" then
-											sprite.Color = Color(1.0, 0.9, 0.6, 1.0) -- Yellowish Desert tint
-										elseif biomeId == "snowfield" then
-											sprite.Color = Color(0.7, 0.9, 1.0, 1.0) -- Cyanish Snowfield tint
-										elseif biomeId == "rocky" then
-											sprite.Color = Color(0.65, 0.65, 0.65, 1.0) -- Grayish/Rocky dark tint
-										else
-											sprite.Color = Color(1.0, 1.0, 1.0, 1.0) -- Default Earth Field white
+										local tint = Color(1.0, 1.0, 1.0, 1.0)
+										if isvalid(resourceSpawner) then
+											local hex = resourceSpawner:GetBiomeMonsterTintHex(biomeId)
+											if hex ~= nil and hex ~= "" then
+												local parsed = resourceSpawner:ParseHexColor(hex)
+												if parsed ~= nil then tint = parsed end
+											end
 										end
+										sprite.Color = tint
 									end
 
 									log("[SPAWN] Spawned variant monster " .. chosenOpt.modelId .. " at cell (" .. rx .. ", " .. ry .. ") in map " .. mapName .. " (HpMul=" .. chosenOpt.hpMul .. ", AtkMul=" .. chosenOpt.atkMul .. ")")

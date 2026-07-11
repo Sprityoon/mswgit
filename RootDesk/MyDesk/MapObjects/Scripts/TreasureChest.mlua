@@ -1,11 +1,22 @@
 @Component
 script TreasureChest extends Component
 
-	-- T9: 사냥터 보물 상자. F/터치 1회 개봉 → ItemDropDataSet(SourceId=TreasureChest).
+	-- T9/T34: 사냥터 보물 상자. F/터치 1회 개봉 → ItemDropDataSet(SourceId=DropSourceId).
 	-- F는 PlayerController.FindNearbyTreasureChest에서도 호출 (포탈과 겹치지 않게 그쪽이 우선).
 
 	@Sync
 	property boolean IsOpened = false
+
+	-- ItemDropDataSet.SourceId 키 (기본 TreasureChest — Probability=1.0 보장 드롭 행 존재)
+	property string DropSourceId = "TreasureChest"
+	-- 클라 상호작용 거리 / 서버 검증 거리
+	property number InteractDistance = 3.0
+	property number ServerOpenDistance = 4.0
+	-- 개봉 후 스프라이트 감광 톤
+	property number OpenedTintR = 0.45
+	property number OpenedTintG = 0.45
+	property number OpenedTintB = 0.45
+	property number OpenedTintA = 0.75
 
 	property any keyHandler = nil
 
@@ -35,7 +46,7 @@ script TreasureChest extends Component
 		local myPos = self.Entity.TransformComponent.WorldPosition
 		local playerPos = localPlayer.TransformComponent.WorldPosition
 		local dist = Vector2.Distance(Vector2(myPos.x, myPos.y), Vector2(playerPos.x, playerPos.y))
-		if dist > 3.0 then
+		if dist > self.InteractDistance then
 			local pc = localPlayer:GetComponent("script.PlayerController")
 			if isvalid(pc) then pc:ShowMineFeedback("상자에 더 가까이 다가가야 합니다.") end
 			return
@@ -59,7 +70,7 @@ script TreasureChest extends Component
 		local myPos = self.Entity.TransformComponent.WorldPosition
 		local playerPos = playerEntity.TransformComponent.WorldPosition
 		local dist = Vector2.Distance(Vector2(myPos.x, myPos.y), Vector2(playerPos.x, playerPos.y))
-		if dist > 4.0 then
+		if dist > self.ServerOpenDistance then
 			log_warning("[TREASURE] open rejected dist=" .. tostring(dist))
 			return
 		end
@@ -74,7 +85,7 @@ script TreasureChest extends Component
 
 		local sprite = self.Entity.SpriteRendererComponent
 		if isvalid(sprite) then
-			sprite.Color = Color(0.45, 0.45, 0.45, 0.75)
+			sprite.Color = Color(self.OpenedTintR, self.OpenedTintG, self.OpenedTintB, self.OpenedTintA)
 		end
 
 		local pc = playerEntity:GetComponent("script.PlayerController")
@@ -91,7 +102,10 @@ script TreasureChest extends Component
 			log_error("[TREASURE] ItemDropDataSet missing")
 			return
 		end
-		local sourceName = "TreasureChest"
+		local sourceName = self.DropSourceId
+		if sourceName == nil or sourceName == "" then
+			sourceName = "TreasureChest"
+		end
 		local dropped = 0
 		local rowCount = ds:GetRowCount()
 		for i = 1, rowCount do
@@ -117,14 +131,10 @@ script TreasureChest extends Component
 				end
 			end
 		end
-		-- 확률 전부 실패해도 최소 1종 보장 (구리 광석)
+		-- 보장 드롭은 ItemDropDataSet Probability=1.0 행으로 표현 (하드 폴백 삭제 — T34)
 		if dropped == 0 then
-			_TileDurabilityManager:SpawnResourceDrop(
-				map,
-				Vector3(worldPos.x, worldPos.y, 0),
-				"copper ore", 2, 2, 0
-			)
-			log("[TREASURE] fallback copper ore drop")
+			log_warning("[TREASURE] no drops from SourceId=" .. sourceName
+				.. " — check ItemDropDataSet Probability=1.0 rows")
 		end
 	end
 

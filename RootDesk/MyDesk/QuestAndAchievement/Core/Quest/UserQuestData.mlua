@@ -295,10 +295,10 @@ script UserQuestData
 
 	method boolean Complete(Entity userEntity, QuestData data, integer elapsed)
 		-- This function should check the conditions using the `IsCompletable` function before execution.
+		local inv = userEntity:GetComponent("script.PlayerInventory")
 		local rewardItems = data.RewardItems
 		if rewardItems ~= nil then
 			-- [적응] 보상 아이템(문자열 Name)을 서버 권위로 인벤토리에 지급한다.
-			local inv = userEntity:GetComponent("script.PlayerInventory")
 			for i = 1, #rewardItems do
 				local rewardItem = rewardItems[i]
 				local itemName = rewardItem[1]
@@ -308,6 +308,13 @@ script UserQuestData
 					log(string.format("[QUEST] Reward granted: %s x%d (Quest %d)", itemName, itemCount, data.Id))
 				end
 			end
+		end
+
+		-- T27: RewardUnlockId → T25 GrantRecipeUnlock (멱등·토스트). RecipeDataSet 셀 기입은 레인 2.
+		local unlockId = data.RewardUnlockId
+		if unlockId ~= nil and unlockId ~= "" and isvalid(inv) then
+			inv:GrantRecipeUnlock(unlockId)
+			log(string.format("[QUEST] RewardUnlockId granted: %s (Quest %d)", unlockId, data.Id))
 		end
 		
 		if data.IsRepeatable then
