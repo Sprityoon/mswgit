@@ -267,7 +267,7 @@
 - **구현 요약 (2026-07-11)**: Touch 틱·윈드업 타격·TelegraphOn·AttackRange/StopDistance. 보고서 `docs/agents/reports/T38-monster-combat-feel.md`.
 - **검증**: refresh 빌드 **Error=0** (total 439). **런타임 검증 보류(제작자 수행)**.
 
-### T39. [진행 — 배치 D 2026-07-12] 몬스터 원거리 공격 — HornMushroom 포자 투사체 (T38 후속)
+### T39. [완료 — 배치 D 2026-07-12 (커밋 1835d49) | 지휘자 코드리뷰 검수 PASS | refresh 검증 보류(Maker 미가동) | Play 보류(제작자)] 몬스터 원거리 공격 — HornMushroom 포자 투사체 (T38 후속)
 
 - **경위(지휘자 소급 발행 2026-07-12)**: 직전 세션이 **큐 항목 없이 착수 후 무보고 종료**(커밋 d335015 — §5 조항 11 위반 4회차). 지휘자 실사 후 이 항목으로 소급 정식화. 배경: T38로 근접 전투는 정비됐으나 전 몬스터가 근접 단일 패턴 — 원거리 1종으로 전투 다양화. **⚖️ 2026-07-12 보스 확정: HornMushroom**(버섯 포자 — 원거리 전형).
 - **현재 자산 실사(지휘자 2026-07-12 — 그대로 사용, 재구현 금지)**:
@@ -281,6 +281,8 @@
   ④ **HornMushroom 설정**: 모델에 `ProjectileModelId`+수치 오버라이드, 원거리답게 `AttackRange` 상향(3.0 제안)+`StopDistance` 상향(2.5 제안) — 전부 모델 프로퍼티(튜닝 자유). Slime/Boar/SlimeKing은 무변경(빈 `ProjectileModelId`).
 - **Acceptance**: ① HornMushroom이 AttackRange 경계에서 윈드업 텔레그래프→포자 발사→명중 시 정식 히트 파이프라인(i-frame/데미지 스킨) 경유 데미지 ② 빗나감 시 LifeTime 후 소멸(잔존 엔티티 0) ③ Slime/Boar/SlimeKing 근접 회귀 0 ④ 수치/이름 하드코딩 0 ⑤ refresh(가능 시) Error 수 보고서 기재 + §4 보고 3종. Play는 제작자(발사·명중·소멸·근접몹 회귀).
 - **충돌 주의**: **배치 D 마지막** — T31 완료 후 착수. `MonsterAI.mlua`는 T38(Play 대기) 산출물 — T38 재작업 발생 시 지휘자가 조정(보스 리스크 수용 2026-07-12). `MonsterMeleeAttack.mlua`·`PlayerController.mlua` 수정 금지.
+- **구현 요약 (커밋 1835d49)**: MonsterAI `ProjectileModelId`+수치 4종 프로퍼티·`FireProjectile`(EntryService 모델해석+SpawnByModelId parent=CurrentMap+Fire) / ATTACK 만료 시 근접↔투사체 분기 / 신규 모델 `Projectile_Spore`(SpriteRUID `606b8732…`)·`HornMushroom`(RANGED·AttackRange3·StopDistance2.5·ProjectileModelId=Projectile_Spore). MonsterProjectile 주석 오타 2건만 수정. 보고서 `docs/agents/reports/T39-monster-projectile.md`.
+- **지휘자 검수 (2026-07-12 — 구현 에이전트가 사용 한도로 보고서 미작성 종료, 지휘자가 커밋 산출물 코드리뷰로 대체 검수)**: ✅ `FireProjectile`의 `_EntryService:GetModelIdByName`+폴백·`_SpawnService:SpawnByModelId(modelId,name,pos,map)` 4인자·`Fire` 인자 순서가 MonsterSpawner 실사용/정의부와 정확 일치(§1.2 규칙 8 확인) ✅ 두 모델 SpriteRUID 비어있지 않음·컴포넌트 구성 정상·ProjectileModelId=모델 Name 일치 ✅ 이름/수치 하드코딩 0. **⚠️ refresh 미수행(Maker 미가동) — 다음 기동 세션에서 Error 수 확인 필요.**
 
 ### (신규 작업 추가 템플릿)
 ```

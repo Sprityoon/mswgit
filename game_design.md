@@ -504,7 +504,7 @@ graph TD
   - ✅ AI 추격 튜닝 완료: 몬스터가 플레이어에게 끝까지 달려들지 않고 바로 앞칸에서 공격을 멈추던 현상을 `DSq <= 0.81`(밀착) 및 공격 쿨타임 중에도 근접 타겟팅을 유지하도록 튜닝하여 해결.
   - [x] M3 완료: `MonsterSpawner`(@Logic, 맵당 인구캡, 바이옴별 변종 HpMul/AtkMul, 녹색섬 중앙 제외, 10분 주기 낮/밤 부스트 적용 완료) + `MonsterSpawnDataSet`.
   - 🔶 **전투 체감 개선(T38 — 코드 완료 2026-07-11, Play 검증 보류)**: 접촉 데미지 틱(TouchDamage/i-frame 위임) + 공격 타이밍 정정(윈드업 만료 시점 타격) + 텔레그래프 틴트 + `AttackRange` 단일화(리터럴 0.81 제거 — 상단 "AI 추격 튜닝"의 밀착 기준 대체)·`StopDistance` 신설. handoff §3 T38.
-  - 🔶 **원거리 투사체(T39 — ⚖️ 2026-07-12 보스 확정: 1호=HornMushroom, 배치 D 진행)**: `MonsterProjectile`(AttackComponent 확장, Fire 주입식·Translate 비행·attackInfo="projectile") + MonsterAI `ProjectileModelId` 프로퍼티 분기(빈 값=근접) + 포자 투사체 모델. handoff §3 T39.
+  - 🔶 **원거리 투사체(T39 — 코드/모델 완료 커밋 1835d49, 지휘자 코드리뷰 검수 PASS, refresh·Play 보류 / ⚖️ 2026-07-12 보스 확정: 1호=HornMushroom)**: `MonsterProjectile`(AttackComponent 확장, Fire 주입식·Translate 비행·attackInfo="projectile") + MonsterAI `ProjectileModelId` 프로퍼티 분기(빈 값=근접) + 포자 투사체 모델 `Projectile_Spore` + HornMushroom RANGED 재설정. handoff §3 T39.
   - 중력이 없는 `KinematicbodyComponent`를 사용하는 몬스터 모델(예: Slime 또는 Zombie) 제작.
   - 상태 기반 AI 컴포넌트 (`MonsterAI.mlua`) 설계:
     - **배회(Wander)**: 스폰 위치 반경 5칸 이내의 랜덤 셀을 목표로 저속 이동 후 대기.
