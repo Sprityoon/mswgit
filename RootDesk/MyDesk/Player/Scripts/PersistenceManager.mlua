@@ -277,6 +277,7 @@ script PersistenceManager extends Logic
 				inv.ResearchStartTime = data.researchStartTime or "0"
 				inv.DailyRequestDay = data.dailyRequestDay or "0"
 				inv.DailyCompletedRequestsJson = data.dailyCompletedRequests or "[]"
+				inv.DexStatsJson = data.dexStats or "{}"
 				inv:ApplyHeldToolCostume()
 				inv:MigrateLegacyRecipeUnlocks()
 				-- T7: 오프라인 연구 경과 정산
@@ -520,6 +521,7 @@ script PersistenceManager extends Logic
 		local capResearchStart = inv.ResearchStartTime or "0"
 		local capDailyDay = inv.DailyRequestDay or "0"
 		local capDailyDone = inv.DailyCompletedRequestsJson or "[]"
+		local capDexStats = inv.DexStatsJson or "{}"
 
 		local posX = livePosX
 		local posY = livePosY
@@ -617,6 +619,7 @@ script PersistenceManager extends Logic
 			researchStartTime = capResearchStart,
 			dailyRequestDay = capDailyDay,
 			dailyCompletedRequests = capDailyDone,
+			dexStats = capDexStats,
 			unlockedWaypoints = capWaypoints,
 			skillLevels = capSkills,
 			sp = capSp,

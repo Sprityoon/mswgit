@@ -1,5 +1,5 @@
-MonsterId,DropChance,MinAmount,MaxAmount
-slime,0.7,1,3
-horn_mushroom,0.8,2,5
-boar,0.9,3,7
-slime_king,1.0,10,20
+MonsterId,DropChance,MinAmount,MaxAmount,DisplayName,IconRUID
+slime,0.7,1,3,슬라임,50faf654ee5d479cb2958edce9feaef0
+horn_mushroom,0.8,2,5,뿔버섯,574596d79f004965a293d2551343633f
+boar,0.9,3,7,멧돼지,af64c62c1dcf427998c3c52f0a060fec
+slime_king,1.0,10,20,슬라임킹,6401ef4c5ccb4269a5c97831fa8fd329

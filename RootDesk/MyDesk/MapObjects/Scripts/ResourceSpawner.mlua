@@ -1032,7 +1032,8 @@ script ResourceSpawner extends Logic
 		if isvalid(hunt03) then
 			self:SpawnFixedPortal(hunt03, "Portal", 0, -3, "Home", Vector2(-3, 0))
 			self:SpawnFixedPortal(hunt03, "PortalToHunt02", -10, 0, "hunt02", Vector2(8, 0))
-			self:SpawnFixedPortal(hunt03, "PortalToHunt04", 10, 0, "hunt04", Vector2(0, -5))
+			-- 입장 좌표를 맵 남쪽 입구 쪽에 두어 보스(북쪽)와 거리 확보.
+			self:SpawnFixedPortal(hunt03, "PortalToHunt04", 10, 0, "hunt04", Vector2(0, -10))
 			self:SpawnTreasureChestsForMap(hunt03, "hunt03")
 		end
 
@@ -1040,7 +1041,8 @@ script ResourceSpawner extends Logic
 		if isvalid(hunt04) then
 			self:SpawnFixedPortal(hunt04, "Portal", 0, -8, "Home", Vector2(-3, 0))
 			self:SpawnFixedPortal(hunt04, "PortalToHunt03", 0, -7, "hunt03", Vector2(8, 0))
-			self:SpawnHuntBoss(hunt04, "slime_king", 0, 2)
+			-- 입구(y≈-10)와 거리 확보 — 입장 직후 교전 범위 밖.
+			self:SpawnHuntBoss(hunt04, "slime_king", 0, 10)
 		end
 
 		log("ResourceSpawner: Hunting-ground chain ready (hunt01..hunt04).")
@@ -1184,12 +1186,16 @@ script ResourceSpawner extends Logic
 			mComp.MonsterId = bossModelId
 		end
 
-		-- Anchor the AI leash to the spawn cell so the boss patrols its arena.
+		-- Anchor the AI leash. 공격 쿨/유예는 플레이어 첫 감지 시 BeginEngagement에서 건다
+		-- (맵 선스폰 직후부터 깎이면 입장 시 이미 0이 됨).
 		local aiComp = boss:GetComponent("script.MonsterAI")
 		if isvalid(aiComp) then
 			---@type MonsterAI
 			local ai = aiComp
 			ai.SpawnPos = Vector2(bx + 0.5, by + 0.5)
+			ai.EngagementStarted = false
+			ai.AttackCooldownTimer = 0
+			ai.SpawnGraceTimer = 0
 		end
 
 		-- Render above the floor like the other hunt fixtures.

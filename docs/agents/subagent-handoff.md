@@ -284,6 +284,32 @@
 - **구현 요약 (커밋 1835d49)**: MonsterAI `ProjectileModelId`+수치 4종 프로퍼티·`FireProjectile`(EntryService 모델해석+SpawnByModelId parent=CurrentMap+Fire) / ATTACK 만료 시 근접↔투사체 분기 / 신규 모델 `Projectile_Spore`(SpriteRUID `606b8732…`)·`HornMushroom`(RANGED·AttackRange3·StopDistance2.5·ProjectileModelId=Projectile_Spore). MonsterProjectile 주석 오타 2건만 수정. 보고서 `docs/agents/reports/T39-monster-projectile.md`.
 - **지휘자 검수 (2026-07-12 — 구현 에이전트가 사용 한도로 보고서 미작성 종료, 지휘자가 커밋 산출물 코드리뷰로 대체 검수)**: ✅ `FireProjectile`의 `_EntryService:GetModelIdByName`+폴백·`_SpawnService:SpawnByModelId(modelId,name,pos,map)` 4인자·`Fire` 인자 순서가 MonsterSpawner 실사용/정의부와 정확 일치(§1.2 규칙 8 확인) ✅ 두 모델 SpriteRUID 비어있지 않음·컴포넌트 구성 정상·ProjectileModelId=모델 Name 일치 ✅ 이름/수치 하드코딩 0. **⚠️ refresh 미수행(Maker 미가동) — 다음 기동 세션에서 Error 수 확인 필요.**
 
+### T40. [완료 — 2026-07-12 제작자 직접 지시(비큐) 소급 정식화 | refresh Error=0 | Play: 제작자 확인] 멧돼지 돌진(CHARGE)·도약(LEAP) 공격 + 인식/추적/귀환 개선
+
+- **경위**: 큐 항목 없이 제작자(보스)가 대화로 직접 지시·검증한 작업을 규칙(§5 조항 11)에 맞춰 소급 티켓화. 구현자(Claude)+제작자 반복 튜닝으로 완성. 원 요구: "멧돼지가 더 멀리서 돌진 / 인식거리 상향 / 추적하다 돌아가는 로직 어색 → 더 멀리 추적하고 멀어지면 빠르게 원위치". 이후 제작자 정제: "감지 후 잠깐 멈췄다가 고정 방향으로 빠르게 직진 돌진(재조준 없음, 유저 회피 가능), 돌진 시작되면 유저가 감지범위를 빠르게 벗어나도 끝까지 돌진". 제작자가 CHARGE에 DECEL 감속 단계와 LEAP(도약 광역) 타입을 추가.
+- **Target**: `Monster/Scripts/MonsterAI.mlua`, `Monster/Models/Boar.model`(ModelBuilder — 프로퍼티 오버라이드).
+- **Change**:
+  ① **AttackType 확장** `"CHARGE"`/`"LEAP"` 추가(기존 CONTACT/MELEE_WEAPON/RANGED/MAGIC 유지 — 이름 분기 아닌 타입 값 분기).
+  ② **CHARGE 3단계 상태**: `PAUSE`(AttackWindup 동안 정지+주황 텔레그래프) → `DASH`(만료 시점 최근접 플레이어 방향·거리를 **고정 캡처**해 `ChargeSpeedMultiplier` 배속 직진; 재조준 없음) → `DECEL`(`ChargeDecelDuration` 감속 정지). 쿨다운은 시작이 아니라 **종료(EndCharge)** 시 부여(시작 시 부여하면 돌진 중 소진돼 연속 돌진). DASH 거리 소진 판정은 MoveToDirection의 1프레임 지연을 감안해 직전 프레임 실이동량(`ChargeLastPos` 차)으로 측정. `ChargeMaxDuration` 안전장치.
+  ③ **LEAP**: ATTACK 윈드업 동안 스케일로 "높이" 연출(`LeapPeakScale`/`LeapRiseFraction`, `CaptureBaseScale`/`ApplyLeapScale`/`RestoreBaseScale`), 만료 시점 광역 타격.
+  ④ **인식/추적/귀환 개선**: `LeashRange` 기본 상향(10→15), `ReturnSpeedMultiplier`(귀환 시 배속 원위치) 신설, 추적 중 타겟 상실 시 제자리 배회로 굳지 않고 즉시 RETURN 전환, 속도 배율 이동 헬퍼 `MoveTowardScaled` 도입(구 `MoveTowardHalf` 대체).
+  ⑤ **Boar 모델**: `AttackType=CHARGE`, `DetectRange=10`, `AttackRange=3.2`, `AttackWindup=0.4`, `ChargeSpeedMultiplier=3.5`(전부 모델 프로퍼티 — 코드 리터럴 0). Slime/SlimeKing/HornMushroom 무변경.
+- **Acceptance**: ① 멧돼지가 먼 거리(감지 10)에서 인식 → 잠깐 멈춤(텔레그래프) → 고정 방향 직진 돌진 → 감속 정지 ② 돌진 개시 후 유저가 감지범위 벗어나도 끝까지 진행, 옆으로 회피 가능 ③ 추적하다 놓치면 빠르게 원위치 복귀(제자리 배회 고착 없음) ④ 수치 전부 모델 프로퍼티 ⑤ Slime/SlimeKing/HornMushroom 회귀 0. Play는 제작자.
+- **검증**: `mlua-diagnose` errors=0, Maker refresh 빌드 **Error=0**(total 437). CHARGE PAUSE→DASH 전이 서버 로그로 확인(초기 구현), DASH 거리 미소진 버그 발견·수정(1프레임 지연 측정). Play는 제작자 확인. 보고서 `reports/T40-monster-charge-leap.md`.
+
+### T41. [완료 — 2026-07-12 제작자 직접 지시(비큐) 소급 정식화 | refresh Error=0 | Play: 제작자 확인(구두 PASS)] Big Stone 등 자원/가구 충돌 정합(감지=밀어내기 동일 박스) + 점프 순간이동 수정
+
+- **경위**: 큐 항목 없이 제작자가 대화로 지시·검증. 증상: "Big Stone 근처에서 점프하며 뛰어다니면 순간이동." T36(ResolveOverlaps AABB)의 후속 결함. 제작자 요구로 충돌 기준을 **모델에 튜닝해 둔 TriggerComponent 박스**로 한정(ResourceOccupiedArea AABB는 스폰/채집 점유용이라 이동 충돌엔 과도).
+- **근본 원인**: (A) 예방 판정(`IsObstacle`)은 얇은 Trigger 밴드로만 차단하는데 교정(`ResolveOverlaps`)은 훨씬 큰 `ResourceOccupiedArea` AABB로 밀어냄 → 두 형상 불일치로 위/옆 접근 시 통과 후 큰 박스에서 튕겨나감(=순간이동). (B) `ResolveOverlaps`가 `body:GetWorldGroundPosition()`(지면)으로 읽고 `transform.WorldPosition`에 직접 써서, 점프 중 시각 오프셋을 지면 좌표로 덮어써 수직 스냅 + Kinematicbody와 충돌.
+- **Target**: `Player/Scripts/PlayerController.mlua`(수정만 — 모델/데이터 무변경).
+- **Change**:
+  ① 신규 `GetColliderAABB(entity, outBox)` — TriggerComponent(없으면 PhysicsColliderComponent)의 `BoxSize`+`ColliderOffset`를 월드 AABB로 변환. 이동 충돌의 **단일 소스**. (`ResourceReaction`의 알파 가림이 Trigger를 쓰므로 Trigger 리사이즈는 금지 — 코드로 통일.)
+  ② `IsObstacle` 재작성 — 후보를 넓은 원(`OverlapQueryRadius`)으로 수집 후 `GetColliderAABB`+신규 `CirclePenetration`으로 "**현재보다 더 깊이 파고드는 이동만 차단**"(밀착/탈출/평행 허용). 하드코딩 이름 분기(`"GrownGrass"`/`"ItemDrop"`) 제거 → 데이터 주도 `IsBlockingOverlapEntity`로 대체.
+  ③ `ResolveOverlaps`도 `GetObstacleAABB`(제거) 대신 `GetColliderAABB` 사용, 쓰기를 `body:SetWorldPosition`로 대칭화(점프 시각 오프셋 보존, 바디와 비충돌).
+  ④ 공용 헬퍼(`GetColliderAABB`/`IsBlockingOverlapEntity`/`CirclePenetration`)의 `@ExecSpace("ClientOnly")` 제거 — 클라 `ResolveOverlaps`와 **서버** `ExecuteDashSkill`→`IsObstacle` 양쪽에서 호출되므로 호출자 측 실행.
+- **Acceptance**: ① Big Stone 등 자원/가구 8방향 통과 불가하되 충돌 범위 = 모델 Trigger 박스만큼 ② 점프하며 근처 이동 시 순간이동·수직 스냅·끼임 없음 ③ 이름 분기 0건 ④ 대시/워프 안전위치 검사 회귀 없음. 
+- **검증**: `mlua-diagnose` errors=0/warnings=0(남은 info는 기존 크로스스크립트 오탐), Maker refresh 빌드 **Error=0**(total 437). Play: 제작자 확인(구두 "잘 시행됐어"). 보고서 `reports/T41-resource-collider-collision-jump.md`.
+
 ### (신규 작업 추가 템플릿)
 ```
 

@@ -96,6 +96,16 @@ script Monster extends Component
 			_ActionSignals:EmitToPlayer(self.LastAttacker, _ActionEnum.Kill, mid, 1)
 		end
 
+		-- T22: 도감 몬스터 처치 수 기록 (막타 플레이어)
+		if isvalid(self.LastAttacker) and mid ~= "" then
+			local killerInv = self.LastAttacker:GetComponent("script.PlayerInventory")
+			if isvalid(killerInv) then
+				---@type PlayerInventory
+				local kinv = killerInv
+				kinv:RecordMonsterKill(mid)
+			end
+		end
+
 		local delayHide = function()
 			self.Entity:SetVisible(false)
 			self.Entity:SetEnable(false)

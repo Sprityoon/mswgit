@@ -11,7 +11,9 @@ script MonsterAI extends Component
 	property string AttackRUID = ""
 	property string DieRUID = ""
 	
-	-- Monster Attack Type ("CONTACT", "MELEE_WEAPON", "RANGED", "MAGIC")
+	-- Monster Attack Type ("CONTACT", "MELEE_WEAPON", "RANGED", "MAGIC", "CHARGE", "LEAP")
+	-- CHARGE: 정지 텔레그래프(AttackWindup) → 돌진 시작 시 유저 거리만큼 전속 직진 → 감속 정지.
+	-- LEAP: 예고 끝 유저 위치 고정 → 그 위치까지 점프(FLY) → 공중 체공(HANG) → 수직 내려찍기(SLAM).
 	property string AttackType = "CONTACT"
 
 
@@ -20,9 +22,54 @@ script MonsterAI extends Component
 	property number AttackRange = 1.0
 	-- T38: CHASE 접근 정지 거리 (파고들기 제거). AttackRange 이내에서 정지.
 	property number StopDistance = 0.8
-	property number LeashRange = 10.0
+	-- 추적 로직 개선: 스폰 기준 리쉬 거리를 넉넉히 잡아 추적이 너무 쉽게 끊기지 않도록 한다.
+	property number LeashRange = 15.0
+	-- 공격 준비(주황 틴트) 대기 시간. 몹별 모델 프로퍼티로 다르게 둘 수 있다.
 	property number AttackWindup = 0.5
 	property number AttackCooldown = 1.5
+	-- (legacy) CONTACT 윈드업 접근 배율. 준비 상태에서는 전 타입 정지하므로 현재 미사용.
+	property number AttackApproachSpeedMultiplier = 0.5
+	-- 리쉬 이탈/타겟 상실로 귀환할 때 이동 속도 배율. 1.0보다 크면 평시보다 빠르게 스폰으로 돌아간다.
+	property number ReturnSpeedMultiplier = 2.2
+
+	-- CHARGE 전용 튜닝(AttackType == "CHARGE"일 때만 사용).
+	-- 돌진 이동 속도 배율(평시 InputSpeed 대비). 정지 텔레그래프 이후 이 속도로 고정 방향 직진.
+	property number ChargeSpeedMultiplier = 3.0
+	-- (legacy) 예전 고정 오버슈트 배율. 현재는 돌진 시작 시 유저 거리를 쓰고, 이후는 감속으로 멈춘다.
+	property number ChargeOvershootMultiplier = 1.2
+	-- 전속 돌진 이후 감속 구간 지속시간(초). 이 시간 동안 속도가 0으로 줄어든다.
+	property number ChargeDecelDuration = 0.4
+	-- 돌진 단계 최대 지속시간 안전장치(벽 충돌 등으로 목표 거리에 못 미쳐도 이 시간이 지나면 강제 종료).
+	property number ChargeMaxDuration = 2.0
+
+	-- LEAP 전용 튜닝(AttackType == "LEAP"일 때만 사용). 크기는 고정, 위치 이동만 사용.
+	-- (legacy) 예전 스케일 연출용 — 더 이상 적용하지 않음.
+	property number LeapPeakScale = 1.0
+	property number LeapRiseFraction = 0.65
+	-- 예고 종료 후 스캔 방향 점프(FLY) 시간(초).
+	property number LeapRiseDuration = 0.5
+	-- FLY 도착 후 공중 체공(HANG) 시간(초).
+	property number LeapHangDuration = 0.55
+	-- 수직 내려찍기(SLAM) 연출 시간(초).
+	property number LeapSlamDuration = 0.18
+	-- 스캔 위치 대비 착지 지점 비율(0.8 = 시작~스캔의 80% 지점에서 내려찍기).
+	property number LeapLandingFraction = 0.8
+	-- (legacy)
+	property number LeapMidpointFraction = 1.0
+	property number LeapAnimHoldProgress = 0.7
+	-- 공중 체공 포즈로 고정할 공격 클립 프레임 인덱스(FLY/HANG).
+	property integer LeapAirFrameIndex = 2
+	-- 내려찍기 구간 애니 재생 배율.
+	property number LeapAnimFallPlayRate = 1.5
+	-- 스폰 직후 공격/접촉/소환 금지 유예(초). 보스 입장 직격 방지.
+	property number SpawnGraceDuration = 0
+
+	-- 미니언 소환(보스 패턴). Interval<=0 또는 ModelId 빈 값이면 비활성.
+	property number MinionSummonInterval = 0
+	property string MinionModelId = ""
+	property integer MinionSummonCount = 4
+	property number MinionSummonRadius = 2.5
+
 	property number KnockbackSpeed = 7.0
 	property number KnockbackDuration = 0.18
 	-- 피격 후 이 시간(초) 동안은 리쉬(귀환)를 보류하고 끝까지 추적/반격한다.
@@ -50,11 +97,28 @@ script MonsterAI extends Component
 	@HideFromInspector property Vector2 SpawnPos = Vector2(0, 0)
 	@HideFromInspector property number AttackCooldownTimer = 0
 	@HideFromInspector property boolean DeathPlayed = false
+	-- CHARGE 상태 진행 단계("PAUSE" 정지 | "DASH" 전속 직진 | "DECEL" 감속 정지)
+	@HideFromInspector property string ChargePhase = "PAUSE"
+	@HideFromInspector property Vector2 ChargeDir = Vector2(1, 0)
+	@HideFromInspector property number ChargeDistanceRemaining = 0
+	@HideFromInspector property Vector2 ChargeLastPos = Vector2(0, 0)
+	@HideFromInspector property number ChargeDecelTimer = 0
 	@HideFromInspector property number KnockTimer = 0
 	@HideFromInspector property Vector2 KnockVel = Vector2(0, 0)
 	@HideFromInspector property number AggroGraceTimer = 0
 	@HideFromInspector property number TouchCooldownTimer = 0
 	@HideFromInspector property boolean AttackStrikePending = false
+	-- LEAP 단계("WINDUP" | "FLY" 스캔 위치 점프 | "HANG" 공중 체공 | "SLAM" 수직 내려찍기)
+	@HideFromInspector property string LeapPhase = "WINDUP"
+	@HideFromInspector property Vector2 LeapStartPos = Vector2(0, 0)
+	@HideFromInspector property Vector2 LeapTargetPos = Vector2(0, 0)
+	@HideFromInspector property number LeapPhaseDuration = 0
+	@HideFromInspector property boolean LeapAnimHeld = false
+	@HideFromInspector property boolean LeapAnimResumed = false
+	@HideFromInspector property number MinionSummonTimer = 0
+	@HideFromInspector property number SpawnGraceTimer = 0
+	-- 플레이어를 처음 감지한 뒤에만 쿨/유예를 깎는다(맵 선스폰 보스 대응).
+	@HideFromInspector property boolean EngagementStarted = false
 
 	@ExecSpace("ServerOnly")
 	method void OnBeginPlay()
@@ -62,7 +126,36 @@ script MonsterAI extends Component
 		local p = self:Pos2D()
 		self.SpawnPos = p
 		self.TelegraphOn = false
+		self.EngagementStarted = false
+		self.AttackCooldownTimer = 0
+		self.SpawnGraceTimer = 0
+		-- 첫 소환 타이머는 교전 시작 시 다시 맞춘다(선스폰 중 소진 방지).
+		if self.MinionSummonInterval > 0 then
+			self.MinionSummonTimer = self.MinionSummonInterval
+		end
 		self:EnterState("STAND")
+	end
+
+	@ExecSpace("ServerOnly")
+	method void BeginEngagement()
+		-- 플레이어 첫 감지 시 1회: 공격 쿨 + 스폰 유예 + 미니언 타이머 리셋.
+		if self.EngagementStarted then return end
+		self.EngagementStarted = true
+		if self.AttackCooldown > 0 then
+			self.AttackCooldownTimer = self.AttackCooldown
+		end
+		if self.SpawnGraceDuration > 0 then
+			self.SpawnGraceTimer = self.SpawnGraceDuration
+		elseif self.AttackType == "LEAP" then
+			-- LEAP 보스는 모델 유예가 비어도 최소 AttackCooldown(하한 5초)
+			local g = self.AttackCooldown
+			if g < 5 then g = 5 end
+			self.SpawnGraceTimer = g
+		end
+		if self.MinionSummonInterval > 0 then
+			self.MinionSummonTimer = self.MinionSummonInterval
+		end
+		log("[MONSTER] " .. self.Entity.Name .. " engagement start CD=" .. tostring(self.AttackCooldownTimer) .. " grace=" .. tostring(self.SpawnGraceTimer))
 	end
 
 	@ExecSpace("ClientOnly")
@@ -87,6 +180,7 @@ script MonsterAI extends Component
 				self.DeathPlayed = true
 				self.TelegraphOn = false
 				self.AttackStrikePending = false
+				self:SetSpritePlayRate(1)
 				self:SetSprite(self.DieRUID)
 				self:StopMovement()
 			end
@@ -97,14 +191,28 @@ script MonsterAI extends Component
 		-- Knockback window: drift away from the attacker, overriding AI movement.
 		if self.KnockTimer > 0 then
 			self.KnockTimer = self.KnockTimer - delta
+			-- 내려찍기 중 피격 시 연출 강제 종료
+			if self.CurrentAIState == "LEAP" then
+				self.CurrentAIState = "CHASE"
+				self.TelegraphOn = false
+				self.LeapAnimHeld = false
+				self.LeapAnimResumed = false
+				self:SetSpritePlayRate(1)
+			end
 			local kb = self.Entity.KinematicbodyComponent
 			if isvalid(kb) then kb.MoveVelocity = self.KnockVel end
 			self.KnockVel = Vector2(self.KnockVel.x * 0.85, self.KnockVel.y * 0.85)
 			return
 		end
 
-		if self.AttackCooldownTimer > 0 then
-			self.AttackCooldownTimer = self.AttackCooldownTimer - delta
+		-- 쿨/유예는 교전 시작 후에만 감소(맵 생성 시 선스폰된 보스가 쿨을 미리 소진하지 않음).
+		if self.EngagementStarted then
+			if self.AttackCooldownTimer > 0 then
+				self.AttackCooldownTimer = self.AttackCooldownTimer - delta
+			end
+			if self.SpawnGraceTimer > 0 then
+				self.SpawnGraceTimer = self.SpawnGraceTimer - delta
+			end
 		end
 
 		-- 피격 시 갱신되는 어그로 유예 타이머 감소. 이 값이 남아 있으면 리쉬(귀환)를 보류한다.
@@ -112,23 +220,21 @@ script MonsterAI extends Component
 			self.AggroGraceTimer = self.AggroGraceTimer - delta
 		end
 
-		-- T38: 접촉 데미지 틱 (사망/넉백 제외 — 위 early return 이후)
-		self:TickTouchDamage(delta)
+		-- T38: 접촉 데미지 틱 (교전 유예 중·미교전 시 입구 직격 방지)
+		if self.EngagementStarted and self.SpawnGraceTimer <= 0 then
+			self:TickTouchDamage(delta)
+		end
+
+		-- 미니언 소환 타이머(교전 시작 후에만 깎임 — 선스폰 중 30초 소진 방지)
+		if self.EngagementStarted then
+			self:TickMinionSummon(delta)
+		end
 
 		-- ATTACK is a short non-interruptible window (windup → strike on timer).
+		-- 준비 상태(주황 틴트)에서는 전 타입 일시 정지. 대기시간은 AttackWindup(몹별 상이).
 		if self.CurrentAIState == "ATTACK" then
 			self.StateTimer = self.StateTimer - delta
-			
-			-- CONTACT: 윈드업 중 추적 이동 50% 감쇠
-			if self.AttackType == "CONTACT" then
-				local target = self:FindNearestPlayer()
-				if isvalid(target) then
-					local tp = self:EntityPos2D(target)
-					self:MoveTowardHalf(tp, delta)
-				end
-			else
-				self:StopMovement()
-			end
+			self:StopMovement()
 
 			-- T38: 타격은 윈드업 만료 시점
 			if self.StateTimer <= 0 then
@@ -149,6 +255,16 @@ script MonsterAI extends Component
 				end
 				self:EnterState("STAND")
 			end
+			return
+		end
+
+		-- CHARGE / LEAP: 비중단 윈도우. 한번 시작하면 감지범위 밖이어도 끝까지 진행.
+		if self.CurrentAIState == "CHARGE" then
+			self:UpdateCharge(delta)
+			return
+		end
+		if self.CurrentAIState == "LEAP" then
+			self:UpdateLeap(delta)
 			return
 		end
 
@@ -177,7 +293,7 @@ script MonsterAI extends Component
 				self:EnterState("CHASE")
 				-- 아래 추적 로직으로 계속 진행 (return 하지 않음)
 			else
-				self:MoveToward(self.SpawnPos, delta)
+				self:MoveTowardScaled(self.SpawnPos, delta, self.ReturnSpeedMultiplier)
 				if distSpawnSq <= 0.25 then
 					self:EnterState("STAND")
 				end
@@ -189,21 +305,32 @@ script MonsterAI extends Component
 		-- (피격 직후에는 리쉬를 보류해 끝까지 추적/반격한다.)
 		if beyondLeash and not aggroActive then
 			self:EnterState("RETURN")
-			self:MoveToward(self.SpawnPos, delta)
+			self:MoveTowardScaled(self.SpawnPos, delta, self.ReturnSpeedMultiplier)
 			return
 		end
 
 		-- Player-driven behaviour — AttackRange 단일 기준 (T38, 리터럴 0.81 제거)
 		if hasTarget and (playerDetected or aggroActive) then
+			-- 첫 감지 시 쿨/유예 시작(선스폰 보스가 입장 전에 쿨을 소진하지 않도록)
+			self:BeginEngagement()
 			if dSq <= atkRangeSq then
 				self:Face(tp.x - myPos.x)
-				if self.AttackCooldownTimer <= 0 then
-					self:EnterState("ATTACK")
-				elseif dSq <= stopSq then
-					self:StopMovement()
+				if self.AttackCooldownTimer <= 0 and self.SpawnGraceTimer <= 0 then
+					if self.AttackType == "CHARGE" then
+						self:EnterState("CHARGE")
+					elseif self.AttackType == "LEAP" then
+						self:EnterState("LEAP")
+					else
+						self:EnterState("ATTACK")
+					end
 				else
-					-- AttackRange 안·StopDistance 밖: 천천히 접근하지 않고 정지 우선
-					self:StopMovement()
+					-- 쿨 중: 굳지 않고 계속 추적(StopDistance 이내만 정지) — 보스 LEAP 여유 패턴
+					if self.CurrentAIState ~= "CHASE" then self:EnterState("CHASE") end
+					if dSq <= stopSq then
+						self:StopMovement()
+					else
+						self:MoveToward(tp, delta)
+					end
 				end
 				return
 			else
@@ -215,6 +342,14 @@ script MonsterAI extends Component
 				end
 				return
 			end
+		end
+
+		-- 추적 중 타겟을 놓친 경우(감지범위 밖으로 벗어남 + 어그로 유예 소멸): 제자리에서 배회로 굳어버리지
+		-- 않도록 곧바로 귀환을 시작한다 (T-chase-return: 빠른 원위치 복귀).
+		if self.CurrentAIState == "CHASE" then
+			self:EnterState("RETURN")
+			self:MoveTowardScaled(self.SpawnPos, delta, self.ReturnSpeedMultiplier)
+			return
 		end
 
 		-- Idle: alternate WANDER and STAND on a timer.
@@ -308,15 +443,358 @@ script MonsterAI extends Component
 			self.TelegraphOn = false
 			self:SetSprite(self.MoveRUID)
 		elseif newState == "ATTACK" then
-			-- T38: 진입 시 즉시 타격 금지 → 윈드업 텔레그래프 후 만료 시 타격
+			-- 진입 시 즉시 타격 금지 → 정지 윈드업 텔레그래프 후 만료 시 타격
 			self.StateTimer = self.AttackWindup
 			self.AttackCooldownTimer = self.AttackCooldown
 			self.AttackStrikePending = true
 			self.TelegraphOn = true
 			self:SetSprite(self.AttackRUID)
-			if self.AttackType ~= "CONTACT" then
-				self:StopMovement()
+			self:StopMovement()
+		elseif newState == "CHARGE" then
+			-- 정지 텔레그래프(PAUSE) → 유저 거리만큼 DASH → DECEL 감속 정지
+			-- 쿨타임은 돌진 "종료" 시 EndCharge에서 건다(시작 시 걸면 돌진 중 소진되어 연속 돌진됨).
+			self.ChargePhase = "PAUSE"
+			self.ChargeDecelTimer = 0
+			self.StateTimer = self.AttackWindup
+			self.TelegraphOn = true
+			self:SetSprite(self.AttackRUID)
+			self:StopMovement()
+		elseif newState == "LEAP" then
+			-- 지면 예고 → 스캔 위치 FLY → 공중 HANG → 수직 SLAM. 쿨은 EndLeap.
+			self.LeapPhase = "WINDUP"
+			self.LeapPhaseDuration = self.AttackWindup
+			self.StateTimer = self.AttackWindup
+			self.LeapStartPos = self:Pos2D()
+			self.LeapTargetPos = self.LeapStartPos
+			self.LeapAnimHeld = false
+			self.LeapAnimResumed = false
+			self.TelegraphOn = true
+			self:SetSprite(self.AttackRUID)
+			self:SetSpritePlayRate(1)
+			self:StopMovement()
+		end
+	end
+
+	@ExecSpace("ServerOnly")
+	method void EndCharge()
+		-- 돌진 종료: 완전 정지 + 회복 쿨 시작(다음 CHARGE까지 AttackCooldown 대기).
+		self:StopMovement()
+		self.AttackCooldownTimer = self.AttackCooldown
+		self:EnterState("STAND")
+	end
+
+	@ExecSpace("ServerOnly")
+	method void UpdateCharge(number delta)
+		-- CHARGE: PAUSE(정지 텔레그래프) → DASH(시작 시 유저 거리·고정 방향 전속) → DECEL(감속 정지).
+		-- DASH/DECEL 방향은 시작 시점에 고정되어 재조준하지 않으므로 옆으로 피할 수 있다.
+		if self.ChargePhase == "PAUSE" then
+			self.StateTimer = self.StateTimer - delta
+			self:StopMovement()
+			if self.StateTimer <= 0 then
+				local target = self:FindNearestPlayer()
+				local myPos = self:Pos2D()
+				local dir = self.MoveDir
+				local distToTarget = self.AttackRange
+				if isvalid(target) then
+					local tp = self:EntityPos2D(target)
+					local dx = tp.x - myPos.x
+					local dy = tp.y - myPos.y
+					local len = math.sqrt(dx * dx + dy * dy)
+					if len > 0.0001 then
+						dir = Vector2(dx / len, dy / len)
+						distToTarget = len
+					end
+				end
+				-- 최소 한 걸음은 나가도록 하되, 고정 overshoot 배율은 쓰지 않는다.
+				if distToTarget < 0.35 then distToTarget = 0.35 end
+				self.ChargeDir = dir
+				self.ChargeDistanceRemaining = distToTarget
+				self.ChargeLastPos = myPos
+				self.ChargePhase = "DASH"
+				self.StateTimer = self.ChargeMaxDuration
+				self.TelegraphOn = false
 			end
+			return
+		end
+
+		self.StateTimer = self.StateTimer - delta
+		local cur = self:Pos2D()
+		-- MoveToDirection은 같은 프레임에 Transform에 즉시 반영되지 않으므로,
+		-- 직전 프레임 이동 결과를 이번 프레임 시작 시점에 측정해 소진 거리에 반영한다.
+		local movedSinceLast = math.sqrt(self:DistSq(self.ChargeLastPos, cur))
+		self.ChargeLastPos = cur
+
+		if self.ChargePhase == "DASH" then
+			self.ChargeDistanceRemaining = self.ChargeDistanceRemaining - movedSinceLast
+			if self.StateTimer <= 0 then
+				self:EndCharge()
+				return
+			end
+			if self.ChargeDistanceRemaining <= 0 then
+				self.ChargePhase = "DECEL"
+				self.ChargeDecelTimer = 0
+			else
+				self:MoveTowardScaled(Vector2(cur.x + self.ChargeDir.x, cur.y + self.ChargeDir.y), delta, self.ChargeSpeedMultiplier)
+				return
+			end
+		end
+
+		-- DECEL: 전속 이후 남은 관성만 감속하며 멈춘다 (고정 추가 거리 없음).
+		if self.ChargePhase == "DECEL" then
+			self.ChargeDecelTimer = self.ChargeDecelTimer + delta
+			local decelDur = self.ChargeDecelDuration
+			if decelDur < 0.05 then decelDur = 0.05 end
+			if self.ChargeDecelTimer >= decelDur or self.StateTimer <= 0 then
+				self:EndCharge()
+				return
+			end
+			local t = self.ChargeDecelTimer / decelDur
+			if t < 0 then t = 0 end
+			if t > 1 then t = 1 end
+			-- 초반엔 빠르고 끝으로 갈수록 더 크게 줄어드는 ease-out 감속
+			local ease = 1.0 - t
+			ease = ease * ease
+			local speedMul = self.ChargeSpeedMultiplier * ease
+			if speedMul < 0.05 then
+				self:EndCharge()
+				return
+			end
+			self:MoveTowardScaled(Vector2(cur.x + self.ChargeDir.x, cur.y + self.ChargeDir.y), delta, speedMul)
+		end
+	end
+
+	@ExecSpace("ServerOnly")
+	method void EndLeap()
+		-- 착지 타격: 고정 좌표에 스냅 + 광역 타격 + 쿨 시작. 재조준 없음.
+		self:SetBodyPosition(self.LeapTargetPos.x, self.LeapTargetPos.y)
+		self.TelegraphOn = false
+		self.LeapAnimHeld = false
+		self.LeapAnimResumed = false
+		-- 프레임 범위 복구 후 기본 재생
+		local sprite = self.Entity.SpriteRendererComponent
+		if isvalid(sprite) then
+			sprite.StartFrameIndex = 0
+			sprite.EndFrameIndex = 2147483647
+			sprite.PlayRate = 1
+		end
+		self:StopMovement()
+		local atk = self:GetAttack()
+		if isvalid(atk) then
+			atk:DoAttack()
+		end
+		self.AttackCooldownTimer = self.AttackCooldown
+		self:EnterState("STAND")
+	end
+
+	@ExecSpace("ServerOnly")
+	method number LeapPhaseProgress()
+		-- StateTimer 카운트다운 → 0~1 진행도.
+		local total = self.LeapPhaseDuration
+		if total <= 0.0001 then return 1.0 end
+		local t = 1.0 - (self.StateTimer / total)
+		if t < 0 then t = 0 end
+		if t > 1 then t = 1 end
+		return t
+	end
+
+	@ExecSpace("ServerOnly")
+	method number LeapFlyPathProgress(number t)
+		-- FLY: 시작→착지점(스캔*LandingFraction)까지 이동. ease-out 감속 도착.
+		if t < 0 then t = 0 end
+		if t > 1 then t = 1 end
+		return 1.0 - (1.0 - t) * (1.0 - t)
+	end
+
+	@ExecSpace("ServerOnly")
+	method void SetSpriteAirHold()
+		-- FLY/HANG: 공격 클립의 공중 프레임으로 고정(PlayRate=0).
+		local sprite = self.Entity.SpriteRendererComponent
+		if not isvalid(sprite) then return end
+		if self.AttackRUID ~= nil and self.AttackRUID ~= "" then
+			sprite.SpriteRUID = self.AttackRUID
+		end
+		local f = self.LeapAirFrameIndex
+		if f < 0 then f = 0 end
+		sprite.StartFrameIndex = f
+		sprite.EndFrameIndex = f
+		sprite.PlayRate = 0
+		self.LeapAnimHeld = true
+	end
+
+	@ExecSpace("ServerOnly")
+	method void SetSpriteFallResume()
+		-- SLAM: 공중 프레임부터 나머지를 빠르게 재생.
+		local sprite = self.Entity.SpriteRendererComponent
+		if not isvalid(sprite) then return end
+		local f = self.LeapAirFrameIndex
+		if f < 0 then f = 0 end
+		sprite.StartFrameIndex = f
+		sprite.EndFrameIndex = 2147483647
+		local fallRate = self.LeapAnimFallPlayRate
+		if fallRate < 0.1 then fallRate = 1.0 end
+		sprite.PlayRate = fallRate
+		self.LeapAnimResumed = true
+	end
+
+	@ExecSpace("ServerOnly")
+	method void UpdateLeap(number delta)
+		-- LEAP (회피 가능, 궤적 고정):
+		-- WINDUP 끝 1회 스캔 → FLY: 스캔 방향 0.8 지점까지 공중 포즈로 이동
+		-- → HANG: 공중 체공 → SLAM: 그 자리에서 수직 내려찍기.
+		if self.LeapPhase == "WINDUP" then
+			self.StateTimer = self.StateTimer - delta
+			self:StopMovement()
+			if self.StateTimer <= 0 then
+				local start = self:Pos2D()
+				local scan = start
+				local target = self:FindNearestPlayer()
+				if isvalid(target) then
+					scan = self:EntityPos2D(target)
+					self:Face(scan.x - start.x)
+				end
+				local frac = self.LeapLandingFraction
+				if frac < 0.1 then frac = 0.1 end
+				if frac > 1.0 then frac = 1.0 end
+				-- 스캔 위치의 frac 지점까지만 이동 후 내려찍기
+				self.LeapStartPos = start
+				self.LeapTargetPos = Vector2(
+					start.x + (scan.x - start.x) * frac,
+					start.y + (scan.y - start.y) * frac
+				)
+				self.LeapAnimHeld = false
+				self.LeapAnimResumed = false
+				-- FLY 전 구간 공중 체공 포즈
+				self:SetSpriteAirHold()
+				self.LeapPhase = "FLY"
+				local flyDur = self.LeapRiseDuration
+				if flyDur < 0.05 then flyDur = 0.05 end
+				self.LeapPhaseDuration = flyDur
+				self.StateTimer = flyDur
+				self.TelegraphOn = false
+			end
+			return
+		end
+
+		if self.LeapPhase == "FLY" then
+			self.StateTimer = self.StateTimer - delta
+			-- 이동 중에도 공중 홀드 유지
+			self:SetSpriteAirHold()
+			local t = self:LeapPhaseProgress()
+			local path = self:LeapFlyPathProgress(t)
+			local x = self.LeapStartPos.x + (self.LeapTargetPos.x - self.LeapStartPos.x) * path
+			local y = self.LeapStartPos.y + (self.LeapTargetPos.y - self.LeapStartPos.y) * path
+			self:SetBodyPosition(x, y)
+			if self.StateTimer <= 0 then
+				self:SetBodyPosition(self.LeapTargetPos.x, self.LeapTargetPos.y)
+				self:SetSpriteAirHold()
+				self.LeapPhase = "HANG"
+				local hangDur = self.LeapHangDuration
+				if hangDur < 0.05 then hangDur = 0.05 end
+				self.LeapPhaseDuration = hangDur
+				self.StateTimer = hangDur
+			end
+			return
+		end
+
+		-- HANG: 착지 예정점 위 공중 체공. 애니 홀드.
+		if self.LeapPhase == "HANG" then
+			self.StateTimer = self.StateTimer - delta
+			self:SetBodyPosition(self.LeapTargetPos.x, self.LeapTargetPos.y)
+			self:StopMovement()
+			self:SetSpriteAirHold()
+			if self.StateTimer <= 0 then
+				self.LeapPhase = "SLAM"
+				self:SetSpriteFallResume()
+				local slamDur = self.LeapSlamDuration
+				if slamDur < 0.05 then slamDur = 0.05 end
+				self.LeapPhaseDuration = slamDur
+				self.StateTimer = slamDur
+			end
+			return
+		end
+
+		-- SLAM: 같은 XY에서 수직 내려찍기 + 광역 타격.
+		if self.LeapPhase == "SLAM" then
+			self.StateTimer = self.StateTimer - delta
+			self:SetBodyPosition(self.LeapTargetPos.x, self.LeapTargetPos.y)
+			self:StopMovement()
+			if self.StateTimer <= 0 then
+				self:EndLeap()
+			end
+		end
+	end
+
+	@ExecSpace("ServerOnly")
+	method void TickMinionSummon(number delta)
+		-- 교전 중 주기적으로 일반 몹을 원형으로 소환. LEAP/CHARGE/ATTACK/스폰유예 중엔 발동만 미룸.
+		if self.MinionSummonInterval <= 0 then return end
+		if self.MinionModelId == nil or self.MinionModelId == "" then return end
+		if self.MinionSummonTimer > 0 then
+			self.MinionSummonTimer = self.MinionSummonTimer - delta
+		end
+		if self.MinionSummonTimer > 0 then return end
+		if self.SpawnGraceTimer > 0 then return end
+		if self.CurrentAIState == "LEAP" or self.CurrentAIState == "CHARGE" or self.CurrentAIState == "ATTACK" then
+			return
+		end
+		-- 주변에 플레이어가 있을 때만(감지/어그로)
+		local target = self:FindNearestPlayer()
+		if not isvalid(target) then return end
+		local myPos = self:Pos2D()
+		local tp = self:EntityPos2D(target)
+		local dSq = self:DistSq(myPos, tp)
+		local inFight = dSq <= self.DetectRange * self.DetectRange or self.AggroGraceTimer > 0
+		if not inFight then return end
+		self:SummonMinions()
+		self.MinionSummonTimer = self.MinionSummonInterval
+	end
+
+	@ExecSpace("ServerOnly")
+	method void SummonMinions()
+		-- MinionModelId 모델을 사방에 뿌리듯 스폰. 리스폰 비활성(보스 전용 소환물).
+		local map = self.Entity.CurrentMap
+		if not isvalid(map) then return end
+		local count = self.MinionSummonCount
+		if count < 1 then return end
+		local modelId = _EntryService:GetModelIdByName(self.MinionModelId)
+		if modelId == nil or modelId == "" then
+			modelId = self.MinionModelId
+		end
+		local center = self:Pos2D()
+		local radius = self.MinionSummonRadius
+		if radius < 0.5 then radius = 0.5 end
+		local spawned = 0
+		for i = 1, count do
+			local ang = ((i - 1) / count) * 6.2831853 + _UtilLogic:RandomDouble() * 0.35
+			local r = radius * (0.65 + _UtilLogic:RandomDouble() * 0.45)
+			local x = center.x + math.cos(ang) * r
+			local y = center.y + math.sin(ang) * r
+			local name = "Minion_" .. self.MinionModelId .. "_" .. tostring(i) .. "_" .. tostring(math.floor(_UtilLogic.ElapsedSeconds * 1000) % 100000)
+			local ent = _SpawnService:SpawnByModelId(modelId, name, Vector3(x, y, 0), map)
+			if isvalid(ent) then
+				---@type Monster
+				local m = ent:GetComponent("script.Monster")
+				if isvalid(m) then
+					m.MonsterId = self.MinionModelId
+					m.RespawnOn = false
+					m.Hp = m.MaxHp
+				end
+				spawned = spawned + 1
+			end
+		end
+		log("[MONSTER] " .. self.Entity.Name .. " summoned " .. tostring(spawned) .. "x " .. self.MinionModelId)
+	end
+
+	@ExecSpace("ServerOnly")
+	method void SetBodyPosition(number x, number y)
+		-- 내려찍기 궤적용 월드 좌표 스냅(스크립트 연출 구간). 연속 추적용 아님.
+		local kb = self.Entity.KinematicbodyComponent
+		if isvalid(kb) then
+			kb:SetWorldPosition(Vector2(x, y))
+		end
+		local mc = self.Entity.MovementComponent
+		if isvalid(mc) then
+			mc:Stop()
 		end
 	end
 
@@ -332,6 +810,8 @@ script MonsterAI extends Component
 		self.KnockTimer = self.KnockbackDuration
 		-- 피격 시 어그로 유예 갱신: 귀환/복귀 중이어도 넉백이 끝나면 곧바로 추적/반격하도록 한다.
 		self.AggroGraceTimer = self.AggroGraceDuration
+		-- 원거리 선공으로 교전이 열린 경우에도 쿨/유예 시작
+		self:BeginEngagement()
 	end
 
 	@ExecSpace("ServerOnly")
@@ -346,15 +826,15 @@ script MonsterAI extends Component
 	end
 
 	@ExecSpace("ServerOnly")
-	method void MoveTowardHalf(Vector2 targetPos, number delta)
-		-- CONTACT 윈드업 중 50% 속도 추적.
+	method void MoveTowardScaled(Vector2 targetPos, number delta, number speedMultiplier)
+		-- InputSpeed를 speedMultiplier배로 일시 조정해 이동(돌진 접근/빠른 귀환에 공용 사용).
 		local mc = self.Entity.MovementComponent
 		if not isvalid(mc) then
 			self:MoveToward(targetPos, delta)
 			return
 		end
 		local old = mc.InputSpeed
-		mc.InputSpeed = old * 0.5
+		mc.InputSpeed = old * speedMultiplier
 		self:MoveToward(targetPos, delta)
 		mc.InputSpeed = old
 	end
@@ -387,7 +867,20 @@ script MonsterAI extends Component
 		-- Swaps the rendered clip; ignores empty RUIDs so the model default stays.
 		if ruid == nil or ruid == "" then return end
 		local sprite = self.Entity.SpriteRendererComponent
-		if isvalid(sprite) then sprite.SpriteRUID = ruid end
+		if not isvalid(sprite) then return end
+		sprite.SpriteRUID = ruid
+		sprite.PlayRate = 1
+		sprite.StartFrameIndex = 0
+		sprite.EndFrameIndex = 2147483647
+	end
+
+	@ExecSpace("ServerOnly")
+	method void SetSpritePlayRate(number rate)
+		-- 점프 중 애니 홀드(0) / 재개(>0). SpriteRenderer PlayRate 동기 프로퍼티.
+		local sprite = self.Entity.SpriteRendererComponent
+		if not isvalid(sprite) then return end
+		if rate < 0 then rate = 0 end
+		sprite.PlayRate = rate
 	end
 
 	@ExecSpace("ServerOnly")

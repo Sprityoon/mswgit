@@ -1,4 +1,16 @@
 {
+  "permissions": {
+    "allow": [
+      "mcp__msw-maker-mcp__maker_execute_script",
+      "mcp__msw-maker-mcp__maker_logs",
+      "mcp__msw-maker-mcp__maker_stop",
+      "mcp__msw-maker-mcp__maker_refresh_workspace",
+      "Bash(node -e ' *)",
+      "Bash(node \"C:/Users/mh566/AppData/Local/Temp/claude/d-------/09cd0e1f-f0bb-47a3-a3f3-6ecd147da4e3/scratchpad/dex_snapshot.cjs\")",
+      "Bash(node \"C:/Users/mh566/AppData/Local/Temp/claude/d-------/09cd0e1f-f0bb-47a3-a3f3-6ecd147da4e3/scratchpad/dex_query.cjs\")",
+      "Bash(node \"C:/Users/mh566/AppData/Local/Temp/claude/d-------/09cd0e1f-f0bb-47a3-a3f3-6ecd147da4e3/scratchpad/dex_query2.cjs\")"
+    ]
+  },
   "hooks": {
     "PreToolUse": [
       {
@@ -49,8 +61,8 @@
           {
             "type": "command",
             "command": "node \"${CLAUDE_PROJECT_DIR}/.claude/hooks/skill-log/skill-log.cjs\"",
-            "async": true,
-            "timeout": 5
+            "timeout": 5,
+            "async": true
           }
         ]
       },
@@ -60,8 +72,8 @@
           {
             "type": "command",
             "command": "node \"${CLAUDE_PROJECT_DIR}/.claude/hooks/mcp-log/mcp-log.cjs\"",
-            "async": true,
-            "timeout": 5
+            "timeout": 5,
+            "async": true
           }
         ]
       }
@@ -112,8 +124,8 @@
           {
             "type": "command",
             "command": "node \"${CLAUDE_PROJECT_DIR}/.claude/hooks/skill-log/skill-log.cjs\"",
-            "async": true,
-            "timeout": 5
+            "timeout": 5,
+            "async": true
           }
         ]
       }

@@ -183,6 +183,24 @@
             "type": "System.String, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089"
           },
           "Value": "slime"
+        },
+        {
+          "TargetType": "script.MonsterAI",
+          "Name": "AttackWindup",
+          "ValueType": {
+            "$type": "MODNativeType",
+            "type": "System.Double, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089"
+          },
+          "Value": 0.15
+        },
+        {
+          "TargetType": "script.MonsterAI",
+          "Name": "AttackCooldown",
+          "ValueType": {
+            "$type": "MODNativeType",
+            "type": "System.Double, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089"
+          },
+          "Value": 0.7
         }
       ],
       "EventLinks": [],
