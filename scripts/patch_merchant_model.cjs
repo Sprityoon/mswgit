@@ -1,5 +1,5 @@
 const path = require("path");
-const { ModelBuilder, vector2 } = require("../plugins/msw-maker-base-skill/skills/msw-general/scripts/model/msw_model_builder.cjs");
+const { ModelBuilder, vector2 } = require("../.claude/skills/msw-general/scripts/model/msw_model_builder.cjs");
 
 const modelPath = path.join(__dirname, "..", "RootDesk", "MyDesk", "NPC", "Models", "Merchant.model");
 

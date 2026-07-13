@@ -1,0 +1,386 @@
+@Component
+script UICollectionController extends Component
+	-- T22 도감: 아이템/몬스터/업적 3탭. 데이터는 전부 파생 —
+	-- 아이템=item_dataset, 몬스터=MonsterCoinDropDataSet(DisplayName/IconRUID 보강),
+	-- 업적=AchievementDataSet(기존 패키지) + 로컬 PlayerAchievement 상태.
+	-- 발견 판정/누적 수는 PlayerInventory.DexStatsJson에서 읽는다. 도감 전용 목록 CSV 없음.
+
+	property Entity collectionPopup = "111f1534-761f-4cb6-ab50-e54c7bc30b51"
+	property ButtonComponent btnClose = "5bc79b9e-08ab-4fd3-8435-686935da3e83"
+	property Entity listContainer = "01673cbf-6e00-4271-9607-57425ab871e3"
+	property Entity rowTemplate = "35363500-c506-4c7d-a945-462a1c32db7d"
+	property ButtonComponent tabItem = "ea9c427b-14dd-4839-b574-17ea9697bff4"
+	property ButtonComponent tabMonster = "440b6b81-f110-49b6-a546-3acc65784d9c"
+	property ButtonComponent tabAchv = "78a1ce77-7b10-4705-921a-547fd2aa7eb1"
+
+	property string currentTab = "item"
+	property table rows = {}
+	property table rowHandlers = {}
+
+	property any closeHandler = nil
+	property any tabItemHandler = nil
+	property any tabMonsterHandler = nil
+	property any tabAchvHandler = nil
+
+	property number CurrentScale = 1.0
+	property number TargetScale = 1.0
+	property any ScaleTimer = nil
+	property number LastToggleTime = 0
+
+	@ExecSpace("ClientOnly")
+	method void OnBeginPlay()
+		-- UI 자식 참조는 경로(GetChildByName)로 해석 — UUID 바인딩 무효 문제 회피.
+		self:ResolveRefs()
+		self.Entity.Enable = false
+		if isvalid(self._T.rowTemplate) then self._T.rowTemplate.Enable = false end
+
+		if isvalid(self._T.closeE) then
+			self.closeHandler = self._T.closeE:ConnectEvent(ButtonClickEvent, function() self:Close() end)
+		end
+		if isvalid(self._T.tabItemE) then
+			self.tabItemHandler = self._T.tabItemE:ConnectEvent(ButtonClickEvent, function() self:SelectTab("item") end)
+		end
+		if isvalid(self._T.tabMonsterE) then
+			self.tabMonsterHandler = self._T.tabMonsterE:ConnectEvent(ButtonClickEvent, function() self:SelectTab("monster") end)
+		end
+		if isvalid(self._T.tabAchvE) then
+			self.tabAchvHandler = self._T.tabAchvE:ConnectEvent(ButtonClickEvent, function() self:SelectTab("achv") end)
+		end
+		log("[DEX] UICollectionController ready close=" .. tostring(isvalid(self._T.closeE))
+			.. " template=" .. tostring(isvalid(self._T.rowTemplate))
+			.. " list=" .. tostring(isvalid(self._T.listScroll)))
+	end
+
+	@ExecSpace("ClientOnly")
+	method void ResolveRefs()
+		-- 팝업 자식 경로 재해석 (Open 시에도 호출해 안전).
+		self._T.rowTemplate = self.Entity:GetChildByName("RowTemplate", true)
+		self._T.listScroll = self.Entity:GetChildByName("ListScroll", true)
+		self._T.closeE = self.Entity:GetChildByName("BtnClose", true)
+		self._T.tabItemE = self.Entity:GetChildByName("TabItem", true)
+		self._T.tabMonsterE = self.Entity:GetChildByName("TabMonster", true)
+		self._T.tabAchvE = self.Entity:GetChildByName("TabAchv", true)
+	end
+
+	@ExecSpace("ClientOnly")
+	method void OnEndPlay()
+		if isvalid(self._T.closeE) and self.closeHandler then self._T.closeE:DisconnectEvent(ButtonClickEvent, self.closeHandler) end
+		if isvalid(self._T.tabItemE) and self.tabItemHandler then self._T.tabItemE:DisconnectEvent(ButtonClickEvent, self.tabItemHandler) end
+		if isvalid(self._T.tabMonsterE) and self.tabMonsterHandler then self._T.tabMonsterE:DisconnectEvent(ButtonClickEvent, self.tabMonsterHandler) end
+		if isvalid(self._T.tabAchvE) and self.tabAchvHandler then self._T.tabAchvE:DisconnectEvent(ButtonClickEvent, self.tabAchvHandler) end
+		self:ClearRows()
+	end
+
+	@ExecSpace("ClientOnly")
+	method void Toggle()
+		local now = _UtilLogic.ElapsedSeconds
+		if now - self.LastToggleTime < 0.15 then return end
+		self.LastToggleTime = now
+		if self.TargetScale > 0.9 and self.Entity.Enable then
+			self:Close()
+		else
+			self:Open()
+		end
+	end
+
+	@ExecSpace("ClientOnly")
+	method void Open()
+		self:ResolveRefs()
+		self.Entity.Enable = true
+		local transform = self.Entity.UITransformComponent
+		if isvalid(transform) then
+			self.CurrentScale = 0.8
+			transform.Scale = Vector3(0.8, 0.8, 1.0)
+			transform.anchoredPosition = Vector2(0, 0)
+		end
+		self:ApplyScaleTween(1.0)
+		self:RefreshTabHighlight()
+		self:RebuildList()
+		self:ResetListScroll()
+		log("[DEX] Open tab=" .. tostring(self.currentTab) .. " rows=" .. tostring(#self.rows))
+	end
+
+	@ExecSpace("ClientOnly")
+	method void ResetListScroll()
+		-- 스크롤을 목록 맨 위(정규화 1.0 = top, 제작창 패턴과 동일 계열)로.
+		local scrollEnt = self._T.listScroll
+		if not isvalid(scrollEnt) then return end
+		local sl = scrollEnt.ScrollLayoutGroupComponent
+		if not isvalid(sl) then return end
+		local ok = pcall(function()
+			sl:SetScrollNormalizedPosition(UITransformAxis.Vertical, 1.0)
+		end)
+		if not ok then
+			pcall(function()
+				sl:SetScrollNormalizedPosition(UITransformAxis.Vertical, 0.0)
+			end)
+		end
+	end
+
+	@ExecSpace("ClientOnly")
+	method void Close()
+		self:ApplyScaleTween(0.8)
+		log("[DEX] Close")
+	end
+
+	@ExecSpace("ClientOnly")
+	method void ApplyScaleTween(number targetScale)
+		self.TargetScale = targetScale
+		if self.ScaleTimer then
+			_TimerService:ClearTimer(self.ScaleTimer)
+			self.ScaleTimer = nil
+		end
+		local transform = self.Entity.UITransformComponent
+		if not isvalid(transform) then return end
+		self.ScaleTimer = _TimerService:SetTimerRepeat(function()
+			if not isvalid(transform) then
+				if self.ScaleTimer then _TimerService:ClearTimer(self.ScaleTimer) self.ScaleTimer = nil end
+				return
+			end
+			local diff = self.TargetScale - self.CurrentScale
+			if math.abs(diff) < 0.01 then
+				self.CurrentScale = self.TargetScale
+				transform.Scale = Vector3(self.CurrentScale, self.CurrentScale, 1.0)
+				_TimerService:ClearTimer(self.ScaleTimer)
+				self.ScaleTimer = nil
+				if self.TargetScale < 0.9 then
+					self.Entity.Enable = false
+				end
+			else
+				self.CurrentScale = self.CurrentScale + diff * 0.3
+				transform.Scale = Vector3(self.CurrentScale, self.CurrentScale, 1.0)
+			end
+		end, 1/60)
+	end
+
+	@ExecSpace("ClientOnly")
+	method void SelectTab(string tab)
+		if tab == self.currentTab and #self.rows > 0 then return end
+		self.currentTab = tab
+		self:RefreshTabHighlight()
+		self:RebuildList()
+		self:ResetListScroll()
+	end
+
+	@ExecSpace("ClientOnly")
+	method void RefreshTabHighlight()
+		-- 선택 탭 = 골드 배경 + 어두운 글자, 비선택 = 서페이스 + 디밍. 경로 해석 엔티티 사용.
+		local selBg = Color(0.94, 0.66, 0.19, 1.0)
+		local idleBg = Color(0.18, 0.20, 0.16, 1.0)
+		local selText = Color(0.15, 0.12, 0.08, 1.0)
+		local idleText = Color(0.79, 0.75, 0.70, 1.0)
+		self:StyleTabEntity(self._T.tabItemE, self.currentTab == "item", selBg, idleBg, selText, idleText)
+		self:StyleTabEntity(self._T.tabMonsterE, self.currentTab == "monster", selBg, idleBg, selText, idleText)
+		self:StyleTabEntity(self._T.tabAchvE, self.currentTab == "achv", selBg, idleBg, selText, idleText)
+	end
+
+	@ExecSpace("ClientOnly")
+	method void StyleTabEntity(Entity tabEnt, boolean selected, Color selBg, Color idleBg, Color selText, Color idleText)
+		if not isvalid(tabEnt) then return end
+		local spr = tabEnt.SpriteGUIRendererComponent
+		if isvalid(spr) then
+			if selected then spr.Color = selBg else spr.Color = idleBg end
+		end
+		local txt = tabEnt.TextComponent
+		if isvalid(txt) then
+			if selected then txt.FontColor = selText else txt.FontColor = idleText end
+		end
+	end
+
+	@ExecSpace("ClientOnly")
+	method void ClearRows()
+		for _, row in pairs(self.rows) do
+			if isvalid(row) then
+				if self.rowHandlers[row] ~= nil then
+					row:DisconnectEvent(ButtonClickEvent, self.rowHandlers[row])
+				end
+				row:Destroy()
+			end
+		end
+		self.rows = {}
+		self.rowHandlers = {}
+	end
+
+	@ExecSpace("ClientOnly")
+	method PlayerInventory GetLocalInv()
+		local player = _UserService.LocalPlayer
+		if not isvalid(player) then return nil end
+		---@type PlayerInventory
+		local inv = player:GetComponent("script.PlayerInventory")
+		return inv
+	end
+
+	@ExecSpace("ClientOnly")
+	method table DecodeLocalDex()
+		-- 로컬 플레이어의 평탄 JSON 2개 → { items = {...}, monsters = {...} }.
+		local dex = { items = {}, monsters = {} }
+		local inv = self:GetLocalInv()
+		if not isvalid(inv) then return dex end
+		local oki, di = pcall(function() return _HttpService:JSONDecode(inv.DexItemsJson) end)
+		if oki and type(di) == "table" then dex.items = di end
+		local okm, dm = pcall(function() return _HttpService:JSONDecode(inv.DexMonstersJson) end)
+		if okm and type(dm) == "table" then dex.monsters = dm end
+		return dex
+	end
+
+	@ExecSpace("ClientOnly")
+	method void RebuildList()
+		self:ClearRows()
+		if self.currentTab == "monster" then
+			self:BuildMonsters()
+		elseif self.currentTab == "achv" then
+			self:BuildAchievements()
+		else
+			self:BuildItems()
+		end
+	end
+
+	@ExecSpace("ClientOnly")
+	method void BuildItems()
+		local dex = self:DecodeLocalDex()
+		local ds = _DataService:GetTable("item_dataset")
+		if ds == nil then return end
+		local n = ds:GetRowCount()
+		for i = 1, n do
+			local name = ds:GetCell(i, "Name") or ""
+			if name ~= "" then
+				local icon = ds:GetCell(i, "IconRUID") or ""
+				local count = math.floor(tonumber(dex.items[name]) or 0)
+				self:AddRow(icon, name, count > 0, tostring(count) .. " 개 획득")
+			end
+		end
+	end
+
+	@ExecSpace("ClientOnly")
+	method void BuildMonsters()
+		local dex = self:DecodeLocalDex()
+		local ds = _DataService:GetTable("MonsterCoinDropDataSet")
+		if ds == nil then return end
+		local n = ds:GetRowCount()
+		for i = 1, n do
+			local mid = ds:GetCell(i, "MonsterId") or ""
+			if mid ~= "" then
+				local disp = ds:GetCell(i, "DisplayName") or mid
+				local icon = ds:GetCell(i, "IconRUID") or ""
+				local kills = math.floor(tonumber(dex.monsters[mid]) or 0)
+				self:AddRow(icon, disp, kills > 0, tostring(kills) .. " 처치")
+			end
+		end
+	end
+
+	@ExecSpace("ClientOnly")
+	method void BuildAchievements()
+		local ds = _DataService:GetTable("AchievementDataSet")
+		if ds == nil then return end
+		local player = _UserService.LocalPlayer
+		local pa = nil
+		if isvalid(player) then pa = player:GetComponent("script.PlayerAchievement") end
+		local n = ds:GetRowCount()
+		for i = 1, n do
+			local name = ds:GetCell(i, "Name") or ""
+			local disableCell = ds:GetCell(i, "Disable") or ""
+			if name ~= "" and disableCell ~= "true" then
+				local id = math.floor(tonumber(ds:GetCell(i, "Id")) or 0)
+				local label = self:GetAchievementState(pa, id)
+				-- 업적은 아이콘 없이 이름+상태 (발견=완료 스타일)
+				self:AddRow("", name, label == "완료", label)
+			end
+		end
+	end
+
+	@ExecSpace("ClientOnly")
+	method string GetAchievementState(any pa, integer id)
+		-- 상태 라벨("완료"/"진행 중"/"미시작") 반환. 패키지 내부 접근은 방어적으로.
+		if not isvalid(pa) then return "미시작" end
+		local ud = nil
+		local ok = pcall(function()
+			if type(pa.UserDataTable) == "table" then ud = pa.UserDataTable[id] end
+		end)
+		if not ok or ud == nil then return "미시작" end
+		local st = ud.State
+		local completedState = nil
+		local inProgressState = nil
+		if _AchievementStateEnum ~= nil then
+			completedState = _AchievementStateEnum.Completed
+			inProgressState = _AchievementStateEnum.InProgress
+		end
+		if completedState ~= nil and st == completedState then
+			return "완료"
+		end
+		if inProgressState ~= nil and st == inProgressState then
+			return "진행 중"
+		end
+		return "미시작"
+	end
+
+	@ExecSpace("ClientOnly")
+	method void AddRow(string iconRuid, string displayName, boolean discovered, string infoText)
+		-- rowTemplate 복제 → ListScroll(ScrollLayoutGroup Vertical) 자식으로 자동 배치·휠 스크롤·Mask 클리핑.
+		-- Clone(name) 문자열만 — Entity parent 인자 금지(LEA-1103).
+		-- 수동 anchoredPosition 금지 — 레이아웃 밖 오버플로 원인.
+		local tmpl = self._T.rowTemplate
+		if not isvalid(tmpl) then
+			tmpl = self.rowTemplate
+		end
+		if not isvalid(tmpl) then return end
+
+		local idx = #self.rows + 1
+		local row = tmpl:Clone("Row_" .. tostring(idx))
+		if not isvalid(row) then return end
+		row.Enable = true
+
+		local tr = row.UITransformComponent
+		if isvalid(tr) then
+			tr.RectSize = Vector2(840, 72)
+		end
+
+		local iconEnt = row:GetChildByName("Icon")
+		if isvalid(iconEnt) then
+			local spr = iconEnt.SpriteGUIRendererComponent
+			if isvalid(spr) then
+				if iconRuid ~= nil and iconRuid ~= "" then
+					iconEnt.Enable = true
+					spr.ImageRUID = iconRuid
+					if discovered then
+						spr.Color = Color(1, 1, 1, 1)
+					else
+						spr.Color = Color(0.05, 0.05, 0.07, 1.0)
+					end
+				else
+					iconEnt.Enable = false
+				end
+			end
+		end
+
+		local nameEnt = row:GetChildByName("Name")
+		if isvalid(nameEnt) then
+			local txt = nameEnt.TextComponent
+			if isvalid(txt) then
+				if discovered then
+					txt.Text = displayName
+					txt.FontColor = Color(0.88, 0.85, 0.80, 1.0)
+				else
+					txt.Text = "???"
+					txt.FontColor = Color(0.45, 0.45, 0.48, 1.0)
+				end
+			end
+		end
+
+		local infoEnt = row:GetChildByName("Info")
+		if isvalid(infoEnt) then
+			local txt = infoEnt.TextComponent
+			if isvalid(txt) then
+				if discovered then
+					txt.Text = infoText
+					txt.FontColor = Color(0.94, 0.66, 0.19, 1.0)
+				else
+					txt.Text = "미발견"
+					txt.FontColor = Color(0.40, 0.40, 0.43, 1.0)
+				end
+			end
+		end
+
+		table.insert(self.rows, row)
+	end
+
+end

@@ -42,6 +42,8 @@ script UIHUDController extends Component
 
 	property any btnInteractHandler = nil
 
+	property any btnCollectionHandler = nil
+
 	@ExecSpace("ClientOnly")
 	method void OnBeginPlay()
 		log("TEST_LOG: UIHUDController OnBeginPlay")
@@ -152,6 +154,31 @@ script UIHUDController extends Component
 			end)
 		end
 		
+		-- T22: 도감 열기 버튼 (HUD 상시 노출 — 항상 켜진 이 컨트롤러가 클릭 처리)
+		local btnCollection = _EntityService:GetEntityByPath("/ui/HUDGroup/BtnCollection")
+		if isvalid(btnCollection) then
+			if isvalid(btnCollection.SpriteGUIRendererComponent) then
+				btnCollection.SpriteGUIRendererComponent.RaycastTarget = true
+			end
+			self.btnCollectionHandler = btnCollection:ConnectEvent(ButtonClickEvent, function()
+				local popup = _EntityService:GetEntityByPath("/ui/PopupGroup/CollectionPopup")
+				if not isvalid(popup) then
+					log_warning("[DEX] BtnCollection: CollectionPopup missing")
+					return
+				end
+				---@type UICollectionController
+				local controller = popup:GetComponent("script.UICollectionController")
+				if isvalid(controller) then
+					controller:Toggle()
+				else
+					log_warning("[DEX] BtnCollection: UICollectionController missing on popup")
+				end
+			end)
+			log("[DEX] BtnCollection wired")
+		else
+			log_warning("[DEX] BtnCollection entity not found on HUD")
+		end
+
 		-- Connect Quick Slot Touch Events for Drag & Drop and Click
 		self.quickSlotHandlers = {}
 		self.quickSlotLastClickTimes = {}
@@ -338,7 +365,12 @@ script UIHUDController extends Component
 		if isvalid(btnInteract) and self.btnInteractHandler then
 			btnInteract:DisconnectEvent(ButtonClickEvent, self.btnInteractHandler)
 		end
-		
+
+		local btnCollection = _EntityService:GetEntityByPath("/ui/HUDGroup/BtnCollection")
+		if isvalid(btnCollection) and self.btnCollectionHandler then
+			btnCollection:DisconnectEvent(ButtonClickEvent, self.btnCollectionHandler)
+		end
+
 		-- Disconnect Quick Slot Touch Events
 		if self.quickSlotTouchDownHandlers then
 			for slotEntity, eventHandler in pairs(self.quickSlotTouchDownHandlers) do
@@ -588,6 +620,30 @@ script UIHUDController extends Component
 			end
 		end
 
+		-- T21: 날씨 틴트 레이어 (밤 오버레이와 별도 스택)
+		local weatherOverlay = self.Entity:GetChildByName("WeatherOverlay")
+		if isvalid(weatherOverlay) and not isvalid(weatherOverlay.SpriteGUIRendererComponent) then
+			weatherOverlay:Destroy()
+			weatherOverlay = nil
+		end
+		if not isvalid(weatherOverlay) then
+			weatherOverlay = _SpawnService:SpawnByModelId("uisprite", "WeatherOverlay", Vector3.zero, self.Entity)
+		end
+		if isvalid(weatherOverlay) then
+			self._T.WeatherOverlayEntity = weatherOverlay
+			local wSprite = weatherOverlay.SpriteGUIRendererComponent
+			if isvalid(wSprite) then
+				wSprite.Color = Color(0, 0, 0, 0)
+				wSprite.RaycastTarget = false
+			end
+			local wTransform = weatherOverlay.UITransformComponent
+			if isvalid(wTransform) then
+				wTransform.AlignmentOption = AlignmentType.CastFrom("StretchAll")
+				wTransform.OffsetMin = Vector2(0, 0)
+				wTransform.OffsetMax = Vector2(0, 0)
+			end
+		end
+
 		-- 동적 시계 텍스트 생성
 		local clock = self.Entity:GetChildByName("TimeClock")
 		if not isvalid(clock) then
@@ -605,7 +661,7 @@ script UIHUDController extends Component
 			if isvalid(transform) then
 				transform.AlignmentOption = AlignmentType.CastFrom("TopCenter")
 				transform.anchoredPosition = Vector2(0, -55) -- 상단 중앙 배치
-				transform.RectSize = Vector2(200, 35)
+				transform.RectSize = Vector2(280, 35)
 			end
 			local textComp = clock.TextComponent
 			if isvalid(textComp) then
@@ -619,14 +675,38 @@ script UIHUDController extends Component
 		end
 	end
 
+	method Color ParseOverlayColorPipe(string raw)
+		-- WeatherDataSet OverlayColor "r|g|b|a" (0~1) → Color. 파싱 실패 시 투명.
+		if raw == nil or raw == "" then
+			return Color(0, 0, 0, 0)
+		end
+		local parts = {}
+		for part in string.gmatch(tostring(raw), "[^|]+") do
+			table.insert(parts, tonumber(part) or 0)
+		end
+		local r = parts[1] or 0
+		local g = parts[2] or 0
+		local b = parts[3] or 0
+		local a = parts[4] or 0
+		if a < 0 then a = 0 end
+		if a > 1 then a = 1 end
+		return Color(r, g, b, a)
+	end
+
 	@ExecSpace("ClientOnly")
 	method void UpdateTimeUI()
 		if not _PersistenceManager then return end
 
 		local curTime = _PersistenceManager:GetCurrentTime()
 		local isNight = _PersistenceManager:IsNight()
+
+		-- T21: 날씨 표시명 (데이터셋 DisplayName @Sync)
+		local weatherName = ""
+		if _WeatherManager ~= nil then
+			weatherName = _WeatherManager.CurrentDisplayName or ""
+		end
 		
-		-- 1. 시간 텍스트 업데이트
+		-- 1. 시간 텍스트 업데이트 (+ 날씨)
 		local clock = self._T.TimeClockEntity
 		if isvalid(clock) and isvalid(clock.TextComponent) then
 			-- 600초가 24시간(1440분)이므로, 1초당 2.4분
@@ -636,7 +716,11 @@ script UIHUDController extends Component
 			
 			local icon = isNight and "🌙" or "🌞"
 			local statusStr = isNight and "밤" or "낮"
-			clock.TextComponent.Text = string.format("%s %s %02d:%02d", icon, statusStr, gameHour, gameMin)
+			if weatherName ~= nil and weatherName ~= "" then
+				clock.TextComponent.Text = string.format("%s %s %02d:%02d · %s", icon, statusStr, gameHour, gameMin, weatherName)
+			else
+				clock.TextComponent.Text = string.format("%s %s %02d:%02d", icon, statusStr, gameHour, gameMin)
+			end
 		end
 
 		-- 2. 화면 밤낮 톤 오버레이 알파 보간
@@ -662,6 +746,16 @@ script UIHUDController extends Component
 			
 			-- 자연스럽게 군청색 어두운 톤 적용
 			overlay.SpriteGUIRendererComponent.Color = Color(0.04, 0.04, 0.16, alpha)
+		end
+
+		-- 3. T21 날씨 오버레이 틴트 (OverlayColor @Sync — EffectRUID 파티클은 미바인딩 시 틴트만)
+		local wOverlay = self._T.WeatherOverlayEntity
+		if isvalid(wOverlay) and isvalid(wOverlay.SpriteGUIRendererComponent) then
+			local oc = "0|0|0|0"
+			if _WeatherManager ~= nil then
+				oc = _WeatherManager.CurrentOverlayColor or "0|0|0|0"
+			end
+			wOverlay.SpriteGUIRendererComponent.Color = self:ParseOverlayColorPipe(oc)
 		end
 	end
 

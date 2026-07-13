@@ -37,13 +37,23 @@ script FishingSpot extends Component
 		end
 		
 		local waitTime = minTime + math.random() * (maxTime - minTime)
+		-- T21: 날씨 입질 배율 (FishBiteMult < 1 → 입질 단축 보너스, 페널티 없음)
+		local fishMult = 1.0
+		if _WeatherManager ~= nil then
+			fishMult = _WeatherManager:GetFishBiteMult()
+			if fishMult == nil or fishMult <= 0 then fishMult = 1.0 end
+			waitTime = waitTime * fishMult
+		end
 		
 		local pc = playerEntity:GetComponent("script.PlayerController")
 		if isvalid(pc) then
 			pc.FishingState = "Casting"
 			pc.ActiveFishingSpot = self.Entity
 			pc:ClientShowMineFeedback("찌를 던졌습니다. 기다리는 중...")
-			log("[FISHING] Casting started by User: " .. userId .. " at " .. self.SpotType)
+			log("[FISHING] Casting started by User: " .. userId .. " at " .. self.SpotType
+				.. " wait=" .. string.format("%.2f", waitTime)
+				.. " weatherMult=" .. tostring(fishMult)
+				.. " weather=" .. tostring(_WeatherManager ~= nil and _WeatherManager:GetCurrentWeatherId() or "n/a"))
 			
 			local movement = playerEntity.MovementComponent
 			if isvalid(movement) then movement:Stop() end

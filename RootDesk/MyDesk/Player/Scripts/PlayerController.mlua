@@ -684,6 +684,20 @@ script PlayerController extends Component
 					c:Toggle()
 				end
 			end
+		elseif key == KeyboardKey.J then
+			-- T22: 도감 팝업 토글 (아이템/몬스터/업적)
+			local popup = _EntityService:GetEntityByPath("/ui/PopupGroup/CollectionPopup")
+			if not isvalid(popup) then
+				log_warning("[DEX] J key: CollectionPopup missing")
+				return
+			end
+			---@type UICollectionController
+			local controller = popup:GetComponent("script.UICollectionController")
+			if isvalid(controller) then
+				controller:Toggle()
+			else
+				log_warning("[DEX] J key: UICollectionController missing")
+			end
 		elseif key == KeyboardKey.F then
 			if self.FishingState ~= "None" and isvalid(self.ActiveFishingSpot) then
 				self:ServerRequestFishingInteract(self.ActiveFishingSpot.Id)

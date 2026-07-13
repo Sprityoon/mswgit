@@ -1,5 +1,5 @@
 const path = require("path");
-const { MapBuilder } = require("../plugins/msw-maker-base-skill/skills/msw-general/scripts/map/msw_map_builder.cjs");
+const { MapBuilder } = require("../.claude/skills/msw-general/scripts/map/msw_map_builder.cjs");
 
 const mapPath = path.join(__dirname, "..", "map", "town.map");
 const modelPath = "RootDesk/MyDesk/NPC/Models/Merchant.model";

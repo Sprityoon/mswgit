@@ -206,4 +206,20 @@ script Crop extends Component
 		return row:GetItem("HarvestItem") or ""
 	end
 
+	@ExecSpace("ServerOnly")
+	method void ApplyWeatherGrowthBoost(integer boostSeconds)
+		-- T21: 비 등 날씨 보너스. plantedAt을 boostSeconds만큼 과거로 당겨 경과 시간을 늘린다.
+		-- 페널티(음수) 거부. 성숙 완료 작물은 스킵. 호출자=WeatherManager 1분 틱.
+		if boostSeconds == nil or boostSeconds <= 0 then return end
+		if self.PlantedAtUnix <= 0 then return end
+		if self:IsMature() then return end
+		self.PlantedAtUnix = self.PlantedAtUnix - boostSeconds
+		log("[WEATHER] crop boost seed=" .. tostring(self.SeedItem)
+			.. " plantedAt=" .. tostring(self.PlantedAtUnix)
+			.. " -" .. tostring(boostSeconds) .. "s"
+			.. " elapsed=" .. tostring(self:GetElapsedSeconds())
+			.. " mature=" .. tostring(self:IsMature()))
+		self:RefreshGrowthVisual()
+	end
+
 end

@@ -152,13 +152,15 @@
 - **구현 요약 (2026-07-11)**: RequestPool 8행·BulletinBoard·RequestPopup·ServerRequestDeliver·영속 day/완료. ui-aesthetics §7 8/8. 보고서: `docs/agents/reports/T20-bulletin-board.md`.
 - **검증**: 레인 말미 T27과 일괄 Maker refresh 빌드 **Error=0**. **런타임 검증 보류(제작자 수행)**.
 
-### T21. [대기] 날씨 시스템 — 맑음/비/안개 + 성장·입질 보너스 (Phase 15-F, 배치 C) — ⚠️ 선행: T6(완료)·T18
+### T21. [완료 — 2026-07-13 | refresh Error=0 | 런타임 검증 보류(제작자 수행)] 날씨 시스템 — 맑음/비/안개 + 성장·입질 보너스 (Phase 15-F, 배치 C) — ⚠️ 선행: T6(완료)·T18
 
 - **배경**: 기획서 §3.6. **보너스만 주는** 날씨(페널티 금지 ⚖️). 낮/밤 연출 파이프라인 재사용.
 - **Target**: 신규 `WeatherDataSet.csv`(WeatherId/Weight/DurationMin/DurationMax/OverlayColor/EffectRUID/CropBoostPerMin/FishBiteMult), 신규 `WeatherManager.mlua`(서버 전역 — 낮/밤 매니저와 동일한 배치 위치), 클라 오버레이(밤 오버레이 구현 파일에 날씨 레이어 추가), `Crop.mlua`(비 가속 틱 훅), `FishingSpot.mlua`(입질 배율 훅)
 - **Change**: ① 서버 롤: Weight 추첨→Duration 유지→재추첨, @Sync 브로드캐스트 ② 클라: OverlayColor 틴트+EffectRUID(비 파티클 — msw-search, 없으면 틴트만+보고) ③ 비 훅: 1분마다 영지 작물 `plantedAt -= CropBoostPerMin`(타임스탬프 모델 정합 — 서버 권위 즉시 적용) ④ 낚시 훅: BiteTime에 FishBiteMult 적용 ⑤ 초기 3종: 맑음(기본)/비(보너스)/안개(무드 전용).
 - **Acceptance**: 날씨 전환·연출 / 비 동안 성장 단축·입질 단축이 **로그로 검증 가능** / 날씨 추가=CSV 행 / 페널티성 효과 0. LSP+refresh 무에러, Play 보류.
 - **충돌 주의**: `Crop.mlua`(T6 산출물)·`FishingSpot.mlua`(T18 산출물) 수정 — 두 티켓 완료 후 착수.
+- **구현 요약 (2026-07-13)**: `WeatherManager`(@Logic)+`WeatherDataSet` 3행(clear/rain/fog) / HUD WeatherOverlay+시계 DisplayName / Crop `ApplyWeatherGrowthBoost` / FishingSpot BiteTime×FishBiteMult. EffectRUID 공란=틴트만. 보고서: `docs/agents/reports/T21-weather-system.md`.
+- **검증**: Maker refresh 빌드 **Error=0** (total 450 / Warning 13 / Info 437). **런타임 검증 보류(제작자 수행)**.
 
 ### T22. [대기] 도감 & 업적 — 기록·수집 메타 (Phase 15-G, 배치 C) — ⚠️ 선행: T14(UI 골격)
 
@@ -309,6 +311,20 @@
   ④ 공용 헬퍼(`GetColliderAABB`/`IsBlockingOverlapEntity`/`CirclePenetration`)의 `@ExecSpace("ClientOnly")` 제거 — 클라 `ResolveOverlaps`와 **서버** `ExecuteDashSkill`→`IsObstacle` 양쪽에서 호출되므로 호출자 측 실행.
 - **Acceptance**: ① Big Stone 등 자원/가구 8방향 통과 불가하되 충돌 범위 = 모델 Trigger 박스만큼 ② 점프하며 근처 이동 시 순간이동·수직 스냅·끼임 없음 ③ 이름 분기 0건 ④ 대시/워프 안전위치 검사 회귀 없음. 
 - **검증**: `mlua-diagnose` errors=0/warnings=0(남은 info는 기존 크로스스크립트 오탐), Maker refresh 빌드 **Error=0**(total 437). Play: 제작자 확인(구두 "잘 시행됐어"). 보고서 `reports/T41-resource-collider-collision-jump.md`.
+
+### T22. [코드 완료 — 2026-07-13 | mlua-diagnose errors=0 | refresh Error=0 | 런타임: 카운터/3탭 로그 검증 PASS | Play(육안): 제작자] 도감 & 업적 — 수집 도감 신규 + 업적은 기존 패키지 재사용
+
+- **⚖️ 접근 재조정(2026-07-13, 보스 확정)**: 착수 시 조사 결과 **QuestAndAchievement 패키지에 업적 시스템이 이미 완비**(AchievementDataSet 5행 + AchievementStepDataSet 보상 + Kill/Gather/Craft/Smelt/Warp 조건·훅). 티켓 원문("신규 AchievementDataSet 생성")은 패키지와 중복이라, 보스가 **"도감 신규 + 업적 재사용"**으로 확정. 실제 빈 곳(=도감)만 신규 구현하고, 업적은 도감 UI의 '업적' 탭으로 기존 데이터를 노출.
+- **Target**: `Player/Scripts/PlayerInventory.mlua`(도감 카운터), `Monster/Scripts/Monster.mlua`(처치 훅), `Player/Scripts/PersistenceManager.mlua`(영속), `Monster/DataSets/MonsterCoinDropDataSet.csv`(몬스터 표시명/아이콘 보강), `ui/PopupGroup.ui`(도감 팝업, UIBuilder), 신규 `UI/Scripts/UICollectionController.mlua`, `Player/Scripts/PlayerController.mlua`(J 키).
+- **Change**:
+  ① **카운터(데이터 주도)**: `PlayerInventory`에 평탄 JSON 2개 `DexItemsJson`/`DexMonstersJson`(⚠ MSW JSONEncode는 **중첩 테이블 불가 — LEA-3001**, 그래서 nested 대신 평탄 2개). `RecordItemAcquired`는 `AddItem`(통화 제외 퍼널) 1곳에서 호출 → 픽업/제작/상점/의뢰 보상 전부 커버. `RecordMonsterKill`은 `Monster.Dead`의 막타 플레이어(`LastAttacker`)가 호출.
+  ② **영속**: `PersistenceManager` save/load에 `dexItems`/`dexMonsters` 추가(§1.2 규칙 9 — 진입 직후 선캡처, Yield 없음).
+  ③ **자동 파생**: 아이템 도감=`item_dataset` 전 행, 몬스터 도감=`MonsterCoinDropDataSet`(기존 몬스터 레지스트리에 `DisplayName`/`IconRUID` 2컬럼 보강 — 도감 전용 CSV 신설 아님, 모델 StandRUID 재사용), 업적 탭=`AchievementDataSet` + 로컬 `PlayerAchievement.UserDataTable` 상태. **발견=카운트>0 → 미발견 실루엣(어두운 아이콘+"???"), 발견=아이콘+누적 수.**
+  ④ **UI**: `CollectionPopup`(1000×780, 기존 팝업 비주얼 아이덴티티 재사용 — bg RUID·골드 액센트·서페이스 타일). 3탭(아이템/몬스터/업적) 단일 스크롤 컨테이너 재구성(ScrollLayoutGroup Type=1 세로 리스트, 검증된 제작창 패턴). `J` 키 토글.
+- **스펙 편차**: (a) 업적은 신규 구축이 아니라 패키지 재사용(보스 확정). (b) 중첩 JSON→평탄 2개(엔진 제약 LEA-3001). 둘 다 근거 명시. 하드코딩 0.
+- **검증**: mlua-diagnose errors=0. refresh 빌드 **Error=0**(total 454). 런타임: 서버에서 RecordItemAcquired/Kill 호출 → `DexItemsJson={"Carp":2,"Wood":5}`·`DexMonstersJson={"boar":1,"slime":2}` 확인(슬라임 2회→2). 3탭 구성 확인(아이템 39·몬스터 4·업적 5행), CollectionPopup 런타임 오류 0. **Play 육안(J로 열기·실루엣·탭 전환·재접속 유지)은 제작자.**
+- **발견한 문제(범위 밖)**: `InventoryPopup/CoinText`(HEAD 미포함 = 이전 미커밋 세션 산출물)에서 `LEA-3044` FontColor/OutlineColor 직렬화 오류. T22와 무관(내 CollectionPopup 엔티티는 무오류) — 별도 확인 필요. 보고서 §5 참조.
+- **보고서**: `docs/agents/reports/T22-collection-dex.md`.
 
 ### (신규 작업 추가 템플릿)
 ```

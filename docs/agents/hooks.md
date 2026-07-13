@@ -1,0 +1,56 @@
+# 훅 목록·계약·타사 에이전트 적용 (Hooks)
+
+> 이 문서는 [AGENTS.md](../../AGENTS.md) §6의 온디맨드 세부 가이드입니다.
+> 활성 배선은 `.claude/settings.json`의 `hooks` 블록이 단일 소스입니다.
+
+## 레이어 구분
+
+| 위치 | 소유 | 갱신 방식 |
+|---|---|---|
+| `.claude/hooks/**` | **벤더** (mswai / `@maplestoryworlds/ai-cli`) | `mswai update`가 패키지 템플릿으로 덮어씀 — **직접 수정 금지** |
+| `.claude/hooks-project/**` | **프로젝트** | 이 저장소에서 직접 관리 (mswai가 건드리지 않음) |
+| ~~`plugins/msw-maker-base-skill/**`~~ | 벤더 | **2026-07-13 제거됨** (미러 중간 사본 — 어디서도 참조하지 않아 삭제). mswai가 재생성하더라도 Claude Code "플러그인"으로 설치하지 말 것 — 플러그인 활성화 시 `inject-agents-md.cjs`가 세션마다 프로젝트 AGENTS.md를 벤더 템플릿으로 **덮어쓴다**. 이 프로젝트는 settings.json 방식만 사용 |
+
+## 활성 훅 인벤토리 (settings.json 기준)
+
+| 이벤트 | 훅 | 역할 | 소유 |
+|---|---|---|---|
+| PreToolUse (Bash) | `hooks-project/skill-read-guard.cjs` | 스킬/레퍼런스 `.md`의 쉘 부분 읽기 차단 (`plugins/`·`.claude/skills/`·`.agents/skills/` 3경로 모두) → Read 전문 읽기 강제 | 프로젝트 (벤더 포크 — 벤더판은 `plugins/` 경로만 차단해서 확장) |
+| PreToolUse (Bash, Read/Edit/Write계열) | `hooks/structured-file-guard.cjs` | `.model`/`.ui` 직접 읽기·쓰기 차단 → ModelBuilder/UIBuilder 강제 | 벤더 |
+| PreToolUse (Bash, Edit/Write계열) | `hooks-project/readonly-path-guard.cjs` | `Environment/**`, `*.codeblock`, `*.d.mlua`, `Global/`(허용 2파일 제외), 벤더 스킬 미러 **쓰기** 차단 (읽기는 허용) | 프로젝트 (신설 — AGENTS.md §1을 강제 규칙으로 승격) |
+| PostToolUse (Edit/Write/apply_patch) | `hooks/mlua-lsp/mlua-diagnose-post-tool-use.cjs` | `.mlua` 저장 시 LSP 진단 자동 실행, 에러 시 block | 벤더 |
+| PostToolUse (Read/Skill), InstructionsLoaded | `hooks/skill-log/skill-log.cjs` | 스킬 로드 기록 → `.mswai/logs/skill.log` (관측 전용, async) | 벤더 |
+| PostToolUse (전체) | `hooks/mcp-log/mcp-log.cjs` | MCP 호출 기록 → `.mswai/logs/mcp.log`. **응답 본문은 `MCP_LOG_MAX_OUTPUT_BYTES=2048`로 캡** (settings.json `env`) | 벤더 |
+| SessionStart | `hooks/mlua-lsp/mlua-session-start.cjs` / SessionEnd `...-end.cjs` | LSP 데몬 기동/종료 | 벤더 |
+| SessionStart (startup·resume) | `hooks/update-check/update-check.cjs` | mswai 신버전 안내 | 벤더 |
+| UserPromptSubmit | `hooks/core-version-check/core-version-check.cjs` | `Environment/config`의 CoreVersion ≠ `26.5.0.0`이면 작업 중단 지시 주입 (워크스페이스당 1회) | 벤더 |
+| UserPromptSubmit | `hooks-project/skill-router-lite.cjs` | 스킬 라우팅 리마인더: **세션 첫 프롬프트 = 벤더 전문(~20KB) 위임 주입, 이후 = 요약(~2KB)** | 프로젝트 (신설 — 매 턴 20KB 주입하던 벤더판 대체. 전문 텍스트의 단일 소스는 여전히 벤더 스크립트) |
+
+### 2026-07-13 정리에서 제거·변경된 것
+
+- **제거**: PostToolUse의 `mcp_tool: maker_refresh_workspace` (편집마다 전체 워크스페이스 refresh → "refresh 진행 중" 충돌 유발, 티켓 단위 refresh 규약과 중복). refresh는 이제 **검증 체인(AGENTS.md §4.3)에서 명시적으로 호출**한다 — 새 `.mlua`를 만들면 refresh 전까지 `.codeblock`이 생성되지 않음을 잊지 말 것.
+- **교체**: `skill-router-reminder`(매 턴 20KB) → `skill-router-lite`(첫 턴만 전문). 항상 전문을 원하면 `MSW_SKILL_ROUTER_FULL=1`.
+- **추가**: `readonly-path-guard`, 확장판 `skill-read-guard`, `MCP_LOG_MAX_OUTPUT_BYTES=2048`.
+- **삭제**: 워크스페이스 `plugins/` 폴더 전체 (스킬·훅의 중간 사본 — 활성 배선은 `.claude/hooks/`·`.claude/skills/`·`.agents/skills/`만 사용. 이를 참조하던 `scripts/*.cjs`·`scratch/dump_ui.js`의 require는 `.claude/skills/` 경로로 교체 완료).
+
+## deny를 받았을 때 (모든 에이전트 공통)
+
+우회하지 말 것. deny 메시지에 적힌 대체 수단을 그대로 사용한다:
+`.model`→ModelBuilder / `.ui`→UIBuilder / 스킬 md→스킬 시스템+Read 전문 / 보호 경로→수정 포기(읽기는 Read/Grep 도구로). 오탐이라 판단되면 각 훅의 `*_DISABLE=1` 환경변수로 1회 우회하고 반드시 사유를 보고서에 남긴다.
+
+## 타사 에이전트 적용
+
+훅 스크립트는 전부 Node 단일 파일이며 **두 가지 호출 방식**을 지원한다:
+
+1. **stdin JSON** (Claude Code 계약): `{"tool_name":..., "tool_input":{...}}` → 허용 시 exit 0, 차단 시 exit 2(stderr) 또는 `permissionDecision:"deny"` JSON.
+2. **CLI 인자** (프로젝트 훅 한정 — 임의 하네스용 어댑터):
+   - `node .claude/hooks-project/readonly-path-guard.cjs --path <파일>` 또는 `--command "<쉘 명령>"` → exit 0/2
+   - `node .claude/hooks-project/skill-read-guard.cjs --command "<쉘 명령>"` → exit 0/2
+
+| 하네스 | 적용 방법 |
+|---|---|
+| Claude Code | `.claude/settings.json` (이미 배선됨) |
+| Cursor (Hooks 지원 버전) | `beforeShellExecution`/`beforeReadFile` 훅에서 위 CLI 모드 호출, exit 2 → 차단으로 매핑 |
+| Codex / Copilot CLI (훅 미지원) | 강제 불가 — AGENTS.md §1·§6 규칙 준수에 의존. 커밋 전 `node .claude/hooks-project/readonly-path-guard.cjs --path <변경파일>`를 스스로 실행해 자가 검사 가능. 추가 방어선: git pre-commit 훅으로 보호 경로 diff 거부 가능(미설치 — 필요 시 요청) |
+
+로그(`.mswai/logs/`)와 LSP 훅은 관측·품질 보조라 타사 미적용이어도 안전성에 영향 없음. **안전에 필수적인 것은 위 표의 가드 3종(structured-file-guard, readonly-path-guard, skill-read-guard)이다.**

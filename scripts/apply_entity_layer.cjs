@@ -14,7 +14,7 @@
 
 const path = require("path");
 const fs = require("fs");
-const { ModelBuilder } = require("../plugins/msw-maker-base-skill/skills/msw-general/scripts/model/msw_model_builder.cjs");
+const { ModelBuilder } = require("../.claude/skills/msw-general/scripts/model/msw_model_builder.cjs");
 
 const ROOT = path.join(__dirname, "..");
 const ENTITY_LAYER = "MapLayer5";

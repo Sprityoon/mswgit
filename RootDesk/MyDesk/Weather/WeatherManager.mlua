@@ -1,0 +1,232 @@
+@Logic
+script WeatherManager extends Logic
+	-- T21: 전역 날씨 롤·@Sync 브로드캐스트. 보너스만(페널티 금지). 세션 한정(영속 없음).
+
+	@Sync
+	property string CurrentWeatherId = "clear"
+
+	@Sync
+	property string CurrentDisplayName = "맑음"
+
+	@Sync
+	property string CurrentOverlayColor = "0|0|0|0"
+
+	@Sync
+	property string CurrentEffectRUID = ""
+
+	@Sync
+	property number CurrentCropBoostPerMin = 0
+
+	@Sync
+	property number CurrentFishBiteMult = 1.0
+
+	property integer RemainingDuration = 0
+	property any durationTimerId = nil
+	property any cropBoostTimerId = nil
+
+	@ExecSpace("ServerOnly")
+	method void OnBeginPlay()
+		-- 서버 날씨 루프 기동: 즉시 1회 롤 + 1분 작물 보너스 틱.
+		log("[WEATHER] WeatherManager OnBeginPlay — starting weather loop")
+		self:RollWeather()
+		if self.cropBoostTimerId == nil then
+			self.cropBoostTimerId = _TimerService:SetTimerRepeat(function()
+				self:ApplyCropBoostTick()
+			end, 60.0)
+		end
+	end
+
+	@ExecSpace("ServerOnly")
+	method void OnEndPlay()
+		-- 타이머 정리.
+		if self.durationTimerId ~= nil then
+			_TimerService:ClearTimer(self.durationTimerId)
+			self.durationTimerId = nil
+		end
+		if self.cropBoostTimerId ~= nil then
+			_TimerService:ClearTimer(self.cropBoostTimerId)
+			self.cropBoostTimerId = nil
+		end
+	end
+
+	@ExecSpace("ServerOnly")
+	method void RollWeather()
+		-- Weight 가중 추첨 → Duration 유지 → 프로퍼티 반영 후 다음 롤 예약.
+		if self.durationTimerId ~= nil then
+			_TimerService:ClearTimer(self.durationTimerId)
+			self.durationTimerId = nil
+		end
+
+		local ds = _DataService:GetTable("WeatherDataSet")
+		if ds == nil then
+			log_warning("[WEATHER] WeatherDataSet not found — fallback clear")
+			self:ApplyFallbackClear()
+			return
+		end
+
+		local rows = ds:GetAllRow()
+		if rows == nil or #rows == 0 then
+			log_warning("[WEATHER] WeatherDataSet empty — fallback clear")
+			self:ApplyFallbackClear()
+			return
+		end
+
+		local totalWeight = 0
+		local pool = {}
+		for _, row in ipairs(rows) do
+			local w = tonumber(row:GetItem("Weight")) or 0
+			if w > 0 then
+				table.insert(pool, { row = row, w = w })
+				totalWeight = totalWeight + w
+			end
+		end
+
+		if totalWeight <= 0 or #pool == 0 then
+			log_warning("[WEATHER] no weighted rows — fallback clear")
+			self:ApplyFallbackClear()
+			return
+		end
+
+		local rng = _UtilLogic:RandomDouble() * totalWeight
+		local acc = 0
+		local selected = pool[1].row
+		for _, entry in ipairs(pool) do
+			acc = acc + entry.w
+			if rng <= acc then
+				selected = entry.row
+				break
+			end
+		end
+
+		self:ApplyWeatherFromRow(selected)
+
+		local durMin = math.floor(tonumber(selected:GetItem("DurationMin")) or 60)
+		local durMax = math.floor(tonumber(selected:GetItem("DurationMax")) or durMin)
+		if durMin < 1 then durMin = 1 end
+		if durMax < durMin then durMax = durMin end
+		local duration = _UtilLogic:RandomIntegerRange(durMin, durMax)
+		self.RemainingDuration = duration
+
+		log("[WEATHER] roll id=" .. tostring(self.CurrentWeatherId)
+			.. " name=" .. tostring(self.CurrentDisplayName)
+			.. " duration=" .. tostring(duration)
+			.. " cropBoost=" .. tostring(self.CurrentCropBoostPerMin)
+			.. " fishMult=" .. tostring(self.CurrentFishBiteMult)
+			.. " overlay=" .. tostring(self.CurrentOverlayColor))
+
+		self.durationTimerId = _TimerService:SetTimerOnce(function()
+			self:RollWeather()
+		end, duration)
+	end
+
+	@ExecSpace("ServerOnly")
+	method void ApplyFallbackClear()
+		-- 데이터셋 부재 시 기본 맑음.
+		self.CurrentWeatherId = "clear"
+		self.CurrentDisplayName = "맑음"
+		self.CurrentOverlayColor = "0|0|0|0"
+		self.CurrentEffectRUID = ""
+		self.CurrentCropBoostPerMin = 0
+		self.CurrentFishBiteMult = 1.0
+	end
+
+	@ExecSpace("ServerOnly")
+	method void ApplyWeatherFromRow(any selectedRow)
+		-- 선택된 UserDataRow를 @Sync 프로퍼티에 반영. 보너스만 허용(음수 부스트·입질 지연 클램프).
+		if selectedRow == nil then
+			self:ApplyFallbackClear()
+			return
+		end
+
+		local id = selectedRow:GetItem("WeatherId") or "clear"
+		self.CurrentWeatherId = tostring(id)
+
+		local okName, disp = pcall(function() return selectedRow:GetItem("DisplayName") end)
+		if okName and disp ~= nil and disp ~= "" then
+			self.CurrentDisplayName = tostring(disp)
+		else
+			self.CurrentDisplayName = self.CurrentWeatherId
+		end
+
+		local okOc, oc = pcall(function() return selectedRow:GetItem("OverlayColor") end)
+		if okOc and oc ~= nil and oc ~= "" then
+			self.CurrentOverlayColor = tostring(oc)
+		else
+			self.CurrentOverlayColor = "0|0|0|0"
+		end
+
+		local okFx, fx = pcall(function() return selectedRow:GetItem("EffectRUID") end)
+		if okFx and fx ~= nil then
+			self.CurrentEffectRUID = tostring(fx)
+		else
+			self.CurrentEffectRUID = ""
+		end
+
+		local boost = tonumber(selectedRow:GetItem("CropBoostPerMin")) or 0
+		if boost < 0 then boost = 0 end
+		self.CurrentCropBoostPerMin = boost
+
+		-- FishBiteMult: BiteTime 배수. <1=입질 단축 보너스. >1은 페널티이므로 1로 클램프.
+		local mult = tonumber(selectedRow:GetItem("FishBiteMult")) or 1.0
+		if mult <= 0 then mult = 1.0 end
+		if mult > 1.0 then mult = 1.0 end
+		self.CurrentFishBiteMult = mult
+	end
+
+	method number GetCropBoostPerMin()
+		-- 소비처 API: 현재 날씨의 분당 작물 plantedAt 당김 초. 0=보너스 없음.
+		return self.CurrentCropBoostPerMin or 0
+	end
+
+	method number GetFishBiteMult()
+		-- 소비처 API: 입질 대기시간 배율. 1=기본, <1=입질 단축(보너스).
+		local m = self.CurrentFishBiteMult
+		if m == nil or m <= 0 then return 1.0 end
+		return m
+	end
+
+	method string GetCurrentWeatherId()
+		-- 현재 WeatherId (데이터셋 키).
+		return self.CurrentWeatherId or "clear"
+	end
+
+	@ExecSpace("ServerOnly")
+	method void ApplyCropBoostTick()
+		-- 1분마다 활성 영지(Home_*) 작물에 plantedAt -= CropBoostPerMin (타임스탬프 가속).
+		local boost = math.floor(self:GetCropBoostPerMin())
+		if boost <= 0 then return end
+
+		local applied = 0
+		local players = _UserService.UserEntities
+		if players == nil then return end
+
+		for userId, player in pairs(players) do
+			if isvalid(player) then
+				local mapName = "Home_" .. tostring(userId)
+				local map = _EntityService:GetEntityByPath("/maps/" .. mapName)
+				if isvalid(map) then
+					local crops = map:GetChildComponentsByTypeName("script.Crop", true)
+					if crops ~= nil then
+						for _, crop in ipairs(crops) do
+							if isvalid(crop) then
+								local ok = pcall(function()
+									crop:ApplyWeatherGrowthBoost(boost)
+								end)
+								if ok then
+									applied = applied + 1
+								end
+							end
+						end
+					end
+				end
+			end
+		end
+
+		if applied > 0 then
+			log("[WEATHER] crop boost tick weather=" .. tostring(self.CurrentWeatherId)
+				.. " boostSec=" .. tostring(boost)
+				.. " crops=" .. tostring(applied))
+		end
+	end
+
+end

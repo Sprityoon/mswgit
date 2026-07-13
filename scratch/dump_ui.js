@@ -1,5 +1,5 @@
 const path = require("path");
-const { UIBuilder } = require("../plugins/msw-maker-base-skill/skills/msw-ui-system/scripts/msw_ui_builder.cjs");
+const { UIBuilder } = require("../.claude/skills/msw-ui-system/scripts/msw_ui_builder.cjs");
 
 const file = path.join(__dirname, "..", "ui", "PopupGroup.ui");
 const b = UIBuilder.read(file);

@@ -1,0 +1,23 @@
+{
+  "Id": "",
+  "GameId": "",
+  "EntryKey": "directory://5cdb11f8c8ee4025bf39e51b09a314e2",
+  "ContentType": "x-mod/directory",
+  "Content": "",
+  "Usage": 0,
+  "UsePublish": 1,
+  "UseService": 0,
+  "CoreVersion": "26.5.0.0",
+  "StudioVersion": "0.1.0.0",
+  "DynamicLoading": 0,
+  "ContentProto": {
+    "Use": "Json",
+    "Json": {
+      "entry_id": "directory://5cdb11f8c8ee4025bf39e51b09a314e2",
+      "name": "Weather",
+      "lock": false,
+      "folding": false,
+      "nameEditable": true
+    }
+  }
+}

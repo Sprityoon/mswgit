@@ -17,6 +17,9 @@ script UIInventoryController extends Component
 
 	property TextComponent capacityText = "285b48e7-bead-43d9-8b21-ee4bd20f2484"
 
+	-- 보유 코인 표시 (슬롯 아님 — 하단 전용 라벨)
+	property TextComponent coinText = "463e85c6-17c6-4c0b-a068-e7a182f3aacb"
+
 	property Entity tooltipPanel = "a13637cd-46a6-4e9c-9555-56da6e882b94"
 
 	property TextComponent tooltipName = "d555f5d8-2a82-467c-8ee5-6d089d6a9dee"
@@ -385,8 +388,12 @@ script UIInventoryController extends Component
 			local isTable = (type(val) == "table")
 			local count = isTable and (val.count or 1) or val
 			if count > 0 then
-				totalCount = totalCount + 1
 				local itemName = isTable and val.name or itemKey
+				-- 통화는 Coin 프로퍼티로만 표시 — 아이템 슬롯에 올리지 않음
+				if inv:IsCurrencyItem(itemName) then
+					continue
+				end
+				totalCount = totalCount + 1
 				local category = self:GetItemCategory(itemName)
 		
 				if self.activeTab == "All" or self.activeTab == category then
@@ -404,12 +411,32 @@ script UIInventoryController extends Component
 		if isvalid(self.capacityText) then
 			self.capacityText.Text = totalCount .. " / 24 items"
 		end
+
+		self:UpdateCoinDisplay(inv)
 		
 		-- Refresh GridView
 		if isvalid(self.gridView) then
 			self.gridView.TotalCount = #self.filteredItems
 			self.gridView:Refresh(true, true)
 		end
+	end
+
+	@ExecSpace("ClientOnly")
+	method void UpdateCoinDisplay(any invComp)
+		-- 인벤 하단 전용 코인 라벨. 슬롯 그리드와 분리.
+		if not isvalid(self.coinText) then return end
+		local inv = invComp
+		if not isvalid(inv) then
+			local player = _UserService.LocalPlayer
+			if isvalid(player) then
+				inv = player:GetComponent("script.PlayerInventory")
+			end
+		end
+		local amount = 0
+		if isvalid(inv) then
+			amount = math.floor(tonumber(inv.Coin) or 0)
+		end
+		self.coinText.Text = "보유 코인: " .. tostring(amount)
 	end
 
 	@ExecSpace("ClientOnly")

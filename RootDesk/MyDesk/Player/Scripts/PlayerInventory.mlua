@@ -34,10 +34,12 @@ script PlayerInventory extends Component
 	@Sync
 	property string DailyCompletedRequestsJson = "[]"
 
-	-- T22: 도감 통계. { items = { itemName -> 누적 획득 수 }, monsters = { monsterId -> 처치 수 } }.
-	-- 발견 판정 = 카운트 > 0. 구세이브 폴백 "{}".
+	-- T22: 도감 통계. 평탄 JSON 2개 — MSW JSONEncode는 중첩 테이블 불가(LEA-3001)라 분리.
+	-- DexItemsJson: { itemName -> 누적 획득 수 }, DexMonstersJson: { monsterId -> 처치 수 }. 발견 = 카운트 > 0.
 	@Sync
-	property string DexStatsJson = "{}"
+	property string DexItemsJson = "{}"
+	@Sync
+	property string DexMonstersJson = "{}"
 
 	property table Items = {}
 
@@ -57,7 +59,8 @@ script PlayerInventory extends Component
 		self.ResearchStartTime = "0"
 		self.DailyRequestDay = "0"
 		self.DailyCompletedRequestsJson = "[]"
-		self.DexStatsJson = "{}"
+		self.DexItemsJson = "{}"
+		self.DexMonstersJson = "{}"
 		self._researchTickAccum = 0.0
 		log("PlayerInventory initialized on server for player: " .. self.Entity.Name)
 	end
@@ -284,6 +287,41 @@ script PlayerInventory extends Component
 				end
 			end
 		end
+	end
+
+	@ExecSpace("ServerOnly")
+	method integer ConsolidateCurrencyItems()
+		-- IsCurrency 미기입 등으로 Items 스택에 쌓인 통화를 Coin 프로퍼티로 흡수.
+		-- 몬스터 드롭→인벤 스택 / 상점 inv.Coin 분기 불일치 복구용.
+		if self.Items == nil then return 0 end
+		local moved = 0
+		local toRemove = {}
+		for k, v in pairs(self.Items) do
+			local name = tostring(k)
+			local count = 0
+			if type(v) == "table" then
+				name = tostring(v.name or k)
+				count = math.floor(tonumber(v.count) or 0)
+			else
+				count = math.floor(tonumber(v) or 0)
+			end
+			if count > 0 and self:IsCurrencyItem(name) then
+				moved = moved + count
+				table.insert(toRemove, k)
+			end
+		end
+		if moved <= 0 then return 0 end
+		for _, k in ipairs(toRemove) do
+			self.Items[k] = nil
+		end
+		self.Coin = (self.Coin or 0) + moved
+		self.InventoryDataJson = self:SafeEncodeJson(self.Items, "{}")
+		log("[CURRENCY] consolidated " .. tostring(moved)
+			.. " stack coin(s) into Coin property. Total=" .. tostring(self.Coin))
+		if _PersistenceManager and self.Entity.PlayerComponent then
+			_PersistenceManager:MarkPlayerDirty(self.Entity.PlayerComponent.UserId)
+		end
+		return moved
 	end
 
 	@ExecSpace("ServerOnly")
@@ -562,37 +600,29 @@ script PlayerInventory extends Component
 		-- T22: 도감 아이템 누적 획득 수 갱신. AddItem(통화 제외 퍼널)에서 호출 —
 		-- 픽업/제작/상점/의뢰 보상 등 모든 획득 경로가 AddItem을 통과하므로 여기 1곳으로 커버.
 		if itemName == nil or itemName == "" or count <= 0 then return end
-		local dex = self:DecodeDexStats()
-		local items = dex.items
+		local items = self:DecodeFlatJson(self.DexItemsJson)
 		items[itemName] = (tonumber(items[itemName]) or 0) + count
-		self.DexStatsJson = self:SafeEncodeJson(dex, "{}")
+		self.DexItemsJson = self:SafeEncodeJson(items, "{}")
 	end
 
 	@ExecSpace("ServerOnly")
 	method void RecordMonsterKill(string monsterId)
 		-- T22: 도감 몬스터 처치 수 갱신. Monster.Dead가 막타 플레이어에게 호출.
 		if monsterId == nil or monsterId == "" then return end
-		local dex = self:DecodeDexStats()
-		local monsters = dex.monsters
+		local monsters = self:DecodeFlatJson(self.DexMonstersJson)
 		monsters[monsterId] = (tonumber(monsters[monsterId]) or 0) + 1
-		self.DexStatsJson = self:SafeEncodeJson(dex, "{}")
+		self.DexMonstersJson = self:SafeEncodeJson(monsters, "{}")
 		if _PersistenceManager and self.Entity.PlayerComponent then
 			_PersistenceManager:MarkPlayerDirty(self.Entity.PlayerComponent.UserId)
 		end
 	end
 
-	method table DecodeDexStats()
-		-- DexStatsJson을 { items = {...}, monsters = {...} } 형태로 디코드(누락 키 보정).
-		local dex = nil
-		local ok, decoded = pcall(function() return _HttpService:JSONDecode(self.DexStatsJson) end)
-		if ok and type(decoded) == "table" then
-			dex = decoded
-		else
-			dex = {}
-		end
-		if type(dex.items) ~= "table" then dex.items = {} end
-		if type(dex.monsters) ~= "table" then dex.monsters = {} end
-		return dex
+	method table DecodeFlatJson(string json)
+		-- 평탄 JSON 문자열을 Lua 테이블로 디코드(실패 시 빈 테이블). 중첩 없음(LEA-3001 회피).
+		local t = {}
+		local ok, decoded = pcall(function() return _HttpService:JSONDecode(json) end)
+		if ok and type(decoded) == "table" then t = decoded end
+		return t
 	end
 
 	@ExecSpace("ServerOnly")
@@ -1658,6 +1688,9 @@ script PlayerInventory extends Component
 		if playerComp == nil or senderUserId ~= playerComp.UserId then
 			return
 		end
+
+		-- 과거 IsCurrency 미기입으로 Items에 쌓인 코인을 Coin 프로퍼티로 흡수 후 잔액 검사
+		self:ConsolidateCurrencyItems()
 		
 		local shopDs = _DataService:GetTable("ShopItemDataSet")
 		if shopDs == nil then return end
@@ -1677,7 +1710,7 @@ script PlayerInventory extends Component
 		self:AddItem(itemName, 1)
 		self:ClientShowFeedback(itemName .. " 구매 완료!")
 		
-		log("[SHOP] Player " .. self.Entity.Name .. " bought " .. itemName .. " for " .. buyPrice .. " coins.")
+		log("[SHOP] Player " .. self.Entity.Name .. " bought " .. itemName .. " for " .. buyPrice .. " coins. Balance=" .. tostring(self.Coin))
 	end
 
 	@ExecSpace("Server")
@@ -1686,6 +1719,8 @@ script PlayerInventory extends Component
 		if playerComp == nil or senderUserId ~= playerComp.UserId then
 			return
 		end
+
+		self:ConsolidateCurrencyItems()
 		
 		local shopDs = _DataService:GetTable("ShopItemDataSet")
 		if shopDs == nil then return end
@@ -1705,7 +1740,7 @@ script PlayerInventory extends Component
 		self:AddItem("Coin", sellPrice)
 		self:ClientShowFeedback(itemName .. " 판매 완료!")
 		
-		log("[SHOP] Player " .. self.Entity.Name .. " sold " .. itemName .. " for " .. sellPrice .. " coins.")
+		log("[SHOP] Player " .. self.Entity.Name .. " sold " .. itemName .. " for " .. sellPrice .. " coins. Balance=" .. tostring(self.Coin))
 	end
 
 	@ExecSpace("Client")
@@ -1725,14 +1760,14 @@ script PlayerInventory extends Component
 		local ds = _DataService:GetTable("item_dataset")
 		if ds ~= nil then
 			local row = ds:FindRow("Name", itemName)
-			if row ~= nil then
-				local isCurr = row:GetItem("IsCurrency") == "true" or row:GetItem("IsCurrency") == true
-				self._T.CurrencyCache[itemName] = isCurr
-				return isCurr
+			if row == nil then
+				row = ds:FindRow("id", itemName)
 			end
-			row = ds:FindRow("id", itemName)
 			if row ~= nil then
-				local isCurr = row:GetItem("IsCurrency") == "true" or row:GetItem("IsCurrency") == true
+				local raw = row:GetItem("IsCurrency")
+				local isCurr = raw == true
+					or raw == "true" or raw == "TRUE" or raw == "True"
+					or raw == "1" or raw == 1
 				self._T.CurrencyCache[itemName] = isCurr
 				return isCurr
 			end

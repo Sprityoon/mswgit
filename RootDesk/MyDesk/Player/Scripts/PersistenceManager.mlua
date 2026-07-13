@@ -277,14 +277,17 @@ script PersistenceManager extends Logic
 				inv.ResearchStartTime = data.researchStartTime or "0"
 				inv.DailyRequestDay = data.dailyRequestDay or "0"
 				inv.DailyCompletedRequestsJson = data.dailyCompletedRequests or "[]"
-				inv.DexStatsJson = data.dexStats or "{}"
+				inv.DexItemsJson = data.dexItems or "{}"
+				inv.DexMonstersJson = data.dexMonsters or "{}"
 				inv:ApplyHeldToolCostume()
 				inv:MigrateLegacyRecipeUnlocks()
+				-- 통화 스택→Coin 프로퍼티 흡수 (IsCurrency 미기입 사고 복구)
+				inv:ConsolidateCurrencyItems()
 				-- T7: 오프라인 연구 경과 정산
 				inv:TryCompleteActiveResearch()
 				-- T20: 일 변경 시 완료 목록 리셋
 				inv:EnsureDailyRequestState()
-				log("PersistenceManager: Inventory restored.")
+				log("PersistenceManager: Inventory restored. Coin=" .. tostring(inv.Coin))
 			end
 
 			-- Restore Placed Tiles, Furniture, Destroyed Resources, and Terrain Edits for player's home map
@@ -521,7 +524,8 @@ script PersistenceManager extends Logic
 		local capResearchStart = inv.ResearchStartTime or "0"
 		local capDailyDay = inv.DailyRequestDay or "0"
 		local capDailyDone = inv.DailyCompletedRequestsJson or "[]"
-		local capDexStats = inv.DexStatsJson or "{}"
+		local capDexItems = inv.DexItemsJson or "{}"
+		local capDexMonsters = inv.DexMonstersJson or "{}"
 
 		local posX = livePosX
 		local posY = livePosY
@@ -619,7 +623,8 @@ script PersistenceManager extends Logic
 			researchStartTime = capResearchStart,
 			dailyRequestDay = capDailyDay,
 			dailyCompletedRequests = capDailyDone,
-			dexStats = capDexStats,
+			dexItems = capDexItems,
+			dexMonsters = capDexMonsters,
 			unlockedWaypoints = capWaypoints,
 			skillLevels = capSkills,
 			sp = capSp,

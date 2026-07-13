@@ -1,5 +1,5 @@
 const path = require("path");
-const { UIBuilder } = require("../plugins/msw-maker-base-skill/skills/msw-ui-system/scripts/msw_ui_builder.cjs");
+const { UIBuilder } = require("../.claude/skills/msw-ui-system/scripts/msw_ui_builder.cjs");
 
 // ─────────────────────────────────────────────────────────────────────────────
 // build_ui.js — INCREMENTAL PATCHER (not a from-scratch generator)
