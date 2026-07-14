@@ -26,6 +26,21 @@
 | UserPromptSubmit | `hooks/core-version-check/core-version-check.cjs` | `Environment/config`의 CoreVersion ≠ `26.5.0.0`이면 작업 중단 지시 주입 (워크스페이스당 1회) | 벤더 |
 | UserPromptSubmit | `hooks-project/skill-router-lite.cjs` | 스킬 라우팅 리마인더: **세션 첫 프롬프트 = 벤더 전문(~20KB) 위임 주입, 이후 = 요약(~2KB)** | 프로젝트 (신설 — 매 턴 20KB 주입하던 벤더판 대체. 전문 텍스트의 단일 소스는 여전히 벤더 스크립트) |
 
+### 2026-07-14 변경 — 훅 명령 상대 경로 전환 (타사 하네스 exit 1 해소)
+
+- **증상**: 타사 에이전트 하네스에서 모든 PreToolUse 훅이 "failed with exit code 1".
+- **원인(지휘자 실측 재현)**: settings.json 훅 명령이 `node "${CLAUDE_PROJECT_DIR}/..."` 형태였는데, `CLAUDE_PROJECT_DIR`를 정의하지 않는 셸(bash unset → 빈 문자열)이나 `${...}`를 치환하지 않는 cmd.exe(리터럴 유지)에서는 node가 존재하지 않는 경로를 로드하다 `Cannot find module` → **exit 1로 즉사** (훅 로직 진입 전).
+- **조치**: 모든 훅 명령을 **저장소 루트 상대 경로**(`node ".claude/..."`)로 전환. 대신 **훅은 반드시 프로젝트 루트를 cwd로 실행**해야 한다 — Claude Code는 기본 충족, 타사 하네스도 루트에서 호출할 것.
+- **스크립트 자체는 전 케이스 무결 확인(2026-07-14 매트릭스)**: 정상 stdin/빈 stdin/비JSON/무stdin 전부 exit 0, 차단은 exit 2(stderr) 또는 deny JSON+exit 0. 어떤 입력에서도 exit 1을 내지 않는다.
+
+## 트러블슈팅 — 훅 종료 코드 계약
+
+| exit | 의미 | 대응 |
+|---|---|---|
+| 0 | 허용 (또는 stdout JSON `permissionDecision:"deny"` — Claude Code 전용 차단) | — |
+| 2 | 차단 (사유는 stderr) | deny 메시지의 대체 수단 사용 — 우회 금지 |
+| **1** | **훅 로직이 아니라 스크립트 기동 실패** (모듈 미발견/크래시) | ① 명령의 경로 치환 확인(위 2026-07-14 항목) ② cwd가 저장소 루트인지 확인 ③ `node .claude/hooks-project/<훅>.cjs --command "ls"`로 단독 실행해 재현 |
+
 ### 2026-07-13 정리에서 제거·변경된 것
 
 - **제거**: PostToolUse의 `mcp_tool: maker_refresh_workspace` (편집마다 전체 워크스페이스 refresh → "refresh 진행 중" 충돌 유발, 티켓 단위 refresh 규약과 중복). refresh는 이제 **검증 체인(AGENTS.md §4.3)에서 명시적으로 호출**한다 — 새 `.mlua`를 만들면 refresh 전까지 `.codeblock`이 생성되지 않음을 잊지 말 것.

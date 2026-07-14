@@ -31,17 +31,17 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"${CLAUDE_PROJECT_DIR}/.claude/hooks-project/skill-read-guard.cjs\"",
+            "command": "node \".claude/hooks-project/skill-read-guard.cjs\"",
             "timeout": 5
           },
           {
             "type": "command",
-            "command": "node \"${CLAUDE_PROJECT_DIR}/.claude/hooks/structured-file-guard/structured-file-guard.cjs\"",
+            "command": "node \".claude/hooks/structured-file-guard/structured-file-guard.cjs\"",
             "timeout": 5
           },
           {
             "type": "command",
-            "command": "node \"${CLAUDE_PROJECT_DIR}/.claude/hooks-project/readonly-path-guard.cjs\"",
+            "command": "node \".claude/hooks-project/readonly-path-guard.cjs\"",
             "timeout": 5
           }
         ]
@@ -51,7 +51,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"${CLAUDE_PROJECT_DIR}/.claude/hooks/structured-file-guard/structured-file-guard.cjs\"",
+            "command": "node \".claude/hooks/structured-file-guard/structured-file-guard.cjs\"",
             "timeout": 5
           }
         ]
@@ -61,7 +61,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"${CLAUDE_PROJECT_DIR}/.claude/hooks-project/readonly-path-guard.cjs\"",
+            "command": "node \".claude/hooks-project/readonly-path-guard.cjs\"",
             "timeout": 5
           }
         ]
@@ -73,7 +73,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"${CLAUDE_PROJECT_DIR}/.claude/hooks/mlua-lsp/mlua-diagnose-post-tool-use.cjs\"",
+            "command": "node \".claude/hooks/mlua-lsp/mlua-diagnose-post-tool-use.cjs\"",
             "timeout": 120
           }
         ]
@@ -83,7 +83,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"${CLAUDE_PROJECT_DIR}/.claude/hooks/skill-log/skill-log.cjs\"",
+            "command": "node \".claude/hooks/skill-log/skill-log.cjs\"",
             "timeout": 5,
             "async": true
           }
@@ -94,7 +94,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"${CLAUDE_PROJECT_DIR}/.claude/hooks/mcp-log/mcp-log.cjs\"",
+            "command": "node \".claude/hooks/mcp-log/mcp-log.cjs\"",
             "timeout": 5,
             "async": true
           }
@@ -107,7 +107,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"${CLAUDE_PROJECT_DIR}/.claude/hooks/mlua-lsp/mlua-session-start.cjs\"",
+            "command": "node \".claude/hooks/mlua-lsp/mlua-session-start.cjs\"",
             "timeout": 120
           }
         ]
@@ -117,7 +117,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"${CLAUDE_PROJECT_DIR}/.claude/hooks/update-check/update-check.cjs\"",
+            "command": "node \".claude/hooks/update-check/update-check.cjs\"",
             "timeout": 10
           }
         ]
@@ -129,12 +129,12 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"${CLAUDE_PROJECT_DIR}/.claude/hooks/core-version-check/core-version-check.cjs\"",
+            "command": "node \".claude/hooks/core-version-check/core-version-check.cjs\"",
             "timeout": 5
           },
           {
             "type": "command",
-            "command": "node \"${CLAUDE_PROJECT_DIR}/.claude/hooks-project/skill-router-lite.cjs\"",
+            "command": "node \".claude/hooks-project/skill-router-lite.cjs\"",
             "timeout": 10
           }
         ]
@@ -146,7 +146,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"${CLAUDE_PROJECT_DIR}/.claude/hooks/skill-log/skill-log.cjs\"",
+            "command": "node \".claude/hooks/skill-log/skill-log.cjs\"",
             "timeout": 5,
             "async": true
           }
@@ -159,7 +159,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"${CLAUDE_PROJECT_DIR}/.claude/hooks/mlua-lsp/mlua-session-end.cjs\"",
+            "command": "node \".claude/hooks/mlua-lsp/mlua-session-end.cjs\"",
             "timeout": 20
           }
         ]
