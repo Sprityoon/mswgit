@@ -44,6 +44,8 @@ script UIHUDController extends Component
 
 	property any btnCollectionHandler = nil
 
+	property any btnSkillTreeHandler = nil
+
 	@ExecSpace("ClientOnly")
 	method void OnBeginPlay()
 		log("TEST_LOG: UIHUDController OnBeginPlay")
@@ -177,6 +179,32 @@ script UIHUDController extends Component
 			log("[DEX] BtnCollection wired")
 		else
 			log_warning("[DEX] BtnCollection entity not found on HUD")
+		end
+
+		-- T47: 스킬트리 열기 버튼 (K 키와 동일 Toggle 경로)
+		local btnSkillTree = _EntityService:GetEntityByPath("/ui/HUDGroup/BtnSkillTree")
+		if isvalid(btnSkillTree) then
+			if isvalid(btnSkillTree.SpriteGUIRendererComponent) then
+				btnSkillTree.SpriteGUIRendererComponent.RaycastTarget = true
+			end
+			self.btnSkillTreeHandler = btnSkillTree:ConnectEvent(ButtonClickEvent, function()
+				local popup = _EntityService:GetEntityByPath("/ui/PopupGroup/SkillTreePopup")
+				if not isvalid(popup) then
+					log_warning("[SKILL-TREE-UX] BtnSkillTree: SkillTreePopup missing")
+					return
+				end
+				---@type UISkillTreeController
+				local controller = popup:GetComponent("script.UISkillTreeController")
+				if isvalid(controller) then
+					controller:Toggle()
+					log("[SKILL-TREE-UX] HUD BtnSkillTree toggle")
+				else
+					log_warning("[SKILL-TREE-UX] BtnSkillTree: UISkillTreeController missing")
+				end
+			end)
+			log("[SKILL-TREE-UX] BtnSkillTree wired")
+		else
+			log_warning("[SKILL-TREE-UX] BtnSkillTree entity not found on HUD")
 		end
 
 		-- Connect Quick Slot Touch Events for Drag & Drop and Click
@@ -369,6 +397,11 @@ script UIHUDController extends Component
 		local btnCollection = _EntityService:GetEntityByPath("/ui/HUDGroup/BtnCollection")
 		if isvalid(btnCollection) and self.btnCollectionHandler then
 			btnCollection:DisconnectEvent(ButtonClickEvent, self.btnCollectionHandler)
+		end
+
+		local btnSkillTree = _EntityService:GetEntityByPath("/ui/HUDGroup/BtnSkillTree")
+		if isvalid(btnSkillTree) and self.btnSkillTreeHandler then
+			btnSkillTree:DisconnectEvent(ButtonClickEvent, self.btnSkillTreeHandler)
 		end
 
 		-- Disconnect Quick Slot Touch Events

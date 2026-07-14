@@ -119,6 +119,11 @@
 > - **전직/직업 = Phase 16-C 예약**(티켓 미발행) — 기초 스킬 안착 후 기획 확정.
 > - **(추기 — 배치 F 검수·후속 발행 2026-07-14)**: T45·T46 보고 3종·refresh Error=0 검수 통과. 제작자 Play 확인 중 피드백 2건 → **T47 발행(스킬트리 UX 보강)**: ① **노드 클릭 = 곧바로 SP 투자**(`UISkillTreeController.OnNodeClicked` L152 → `ServerRequestSkillLevelUp` L164) — 클릭은 선택/상세만으로 분리, 투자는 [레벨업] 버튼으로 ② 스킬트리 여는 **HUD 버튼** 신설(⚖️ 보스 확정 — 온스크린 시전 버튼/모바일 대응은 범위 밖, 후속 후보 = 공식 key-binding-package).
 > - **⚖️ 공식 소스 조사 결론(지휘자 2026-07-14, 보스 질문 회신)**: MSWPackages 저장소 29종 전수 확인 — **스킬 시스템 패키지 없음**. MSW 공식 제공 방식 = 원작 스킬 리소스 태그 검색(`#skillname#ID`) + `_EffectService:PlayEffect` 재생 = **T46이 이미 채택한 방식 그대로**. 자작 트리 인프라(SP/게이트) 유지 확정.
+> - **🎯 배치 G 발행 (⚖️ 2026-07-14 보스 지시 — 스킬트리 UX)**: **T47(UX 보강 — 클릭/SP분리 + HUD 버튼)**. 단일 에이전트. 소유: `UI/Scripts/UISkillTreeController.mlua`(핵심 로직), `ui/` HUD 스킨 서브트리(UIBuilder).
+> - **(추기 2 — 배치 G 검수·배치 C 발행 2026-07-14)**: **T47 보고 3종 검수 통과** — refresh **Error=0**(total 454/W11/I443) · §7 루브릭 8/8 · 지휘자 코드 대조(`ServerRequestSkillLevelUp` 호출 지점 = `OnLevelUpClicked` 1곳뿐 = 노드 클릭은 선택만, HUD `BtnSkillTree`→`Toggle()` 배선 + 핸들러 해제 확인, 서버 무수정 — git status 정합). 상태 유지 = [코드 완료 | Play 대기]. **잔여 Play 대기 = T27 · T47 2건**(체크리스트는 각 보고서 §6. T27은 퀘스트 107 미완료 캐릭터로 확인). ※ §3 상단에 중복 기재됐던 T47 축약 블록은 삭제(원본 = T46 아래 1개 유지) — **T항목 블록은 티켓당 1개만 기재**.
+> - **🐄 배치 C 발행 (🧭 2026-07-14 지휘자 — 순연 계획 이행, 단일 에이전트 순차)**: **T19(목장/가축) → T23(펫)**. 소유: `Player/Scripts/PersistenceManager.mlua`·`Player/Scripts/PlayerInventory.mlua`(사용 경로 훅), `MapObjects/Scripts/itemreact.mlua`, `item/DataSets/item_dataset.csv`·`RecipeDataSet.csv`, `Furniture/DataSets/CookingRecipeDataSet.csv`, `MapObjects/DataSets/RequestPoolDataSet.csv`, 신규 `AnimalDataSet.csv`/`PetDataSet.csv`(+userdataset)·`Animal.mlua`/`Pet.mlua`+모델 3종(닭/양/개), 상점 데이터. 배치 F Play 확인으로 `PersistenceManager` 소유 겹침 해소. T47(UI 레인 — `UISkillTreeController`/`UIHUDController`/`ui/*.ui`)과 파일 안 겹침 → **T47 Play 대기와 무관하게 즉시 착수 가능**. ⚠️ `PlayerController.mlua` 수정 금지 — 필요해 보이면 [보류]+질문.
+> - **(추기 3 — T47 제작자 Play 피드백 → T48 발행·배치 C 확대 2026-07-14)**: 제작자 피드백 "HUD 스킬트리 버튼 위치 이상 + 스킬트리 팝업 Q 슬롯 근처 정체불명 박스". Maker 미가동으로 캡처 불가 → 지휘자가 UIBuilder 읽기 API 정적 실사로 원인 특정: ① **HUD `BtnSkillTree`(x -338~-210, y -186~-130)가 미니맵(x -382~-216, y -181~-15)과 122×51px 겹침** ② EquipBar 상단행 [레벨업] 비활성 회색 박스(저대비 라벨 0.55/0.28)가 Q 칩 우상단에 2px/6px 간격 밀착 + 바 좌하단 절반 공백 — "정체불명 박스" 유력 원인 ③ 잠재: EquipBar 밴드(y -302~-202)가 노드 4행 슬롯(y -250~-150)과 48px 겹침(현 CSV TreeRow≤3이라 미발현) ④ Hint가 팝업 Bg 하단 밖 1px 돌출. ⚠️ 검수 지적: T47 §7 루브릭 #5 "간격 8배수" 주장이 실측(2/6px)과 불일치 — 루브릭은 실측 좌표 근거로 작성할 것. **⚖️ 2026-07-14 보스 승인: T48을 배치 C 킥오프에 선두 편입 → 배치 C = T48 → T19 → T23** (T48은 UI 레인이라 T19/T23와 파일 안 겹침 — 동일 에이전트 순차로 안전).
+
 ### T4. [대기] 경계 테라스/절벽 아트 정리
 - **배경**: `TerraceTop`/`CliffFace`/`Big Wall`은 이전 스킴의 임시 아트 그대로다. 신규 grass 기준 아트와 톤이 안 맞을 수 있고, 상위 레이어 테라스 타일이 깔린 뒤 플레이어 아바타 SortingLayer 최종 판정도 미완(`docs/design/skill-tree-plan.md` §5 4번).
 - **Target**: `RootDesk/MyDesk/wall.tileset`(Maker에서 아트 교체) + 필요 시 `scripts/build_maps.cjs` 밴드/데코 페인팅
@@ -153,10 +158,10 @@
 ### T19. [대기] 목장/가축 — 우리·먹이·생산 (Phase 15-E, 배치 C)
 
 - **배경**: 기획서 §3.4. 농사와 대칭인 동물 생산 축. **영지 평화 원칙(전투·피격 없음) 유지**.
-- **Target**: 신규 `AnimalDataSet.csv`(AnimalId/PurchaseItem/FeedItem/FeedInterval/ProduceItem/ProduceInterval/SpriteRUID/WanderRadius), 신규 `Animal.mlua`+가축 모델 2종(닭/양), 우리 가구(`item_dataset`/`RecipeDataSet` 행+모델), 상점 데이터(가축 구매권), `PersistenceManager.mlua`(가축 목록·급여/생산 시각)
-- **Change**: ① 우리 설치(기존 가구 경로) ② 상점에서 가축 구매권 구매 → 우리 근처에서 사용(T16 consumable 경로 재사용, 전용 컬럼 판정) → 가축 스폰+영속 등록 ③ 우리 반경 내 배회(몬스터 wander 로직 재사용, 전투 없음) ④ 먹이 들고 F → 급여(fedAt 갱신) ⑤ 급여 상태에서 ProduceInterval 경과 시 산출물 드롭(기존 드롭 파이프라인) — 타이머는 타임스탬프 환산(오프라인 포함, T6 패턴) ⑥ 닭(먹이=씨앗, 산출=달걀)/양(먹이=Grass, 산출=양털) + 달걀·양털 아이템 행(달걀은 `CookingRecipeDataSet`에 요리 1행 추가).
+- **Target**: 신규 `AnimalDataSet.csv`(AnimalId/PurchaseItem/FeedItem/FeedInterval/ProduceItem/ProduceInterval/SpriteRUID/WanderRadius), 신규 `Animal.mlua`+가축 모델 2종(닭/양), 우리 가구(`item_dataset`/`RecipeDataSet` 행+모델), 상점 데이터(가축 구매권), `PersistenceManager.mlua`(가축 목록·급여/생산 시각), (필요 시) `PlayerInventory.mlua`(T16 사용 경로에 전용 컬럼 훅 — 🧭 2026-07-14 소유 명시), `MapObjects/DataSets/RequestPoolDataSet.csv`(Change ⑦)
+- **Change**: ① 우리 설치(기존 가구 경로) ② 상점에서 가축 구매권 구매 → 우리 근처에서 사용(T16 consumable 경로 재사용, 전용 컬럼 판정) → 가축 스폰+영속 등록 ③ 우리 반경 내 배회(몬스터 wander 로직 재사용, 전투 없음) ④ 먹이 들고 F → 급여(fedAt 갱신) ⑤ 급여 상태에서 ProduceInterval 경과 시 산출물 드롭(기존 드롭 파이프라인) — 타이머는 타임스탬프 환산(오프라인 포함, T6 패턴) ⑥ 닭(먹이=씨앗, 산출=달걀)/양(먹이=Grass, 산출=양털) + 달걀·양털 아이템 행(달걀은 `CookingRecipeDataSet`에 요리 1행 추가) ⑦ (🧭 2026-07-14 지휘자 추가 — T20 Change ⑤ 잔여 확장) `MapObjects/DataSets/RequestPoolDataSet.csv`에 납품 의뢰 행 추가: 어류(T18 완료분 — `FishDataSet` 현존 어종만) + 달걀·양털(본 티켓 산출물). CSV 행 추가만, 코드 무변경.
 - **Acceptance**: 구매→스폰→급여→생산→수집 루프 / 재접속 후 가축·타이머 복원 / 신규 가축은 CSV 행 추가만. LSP+refresh 무에러, Play 보류.
-- **충돌 주의**: `PersistenceManager` 수정 — 배치 C 내 순차(T19→T21→T22→T23) 준수.
+- **충돌 주의**: `PersistenceManager`/`PlayerInventory` 수정 — 배치 C 잔여 순차(**T19→T23**, T21·T22는 완료) 준수. `PlayerController.mlua` 수정 금지 — 필요해 보이면 [보류]+질문.
 
 ### T20. [완료 — Play PASS(제작자 2026-07-14, 납품 루프 확인) | refresh 레인 말미(T27) Error=0] 마을 의뢰 게시판 — 일일 납품 의뢰 (Phase 15-D, 배치 B) — ⚠️ 선행: T16(PlayerInventory 공유)
 
@@ -189,10 +194,10 @@
 ### T23. [대기] 펫 동반자 — 추종 + 자동 줍기 (Phase 15-H, 배치 C 마지막) — ⚠️ 선행: T16(사용 경로)
 
 - **배경**: 기획서 §3.8. 파밍 편의+애착. 전투 없음.
-- **Target**: 신규 `PetDataSet.csv`(PetId/DisplayName/SpriteRUID/MoveSpeed/PickupRange), 신규 `Pet.mlua`+펫 모델 1종(개), 펫 소환 아이템(`item_dataset` 행 — T16 사용 경로 재사용, 전용 컬럼 `UsePetId` 신설), `itemreact.mlua`(자석 픽업을 펫 위치 기준으로도 발동 — `PickupGrace` 규칙 유지), `PersistenceManager.mlua`(활성 펫), 상점(첫 펫 판매)
+- **Target**: 신규 `PetDataSet.csv`(PetId/DisplayName/SpriteRUID/MoveSpeed/PickupRange), 신규 `Pet.mlua`+펫 모델 1종(개), 펫 소환 아이템(`item_dataset` 행 — T16 사용 경로 재사용, 전용 컬럼 `UsePetId` 신설), (필요 시) `PlayerInventory.mlua`(사용 경로 `UsePetId` 훅 — 🧭 2026-07-14 소유 명시), `itemreact.mlua`(자석 픽업을 펫 위치 기준으로도 발동 — `PickupGrace` 규칙 유지), `PersistenceManager.mlua`(활성 펫), 상점(첫 펫 판매)
 - **Change**: ① 소환 아이템 사용 → 기존 펫 제거 후 스폰+영속(소환 아이템은 소모하지 않음 = 재사용 티켓 방식) ② 추종: 플레이어와 거리 유지 팔로우, 맵 이동 시 함께 워프 ③ 자동 줍기: PickupRange 내 드롭에 기존 자석 파이프라인 적용(소유권·PickupGrace 규칙 그대로 준수) ④ 초기 1종(개) — 희귀 펫은 T9/T22 보상 행으로 후속.
 - **Acceptance**: 소환→추종→맵 동반 이동→반경 자동 픽업(유예 규칙 위반 0) / 재접속 시 활성 펫 복원 / 신규 펫=CSV 행. LSP+refresh 무에러, Play 보류.
-- **충돌 주의**: `itemreact`/`PersistenceManager`/`item_dataset` 수정 — T22 후 착수.
+- **충돌 주의**: `itemreact`/`PersistenceManager`/`item_dataset` 수정 — 배치 C 내 **T19 후 착수**(T21·T22는 완료 — 🧭 2026-07-14 순서 갱신).
 
 ### T27. [코드 완료 — 2026-07-11 | refresh 빌드 Error=0 | 런타임 검증 보류(제작자 수행)] 퀘스트 보상 → 레시피 해금 연결 (`RewardUnlockId`) — T25 잔여 분리
 
@@ -413,7 +418,7 @@
 - **검증**: Maker refresh 빌드 **Error=0** (total 452 / Warning 13 / Info 439). **런타임 검증 보류(제작자 수행)**.
 
 
-### T47. [대기] 스킬트리 UX 보강 — 노드 클릭↔SP 투자 분리 + HUD 스킬트리 버튼 (Phase 16-A 후속, T45 제작자 Play 피드백 2026-07-14)
+### T47. [코드 완료 — 2026-07-14 | refresh Error=0 | 런타임 검증 보류(제작자 수행)] 스킬트리 UX 보강 — 노드 클릭↔SP 투자 분리 + HUD 스킬트리 버튼 (Phase 16-A 후속, T45 제작자 Play 피드백 2026-07-14)
 
 - **배경(제작자 Play 피드백 2건)**: ① "스킬을 배치하려고 누를 때 SP를 투자하고 싶지 않은데 투자가 되어버려" — 원인 특정(지휘자): `UISkillTreeController.OnNodeClicked`(L152)가 클릭 즉시 `ServerRequestSkillLevelUp`(L164)을 호출 = 노드 클릭이 곧 SP 투자. 선택·장착 의도의 클릭에서 SP가 오투자된다. ② 스킬트리가 K 키로만 열려 발견성이 없다 — **HUD 버튼 필요(⚖️ 보스 확정: 스킬트리 여는 버튼. 온스크린 시전 버튼/모바일 대응은 범위 밖 — 후속 후보: 공식 key-binding-package)**.
 - **Target**: `UI/Scripts/UISkillTreeController.mlua`, `UI/Scripts/UIHUDController.mlua` + 해당 `.ui` 서브트리(스킬트리 팝업·HUD — **UIBuilder 경유**, UI 규칙 6). **서버 로직 무변경이 기대값**(`ServerRequestSkillLevelUp`/`ServerRequestEquipSkill`은 T45 산출물 그대로 — `PlayerController` 수정 금지, 부족하면 [보류]+질문).
@@ -424,6 +429,22 @@
   ④ 회귀 금지: 해금/장착/시전/자동 장착(T45)·아이콘/이펙트(T46) 무변경.
 - **Acceptance**: ① 노드 클릭만으로는 SP 변동 0(반복 클릭 포함) ② [레벨업] 버튼으로만 투자, 불가 시 비활성+사유 ③ HUD 버튼으로 스킬트리 열림/닫힘(K 키와 동등) ④ 장착 버튼과 레벨업 버튼 혼동 없는 배치 ⑤ 이름/수치 하드코딩 0 ⑥ 티켓 완료 즉시 refresh, Error 수 보고서 §4 기재 + ui-aesthetics §7 루브릭 표 첨부. Play는 제작자.
 - **충돌 주의**: 단독 티켓 — `UISkillTreeController`/`UIHUDController`/해당 `.ui` 소유. 배치 C(T19·T23)는 이 티켓과 소유 안 겹침(T47 완료 대기 불요 — 단, 동시 진행 시 `.ui` 파일 분리 확인).
+- **구현 요약 (2026-07-14)**: OnNodeClicked=선택만 · EquipBar BtnLevelUp(초록) · HUD BtnSkillTree → Toggle · 서버 무수정. ui-aesthetics §7 8/8. 보고서: `docs/agents/reports/T47-skill-tree-ux.md`.
+- **검증**: Maker refresh 빌드 **Error=0** (total 454 / Warning 11 / Info 443). **런타임 검증 보류(제작자 수행)**.
+- **후속 (2026-07-14)**: 제작자 Play 확인 중 비주얼 피드백 2건(HUD 버튼 위치 · Q 슬롯 근처 정체불명 박스) → **T48 발행**(원인 실사 = §3 상단 추기 3). 기능 Acceptance ①~③은 본 티켓 유지, 비주얼 정리는 T48.
+
+### T48. [대기] 스킬트리 UX 비주얼 정리 — HUD 버튼 미니맵 겹침 해소 + EquipBar 재배치 (T47 제작자 Play 피드백 2026-07-14, 배치 C 선두)
+
+- **배경**: T47 Play 확인 중 제작자 피드백 2건 — ① HUD 스킬트리 버튼 위치 이상 ② 스킬트리 팝업 Q 슬롯 근처 정체불명 박스. 지휘자 정적 실사(§3 상단 추기 3)로 원인 특정: HUD `BtnSkillTree`가 미니맵과 122×51px 겹침 / EquipBar 상단행의 비활성 [레벨업] 회색 박스(저대비)가 Q 칩에 2px/6px 밀착 + 좌하단 절반 공백 / (잠재) EquipBar 밴드가 노드 4행과 48px 겹침 / Hint 1px 돌출.
+- **Target**: `ui/HUDGroup.ui`·`ui/PopupGroup.ui`(**UIBuilder 경유**), `UI/Scripts/UISkillTreeController.mlua`(MaxRows·비활성 톤 상수만). **`UIHUDController.mlua` 무수정 기대** — `BtnSkillTree` 이름/경로(`/ui/HUDGroup/BtnSkillTree`) 절대 불변(컨트롤러가 경로 참조), 위치만 이동.
+- **Change** (좌표는 지휘자 실측 기반 확정 — 임의 변경 금지, 불가하면 [보류]+질문):
+  ① **HUD 버튼 이동**: `BtnSkillTree` anchoredPosition (-210,-130) → **(-74,-196)** (top-right 앵커·pivot·128×56 유지) = BtnCollection 바로 아래 10px 간격, 우측 정렬. 🧭 규약: 이후 HUD 팝업 버튼은 이 열 아래로 -66px씩 스택.
+  ② **노드 그리드 3행 축소**: `UISkillTreeController.mlua` `MaxRows` 4→3 + `ui/PopupGroup.ui`의 `Node_4_1`~`Node_4_3` 서브트리 제거(UIBuilder `remove`). 근거: 4행은 EquipBar와 겹치는 영구 사각지대, 현 CSV TreeRow 최대 3 (🧭 2026-07-14 지휘자 확정 — 16-C 전직 트리 개편 때 재설계).
+  ③ **EquipBar 재배치**: 520×100→**520×120**, anchoredPosition (0,58)→**(0,68)** (Node_3 하단과 52px 이격). 내부(이름 불변): DetailText top-left (12,-8) rect **496×28** + `TextComponent.Overflow=2`(Ellipsis) / 하단행 좌측 정렬 **BtnQ (12,12)·BtnW (76,12)·BtnE (140,12)·BtnR (204,12)** (bottom-left 앵커, 56×36, pitch 64) / **BtnLevelUp bottom-right 앵커 (-12,12)** 200×36 (QWER와 같은 행, 48px 이격 — 장착=좌/골드, 투자=우/초록 분리).
+  ④ **Hint 이동**: (0,-300) → **(0,-160)** (노드 영역과 바 사이 구분선 역할, Bg 돌출 해소).
+  ⑤ **[레벨업] 비활성 시인성**: `RefreshEquipDetail`의 disabledText (0.55,0.55,0.58) → **(0.72,0.72,0.75)** — 비활성이어도 라벨·사유가 읽혀 "정체불명 박스"로 보이지 않게.
+- **Acceptance**: ① HUD 버튼-미니맵 겹침 0(실측 좌표 병기) ② EquipBar-노드 겹침 0(전 행) ③ Hint Bg 내부 ④ 버튼 간 최소 8px 간격 ⑤ Q 칩 주변 무라벨/저대비 요소 0 ⑥ T47 기능 회귀 0(노드 클릭=선택만·레벨업 버튼·HUD/K 토글) ⑦ refresh Error=0 + `preview_ui_layout.cjs` 재실행 결과 첨부 + §7 루브릭 — **실측 좌표 근거로 작성**(T47 루브릭 실측 불일치 재발 금지).
+- **충돌 주의**: **배치 C 선두(T48→T19→T23)**. `UIHUDController`/`PlayerController` 수정 금지.
 
 ### (신규 작업 추가 템플릿)
 ```

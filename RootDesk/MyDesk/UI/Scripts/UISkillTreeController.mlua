@@ -4,6 +4,7 @@ script UISkillTreeController extends Component
 	-- SkillTreePopup: SkillDataSet의 TreeRow/TreeCol 좌표로 노드를 배치하고 노드 4상태
 	-- (잠김 / 목표 진행 중 / 해금 가능 / 보유)를 렌더링한다. (docs/design/skill-tree-plan.md §2 UI)
 	-- T45: 보유 스킬 선택 → QWER 장착 버튼 + 현재 장착 슬롯 표시.
+	-- T47: 노드 클릭=선택/상세만 · SP 투자는 [레벨업] 버튼만.
 
 	property Entity btnClose = "da9d3a55-39ec-42c3-8e38-14c714c3cf71"
 
@@ -14,12 +15,15 @@ script UISkillTreeController extends Component
 	property ButtonComponent btnEquipW = "cc23b1a5-be5c-4772-8ca1-01bc64033a6b"
 	property ButtonComponent btnEquipE = "3deee177-323d-49b5-9c3d-ff5fbde0eea7"
 	property ButtonComponent btnEquipR = "61e8acd4-707c-4da1-8a43-a9457da438c0"
+	property Entity btnLevelUp = "e0252252-4361-4d90-b2f1-7aec1cf80bec"
 
 	property integer MaxRows = 4
 
 	property integer MaxCols = 3
 
 	property any closeHandler = nil
+
+	property any levelUpHandler = nil
 
 	property table nodeHandlers = {}
 	property table equipHandlers = {}
@@ -42,6 +46,7 @@ script UISkillTreeController extends Component
 
 		self:SetupNodeEvents()
 		self:SetupEquipButtons()
+		self:SetupLevelUpButton()
 	end
 
 	@ExecSpace("ClientOnly")
@@ -52,6 +57,10 @@ script UISkillTreeController extends Component
 		self._T.btnWE = self.Entity:GetChildByName("BtnW", true)
 		self._T.btnEE = self.Entity:GetChildByName("BtnE", true)
 		self._T.btnRE = self.Entity:GetChildByName("BtnR", true)
+		self._T.btnLevelUpE = self.Entity:GetChildByName("BtnLevelUp", true)
+		if not isvalid(self._T.btnLevelUpE) and isvalid(self.btnLevelUp) then
+			self._T.btnLevelUpE = self.btnLevelUp
+		end
 	end
 
 	@ExecSpace("ClientOnly")
@@ -59,6 +68,12 @@ script UISkillTreeController extends Component
 		if self.closeHandler and isvalid(self.btnClose) then
 			self.btnClose:DisconnectEvent(ButtonClickEvent, self.closeHandler)
 		end
+		local levelBtn = self._T.btnLevelUpE
+		if not isvalid(levelBtn) then levelBtn = self.btnLevelUp end
+		if self.levelUpHandler and isvalid(levelBtn) then
+			levelBtn:DisconnectEvent(ButtonClickEvent, self.levelUpHandler)
+		end
+		self.levelUpHandler = nil
 		for ent, clickHandler in pairs(self.nodeHandlers) do
 			if isvalid(ent) then
 				ent:DisconnectEvent(ButtonClickEvent, clickHandler)
@@ -149,19 +164,122 @@ script UISkillTreeController extends Component
 	end
 
 	@ExecSpace("ClientOnly")
+	method void SetupLevelUpButton()
+		-- T47: [레벨업] 버튼 — SP 투자의 유일한 진입점.
+		local btn = self._T.btnLevelUpE
+		if not isvalid(btn) then btn = self.btnLevelUp end
+		if not isvalid(btn) then
+			log_warning("[SKILL-TREE-UX] BtnLevelUp missing")
+			return
+		end
+		if isvalid(btn.SpriteGUIRendererComponent) then
+			btn.SpriteGUIRendererComponent.RaycastTarget = true
+		end
+		self.levelUpHandler = btn:ConnectEvent(ButtonClickEvent, function()
+			self:OnLevelUpClicked()
+		end)
+		log("[SKILL-TREE-UX] BtnLevelUp wired")
+	end
+
+	@ExecSpace("ClientOnly")
 	method void OnNodeClicked(string key)
-		-- 노드 클릭: 선택 + 해금/레벨업 요청 (서버 검증).
+		-- T47: 노드 클릭 = 선택/상세만 (SP 투자 없음).
 		local skillId = self.nodeSkillMap[key]
 		if skillId == nil or skillId == "" then return end
 
 		self.selectedSkillId = skillId
-		self:RefreshEquipDetail()
+		log("[SKILL-TREE-UX] select " .. skillId)
+		self:Refresh()
+	end
+
+	@ExecSpace("ClientOnly")
+	method void OnLevelUpClicked()
+		-- T47: 선택된 스킬에만 ServerRequestSkillLevelUp (클라 게이트 통과 시).
+		local skillId = self.selectedSkillId or ""
+		if skillId == "" then return end
 
 		local pc = self:GetLocalPlayerController()
 		if pc == nil then return end
 		---@type PlayerController
 		local controller = pc
+
+		local st = self:EvalLevelUpState(skillId, controller)
+		if not st.can then
+			log("[SKILL-TREE-UX] levelup blocked: " .. tostring(st.reason))
+			return
+		end
+
+		log("[SKILL-TREE-UX] levelup request " .. skillId)
 		controller:ServerRequestSkillLevelUp(skillId)
+		self:Refresh()
+	end
+
+	method table EvalLevelUpState(string skillId, any pc)
+		-- 클라 표시용 게이트 미러 (서버 ServerRequestSkillLevelUp과 동일 조건).
+		-- returns { can, label, reason }
+		local result = { can = false, label = "레벨업", reason = "스킬을 선택하세요" }
+		if skillId == nil or skillId == "" then
+			return result
+		end
+		---@type PlayerController
+		local controller = pc
+		if controller == nil then
+			result.reason = "플레이어 없음"
+			return result
+		end
+
+		local ds = _DataService:GetTable("SkillDataSet")
+		if ds == nil then
+			result.reason = "데이터 없음"
+			return result
+		end
+		local row = ds:FindRow("SkillId", skillId)
+		if row == nil then
+			result.reason = "스킬 없음"
+			return result
+		end
+
+		local maxLevel = tonumber(row:GetItem("MaxLevel")) or 1
+		local spCost = tonumber(row:GetItem("SPCost")) or 1
+		local parentId = row:GetItem("ParentSkillId")
+		local reqLevel = tonumber(row:GetItem("RequiredLevel")) or 1
+		local achId = tonumber(row:GetItem("UnlockAchievementId"))
+		local level = controller:GetSkillLevel(skillId)
+		local label = "레벨업 (SP " .. tostring(spCost) .. ")"
+
+		if level >= maxLevel then
+			result.label = "MAX"
+			result.reason = "이미 최대 레벨"
+			return result
+		end
+		if level < 1 then
+			if parentId ~= nil and parentId ~= "" and controller:GetSkillLevel(parentId) < 1 then
+				result.label = label
+				result.reason = "선행 스킬 필요"
+				return result
+			end
+			if controller.Level < reqLevel then
+				result.label = label
+				result.reason = "Lv." .. tostring(reqLevel) .. " 필요"
+				return result
+			end
+			if achId ~= nil and achId > 0 and not self:IsAchievementDoneClient(achId) then
+				local pct = math.floor(self:GetAchievementPctClient(achId) * 100)
+				result.label = label
+				result.reason = "목표 진행 중 " .. tostring(pct) .. "%"
+				return result
+			end
+			label = "해금 (SP " .. tostring(spCost) .. ")"
+		end
+		if controller.SP < spCost then
+			result.label = label
+			result.reason = "SP 부족 (필요 " .. tostring(spCost) .. ")"
+			return result
+		end
+		result.can = true
+		result.label = label
+		result.reason = ""
+		return result
 	end
 
 	@ExecSpace("ClientOnly")
@@ -185,7 +303,7 @@ script UISkillTreeController extends Component
 
 	@ExecSpace("ClientOnly")
 	method void RefreshEquipDetail()
-		-- 선택 스킬 + 현재 장착 슬롯 표시, QWER 버튼 하이라이트.
+		-- 선택 스킬 + 현재 장착 슬롯 표시, QWER 하이라이트, [레벨업] 활성/사유.
 		local detailE = self._T.detailTextE
 		if not isvalid(detailE) then detailE = self.equipDetailText end
 		local pc = self:GetLocalPlayerController()
@@ -219,6 +337,11 @@ script UISkillTreeController extends Component
 			end
 		end
 
+		local st = { can = false, label = "레벨업", reason = "스킬을 선택하세요" }
+		if pc ~= nil and sid ~= "" then
+			st = self:EvalLevelUpState(sid, pc)
+		end
+
 		local line = "스킬을 선택하세요"
 		if sid ~= "" then
 			if level < 1 then
@@ -230,12 +353,37 @@ script UISkillTreeController extends Component
 			else
 				line = name .. " · 미장착 (QWER 클릭)"
 			end
+			if st.reason ~= nil and st.reason ~= "" and not st.can then
+				line = line .. " · " .. st.reason
+			end
 		end
 		if isvalid(detailE) and isvalid(detailE.TextComponent) then
 			detailE.TextComponent.Text = line
 		end
 
-		-- 버튼 하이라이트: 선택 스킬이 장착된 슬롯 = 골드
+		-- T47: [레벨업] 버튼 — 가능=초록, 불가=회색+라벨/사유
+		local levelBtn = self._T.btnLevelUpE
+		if not isvalid(levelBtn) then levelBtn = self.btnLevelUp end
+		if isvalid(levelBtn) then
+			local activeBg = Color(0.22, 0.55, 0.32, 1.0)
+			local disabledBg = Color(0.28, 0.28, 0.30, 1.0)
+			local activeText = Color(0.12, 0.18, 0.12, 1.0)
+			local disabledText = Color(0.55, 0.55, 0.58, 1.0)
+			local spr = levelBtn.SpriteGUIRendererComponent
+			if isvalid(spr) then
+				if st.can then spr.Color = activeBg else spr.Color = disabledBg end
+				spr.RaycastTarget = true
+			end
+			local txt = levelBtn.TextComponent
+			if isvalid(txt) then
+				txt.Text = st.label
+				if st.can then txt.FontColor = activeText else txt.FontColor = disabledText end
+			end
+			-- 클릭은 핸들러에서 can 재검사 — 버튼 자체 Enable 유지(사유 표시 가능)
+			levelBtn.Enable = true
+		end
+
+		-- QWER 하이라이트: 선택 스킬이 장착된 슬롯 = 골드 (레벨업 초록과 구분)
 		local selBg = Color(0.94, 0.66, 0.19, 1.0)
 		local idleBg = Color(0.18, 0.20, 0.16, 1.0)
 		local selText = Color(0.15, 0.12, 0.08, 1.0)
@@ -409,12 +557,16 @@ script UISkillTreeController extends Component
 		local achOk = (achId == nil or achId <= 0 or self:IsAchievementDoneClient(achId))
 
 		if parentOk and levelOk and achOk then
-			-- 해금 가능: 초록
-			self:SetNodeVisual(node, Color(0.15, 0.45, 0.22, 1.0), skillName, "해금 가능", "해금: SP " .. spCost, iconRuid, false)
+			-- 해금 가능: 초록 (선택 시 톤 상향)
+			local bg = Color(0.15, 0.45, 0.22, 1.0)
+			if selected then bg = Color(0.22, 0.55, 0.32, 1.0) end
+			self:SetNodeVisual(node, bg, skillName, "해금 가능", "해금: SP " .. spCost, iconRuid, false)
 		elseif parentOk and levelOk and not achOk then
 			-- 목표(업적) 진행 중: 주황 + 진행도 %
 			local pct = math.floor(self:GetAchievementPctClient(achId) * 100)
-			self:SetNodeVisual(node, Color(0.55, 0.38, 0.12, 1.0), skillName, "목표 진행 중", "진행도 " .. pct .. "%", iconRuid, true)
+			local bg = Color(0.55, 0.38, 0.12, 1.0)
+			if selected then bg = Color(0.68, 0.48, 0.18, 1.0) end
+			self:SetNodeVisual(node, bg, skillName, "목표 진행 중", "진행도 " .. pct .. "%", iconRuid, true)
 		else
 			-- 잠김: 회색 + 사유
 			local reason = ""
@@ -423,7 +575,9 @@ script UISkillTreeController extends Component
 			elseif not levelOk then
 				reason = "Lv." .. reqLevel .. " 필요"
 			end
-			self:SetNodeVisual(node, Color(0.22, 0.22, 0.26, 1.0), skillName, "잠김", reason, iconRuid, true)
+			local bg = Color(0.22, 0.22, 0.26, 1.0)
+			if selected then bg = Color(0.32, 0.32, 0.38, 1.0) end
+			self:SetNodeVisual(node, bg, skillName, "잠김", reason, iconRuid, true)
 		end
 	end
 
