@@ -41,6 +41,10 @@ script PlayerInventory extends Component
 	@Sync
 	property string DexMonstersJson = "{}"
 
+	-- T23: 활성 펫 PetId (세션+영속). 빈 문자열 = 없음.
+	@Sync
+	property string ActivePetId = ""
+
 	property table Items = {}
 
 	property number _researchTickAccum = 0.0
@@ -61,6 +65,7 @@ script PlayerInventory extends Component
 		self.DailyCompletedRequestsJson = "[]"
 		self.DexItemsJson = "{}"
 		self.DexMonstersJson = "{}"
+		self.ActivePetId = ""
 		self._researchTickAccum = 0.0
 		log("PlayerInventory initialized on server for player: " .. self.Entity.Name)
 	end
@@ -467,8 +472,220 @@ script PlayerInventory extends Component
 			return
 		end
 
+		-- T19: UseAnimalId → 우리 근처 가축 소환 (영지 전용, 티켓 1 소모)
+		local useAnimalId = ""
+		local okA, vA = pcall(function() return row:GetItem("UseAnimalId") end)
+		if okA and vA ~= nil then useAnimalId = tostring(vA) end
+		if useAnimalId ~= nil then
+			useAnimalId = string.gsub(useAnimalId, "^%s+", "")
+			useAnimalId = string.gsub(useAnimalId, "%s+$", "")
+		end
+		if useAnimalId ~= nil and useAnimalId ~= "" then
+			if not self:TrySpawnAnimalFromTicket(useAnimalId, baseName) then
+				return
+			end
+			return
+		end
+
+		-- T23: UsePetId → 펫 소환(기존 펫 교체). 아이템 비소모.
+		local usePetId = ""
+		local okPet, vPet = pcall(function() return row:GetItem("UsePetId") end)
+		if okPet and vPet ~= nil then usePetId = tostring(vPet) end
+		if usePetId ~= nil then
+			usePetId = string.gsub(usePetId, "^%s+", "")
+			usePetId = string.gsub(usePetId, "%s+$", "")
+		end
+		if usePetId ~= nil and usePetId ~= "" then
+			self:TrySummonPet(usePetId)
+			return
+		end
+
 		local pc2 = self.Entity:GetComponent("script.PlayerController")
 		if isvalid(pc2) then pc2:ShowMineFeedback("아직 사용할 수 없습니다.") end
+	end
+
+	@ExecSpace("ServerOnly")
+	method void TrySummonPet(string petId)
+		-- 활성 펫 교체 소환. 소환 아이템 비소모. ActivePetId 영속.
+		local pc = self.Entity:GetComponent("script.PlayerController")
+		local userId = ""
+		if isvalid(self.Entity.PlayerComponent) then
+			userId = self.Entity.PlayerComponent.UserId or ""
+		end
+		if userId == "" then return end
+		local map = self.Entity.CurrentMap
+		if not isvalid(map) then return end
+
+		local ds = _DataService:GetTable("PetDataSet")
+		if ds == nil then
+			if isvalid(pc) then pc:ShowMineFeedback("펫 데이터를 찾을 수 없습니다.") end
+			return
+		end
+		local row = ds:FindRow("PetId", petId)
+		if row == nil then
+			if isvalid(pc) then pc:ShowMineFeedback("알 수 없는 펫: " .. petId) end
+			return
+		end
+		local modelName = "Pet_" .. petId
+		local okM, vM = pcall(function() return row:GetItem("ModelName") end)
+		if okM and vM ~= nil and tostring(vM) ~= "" then modelName = tostring(vM) end
+		local modelId = _EntryService:GetModelIdByName(modelName)
+		if modelId == nil or modelId == "" then
+			if isvalid(pc) then pc:ShowMineFeedback("펫 모델 없음: " .. modelName) end
+			return
+		end
+
+		-- 기존 소유 펫 제거
+		local existing = map:GetChildComponentsByTypeName("script.Pet", true)
+		if existing ~= nil then
+			for _, pet in ipairs(existing) do
+				if isvalid(pet) and pet.OwnerUserId == userId and isvalid(pet.Entity) then
+					pet.Entity:Destroy()
+				end
+			end
+		end
+		-- 다른 맵에 남은 펫은 해당 맵 컴포넌트가 소유자 부재 시 무시 — 로드 시 ActivePetId로 재소환
+
+		local pos = self.Entity.TransformComponent.WorldPosition
+		local spawnPos = Vector3(pos.x - 0.8, pos.y, 0)
+		local ent = _SpawnService:SpawnByModelId(modelId, "Pet_" .. petId, spawnPos, map)
+		if not isvalid(ent) then
+			if isvalid(pc) then pc:ShowMineFeedback("펫 소환 실패") end
+			return
+		end
+		local petComp = ent:GetComponent("script.Pet")
+		if not isvalid(petComp) then
+			ent:AddComponent("script.Pet")
+			petComp = ent:GetComponent("script.Pet")
+		end
+		if isvalid(petComp) then
+			petComp:Initialize(petId, userId)
+		end
+		self.ActivePetId = petId
+		_PersistenceManager:MarkPlayerDirty(userId)
+		local dn = petId
+		local okD, vD = pcall(function() return row:GetItem("DisplayName") end)
+		if okD and vD ~= nil and tostring(vD) ~= "" then dn = tostring(vD) end
+		if isvalid(pc) then pc:ShowMineFeedback(dn .. "이(가) 따라옵니다!") end
+		log("[PET] summon " .. petId .. " by " .. userId)
+	end
+
+	@ExecSpace("ServerOnly")
+	method boolean TrySpawnAnimalFromTicket(string animalId, string ticketItemName)
+		-- AnimalDataSet + 영지 우리(FurnitureKind=pen) 근처 소환. 성공 시 티켓 소모·영속 더티.
+		local pc = self.Entity:GetComponent("script.PlayerController")
+		local userId = ""
+		if isvalid(self.Entity.PlayerComponent) then
+			userId = self.Entity.PlayerComponent.UserId or ""
+		end
+		if userId == "" then return false end
+
+		local map = self.Entity.CurrentMap
+		if not isvalid(map) then return false end
+		local mapName = map.Name or ""
+		if string.sub(mapName, 1, 5) ~= "Home_" then
+			if isvalid(pc) then pc:ShowMineFeedback("가축은 영지에서만 소환할 수 있습니다.") end
+			return false
+		end
+		if mapName ~= ("Home_" .. userId) then
+			if isvalid(pc) then pc:ShowMineFeedback("자신의 영지에서만 소환할 수 있습니다.") end
+			return false
+		end
+
+		local ads = _DataService:GetTable("AnimalDataSet")
+		if ads == nil then
+			if isvalid(pc) then pc:ShowMineFeedback("가축 데이터를 찾을 수 없습니다.") end
+			return false
+		end
+		local arow = ads:FindRow("AnimalId", animalId)
+		if arow == nil then
+			if isvalid(pc) then pc:ShowMineFeedback("알 수 없는 가축: " .. animalId) end
+			return false
+		end
+
+		-- 가장 가까운 pen 가구
+		local itemDs = _DataService:GetTable("item_dataset")
+		local bestPen = nil
+		local bestDist = 9999.0
+		local playerPos = self.Entity.TransformComponent.WorldPosition
+		local furnComps = map:GetChildComponentsByTypeName("script.PlaceableFurniture", true)
+		if furnComps ~= nil then
+			for _, furn in ipairs(furnComps) do
+				if isvalid(furn) and isvalid(furn.Entity) then
+					local isPen = false
+					local itemName = furn.ItemId or ""
+					if itemDs ~= nil and itemName ~= "" then
+						local ir = itemDs:FindRow("Name", itemName)
+						if ir ~= nil then
+							local okK, kind = pcall(function() return ir:GetItem("FurnitureKind") end)
+							if okK and kind == "pen" then isPen = true end
+						end
+					end
+					if isPen then
+						local fp = furn.Entity.TransformComponent.WorldPosition
+						local d = Vector2.Distance(Vector2(playerPos.x, playerPos.y), Vector2(fp.x, fp.y))
+						if d < bestDist then
+							bestDist = d
+							bestPen = furn.Entity
+						end
+					end
+				end
+			end
+		end
+		if not isvalid(bestPen) then
+			if isvalid(pc) then pc:ShowMineFeedback("우리(Animal Pen) 근처에서 사용하세요.") end
+			return false
+		end
+		if bestDist > 4.0 then
+			if isvalid(pc) then pc:ShowMineFeedback("우리에 더 가까이 가서 사용하세요.") end
+			return false
+		end
+
+		local modelName = "Animal_" .. animalId
+		local okM, vM = pcall(function() return arow:GetItem("ModelName") end)
+		if okM and vM ~= nil and tostring(vM) ~= "" then modelName = tostring(vM) end
+		local modelId = _EntryService:GetModelIdByName(modelName)
+		if modelId == nil or modelId == "" then
+			if isvalid(pc) then pc:ShowMineFeedback("가축 모델을 찾을 수 없습니다: " .. modelName) end
+			log_error("[ANIMAL] model missing " .. modelName)
+			return false
+		end
+
+		if not self:RemoveItem(ticketItemName, 1) then
+			if isvalid(pc) then pc:ShowMineFeedback("티켓이 없습니다.") end
+			return false
+		end
+
+		local penPos = bestPen.TransformComponent.WorldPosition
+		local penCellX = 0
+		local penCellY = 0
+		local tilemap = map:GetFirstChildComponentByTypeName("RectTileMapComponent", true)
+		if isvalid(tilemap) then
+			local cell = tilemap:ToCellPosition(penPos)
+			if cell ~= nil then
+				penCellX = cell.x
+				penCellY = cell.y
+			end
+		end
+		local spawnPos = Vector3(penPos.x + 0.8, penPos.y, 0)
+		local ent = _SpawnService:SpawnByModelId(modelId, "Animal_" .. animalId .. "_" .. tostring(os.time()), spawnPos, map)
+		if not isvalid(ent) then
+			self:AddItem(ticketItemName, 1)
+			if isvalid(pc) then pc:ShowMineFeedback("가축 소환에 실패했습니다.") end
+			return false
+		end
+		local ac = ent:GetComponent("script.Animal")
+		if not isvalid(ac) then
+			ent:AddComponent("script.Animal")
+			ac = ent:GetComponent("script.Animal")
+		end
+		if isvalid(ac) then
+			ac:InitializeFromSave(animalId, penCellX, penCellY, penPos.x, penPos.y, 0, 0, false, userId)
+		end
+		_PersistenceManager:MarkPlayerDirty(userId)
+		if isvalid(pc) then pc:ShowMineFeedback(animalId .. "을(를) 우리에 들였습니다!") end
+		log("[ANIMAL] spawn " .. animalId .. " by " .. userId .. " pen=(" .. tostring(penCellX) .. "," .. tostring(penCellY) .. ")")
+		return true
 	end
 
 	@ExecSpace("Server")

@@ -26,6 +26,7 @@
 7. **데이터셋 행 접근 API (2026-07-11 신설 — T35 사고 재발 방지)**: `UserDataSet:FindRow()`가 반환하는 `UserDataRow`는 **`Count()`와 `GetItem(columnName)` 두 메서드만 제공**한다. `row.RowIndex`는 존재하지 않는 프로퍼티(nil)이며 이를 `GetCell`에 넘기면 `[LEA-3005] InvalidArgument`로 호출한 서버 루프가 통째로 중단된다. 행 값 조회는 반드시 `row:GetItem("컬럼명")`으로 하고, 존재가 불확실한 컬럼은 pcall 가드를 쓴다(없는 컬럼 GetItem은 LEA-3011 — `Furnace.mlua` readDur 선례).
 8. **크로스 스크립트 API 호출 전 정의 확인 (2026-07-11 신설 — T18 치명 오류 재발 방지)**: 다른 스크립트의 메서드/프로퍼티를 호출하는 코드를 쓰기 전에 **반드시 대상 `.mlua` 파일에서 해당 정의를 검색해 존재와 시그니처를 확인**한다. 정의가 없으면 추정으로 호출하지 말 것 — 소유 레인 밖 파일에 정의를 새로 만들어 붙이는 것도 금지, [보류]+질문으로 전환한다. "아마 있을 것" 추정 호출이 직전 배치의 치명 런타임 오류 원인이었다.
 9. **세이브 경로 Yield 금지 (2026-07-11 신설 — T37 인벤토리 전량 유실 사고 재발 방지)**: `SavePlayerData` 등 영속 저장 루틴 안에서 `GetAndWait`/`SetAndWait` 외의 **추가 Yield 호출(다른 GetAndWait, 타이머 대기 등)을 절대 넣지 않는다**. Yield 사이에 플레이어 엔티티가 파괴되면 이후 읽는 컴포넌트 값이 nil → 기본값 폴백으로 **세이브가 빈 데이터로 덮인다**. 저장에 필요한 컴포넌트 값은 루틴 진입 직후 전부 지역 변수로 선캡처하고, 외부 조회가 필요하면 세션 캐시를 쓴다.
+10. **UI stretch 앵커 미신뢰 — RectSize 명시 (2026-07-14 신설 — T48 '정체불명 박스' 실증)**: 이 프로젝트 런타임(CoreVersion 26.5.0.0)에서 `.ui` 자식의 stretch 앵커(AnchorsMin≠AnchorsMax)+Offset 0 조합은 **부모 크기로 늘어나지 않고 `RectSize` 값 그대로 렌더**된다(지휘자 Play 캡처 실증 — `SkillTreePopup/Bg/EquipBar/Bg`가 RectSize 100×100 다크 박스로 렌더된 것이 제작자가 본 '알 수 없는 박스'의 정체). 기존 UI에서 문제가 안 보였던 이유는 전부 RectSize가 의도 크기와 일치했기 때문. 새/수정 `.ui` 자식은 **명시 anchor+rect_size로 작성**하고, 부모 크기를 바꾸면 stretch 자식의 RectSize 동기화 여부를 반드시 함께 확인한다.
 
 ### 1.3 ⚖️ 현행 타일 스킴 (2026-07-08 밀착 페어 확정 — 이 문서의 최우선 배경지식)
 
@@ -123,6 +124,11 @@
 > - **(추기 2 — 배치 G 검수·배치 C 발행 2026-07-14)**: **T47 보고 3종 검수 통과** — refresh **Error=0**(total 454/W11/I443) · §7 루브릭 8/8 · 지휘자 코드 대조(`ServerRequestSkillLevelUp` 호출 지점 = `OnLevelUpClicked` 1곳뿐 = 노드 클릭은 선택만, HUD `BtnSkillTree`→`Toggle()` 배선 + 핸들러 해제 확인, 서버 무수정 — git status 정합). 상태 유지 = [코드 완료 | Play 대기]. **잔여 Play 대기 = T27 · T47 2건**(체크리스트는 각 보고서 §6. T27은 퀘스트 107 미완료 캐릭터로 확인). ※ §3 상단에 중복 기재됐던 T47 축약 블록은 삭제(원본 = T46 아래 1개 유지) — **T항목 블록은 티켓당 1개만 기재**.
 > - **🐄 배치 C 발행 (🧭 2026-07-14 지휘자 — 순연 계획 이행, 단일 에이전트 순차)**: **T19(목장/가축) → T23(펫)**. 소유: `Player/Scripts/PersistenceManager.mlua`·`Player/Scripts/PlayerInventory.mlua`(사용 경로 훅), `MapObjects/Scripts/itemreact.mlua`, `item/DataSets/item_dataset.csv`·`RecipeDataSet.csv`, `Furniture/DataSets/CookingRecipeDataSet.csv`, `MapObjects/DataSets/RequestPoolDataSet.csv`, 신규 `AnimalDataSet.csv`/`PetDataSet.csv`(+userdataset)·`Animal.mlua`/`Pet.mlua`+모델 3종(닭/양/개), 상점 데이터. 배치 F Play 확인으로 `PersistenceManager` 소유 겹침 해소. T47(UI 레인 — `UISkillTreeController`/`UIHUDController`/`ui/*.ui`)과 파일 안 겹침 → **T47 Play 대기와 무관하게 즉시 착수 가능**. ⚠️ `PlayerController.mlua` 수정 금지 — 필요해 보이면 [보류]+질문.
 > - **(추기 3 — T47 제작자 Play 피드백 → T48 발행·배치 C 확대 2026-07-14)**: 제작자 피드백 "HUD 스킬트리 버튼 위치 이상 + 스킬트리 팝업 Q 슬롯 근처 정체불명 박스". Maker 미가동으로 캡처 불가 → 지휘자가 UIBuilder 읽기 API 정적 실사로 원인 특정: ① **HUD `BtnSkillTree`(x -338~-210, y -186~-130)가 미니맵(x -382~-216, y -181~-15)과 122×51px 겹침** ② EquipBar 상단행 [레벨업] 비활성 회색 박스(저대비 라벨 0.55/0.28)가 Q 칩 우상단에 2px/6px 간격 밀착 + 바 좌하단 절반 공백 — "정체불명 박스" 유력 원인 ③ 잠재: EquipBar 밴드(y -302~-202)가 노드 4행 슬롯(y -250~-150)과 48px 겹침(현 CSV TreeRow≤3이라 미발현) ④ Hint가 팝업 Bg 하단 밖 1px 돌출. ⚠️ 검수 지적: T47 §7 루브릭 #5 "간격 8배수" 주장이 실측(2/6px)과 불일치 — 루브릭은 실측 좌표 근거로 작성할 것. **⚖️ 2026-07-14 보스 승인: T48을 배치 C 킥오프에 선두 편입 → 배치 C = T48 → T19 → T23** (T48은 UI 레인이라 T19/T23와 파일 안 겹침 — 동일 에이전트 순차로 안전).
+> - **(추기 4 — 지휘자 Play 캡처 검수 2026-07-14)**: 제작자 요청으로 지휘자가 Maker MCP 브리지(scratch/mcp_probe.py 경유 — 세션 MCP 스테일 시 대체 경로)로 **refresh→Play→K→캡처 3장** 수행. 결과: T48 적용분(HUD 이동·Node_4 제거·QWER/레벨업 분리) 실렌더 확인 ✓, 그러나 **'알 수 없는 박스' 잔존 → T48 부분 반려**(재작업 ⑥⑦ — 티켓 블록 참조). 박스의 정체 = stretch 앵커 미동작(RectSize 그대로 렌더) — **§1.2 공통 규칙 10 신설**. 배치 C 잔여(T19·T23)는 보고서 존재 확인 — 검수는 T48 재작업 처리 후 진행.
+> - **(추기 8 — 훅 수정·스킬트리 Play 확인·커밋 2026-07-14)**: ① **타사 하네스 훅 "exit code 1" 원인 수정** — settings.json 훅 명령의 `${CLAUDE_PROJECT_DIR}` 미치환이 원인(스크립트 자체는 전 케이스 무결 — 실측 매트릭스). 전 훅 명령을 저장소 루트 상대 경로로 전환, 계약·트러블슈팅은 [hooks.md](./hooks.md) 2026-07-14 항목. **타사 하네스는 반드시 프로젝트 루트 cwd로 훅 실행.** ② **⚖️ 제작자 스킬트리 UI Play 점검 완료(2026-07-14)** — T47·T48·T50 확인. 일부 스킬 수정 희망 사항은 보스가 후속 처리 예고(티켓 미발행 — 지시 대기). ③ ⚖️ 보스 지시로 전량 커밋·푸시 수행(지휘자). **잔여 Play 대기 = T27 · T19 · T23 · T49(아트 육안)**.
+> - **(추기 7 — ⚖️ 노드 UI 방향 전환·T50 발행 2026-07-14)**: T48 ⑨ 검수 **실패**(pivot (0,1) 오설정 — 이름이 노드 중앙에서 우측 82px 돌출, 보스 "점점 이상해진다" 신고 일치). 노드 내 텍스트 배치 접근 2연속 실패로 폐기. **⚖️ 보스 확정: 노드=아이콘만(+Lv 뱃지), 상세=옆 팝업(팝업-인-팝업 승인)** → **T50 발행**(아이콘 칩 76×76 + 우측 고정 상세 패널 280×300 — Description 컬럼 첫 노출, 호버는 PC 부가·생략 가능). T48은 ⑥⑦ PASS로 부분 완료 종결. **잔여 순서: T50 → T49(아트) → 지휘자 재캡처 → 제작자 Play 통합 확인(T27·T47·T48·T19·T23+T50)**.
+> - **(추기 6 — ⑧ 검수 반려·⑨ 발행 + T19/T23 검수 통과 2026-07-14)**: ① T48 ⑧ 지휘자 캡처 검수 — **부분 실패**: BestFit이 축소 대신 122px 폭 2줄 래핑으로 '맞춤'(30px 높이에 12px×2줄 수용) → 이름이 LvText/SubText 침범(보스 재확인과 일치). **재작업 ⑨ 발행**: 노드 세로 스택(Icon 상단 중앙 배지 → 이름 전폭 164×22 1줄 — 높이 22로 2줄 물리 차단). ② **T19(목장)·T23(펫) 보고 검수 통과** — 보고 3종·refresh Error=0(472/490)·PlayerController 무수정·스펙 편차 0. 공통 잔여 = 슬라임 placeholder 아트 → **T49 발행**(⑨ 후 착수). 펫 마을 리스폰 재소환 엣지(T23 §5)는 제작자 Play 결과 보고 판단. **Play 대기 = T27 · T47 · T48(⑨ 후) · T19 · T23** — 체크리스트 각 보고서 §6.
+> - **(추기 5 — 재작업 ⑥⑦ 검수 PASS + 보스 피드백 2건 2026-07-14)**: ① 재작업 ⑥⑦ 지휘자 캡처 재검수 **PASS** — EquipBar 배경이 640×132 전폭 밴드로 렌더, 100×100 박스 소멸, 보고서 실좌표 정정 확인. ② **⚖️ 보스 피드백: 노드 스킬 이름 가림**("파워 스트라이크"→"워 스트라이크") — 원인 = Icon(top-left 28×28)과 중앙 정렬 NameText 겹침 → **T48 재작업 ⑧ 발행**(NameText top-left (42,-8)·122×30·MiddleLeft·BestFit). ③ **⚖️ 보스 지시: 전직/직업별 스킬 확장 선행 설계** → 지휘자가 [docs/design/skill-tree-plan.md §7](../design/skill-tree-plan.md) 작성 — 데이터 계약(`JobId` 컬럼/탭 로컬 좌표/`RewardJobId`)·UI 확장 경로(T42 칩 탭 재사용 → 팝업 확장 → 스크롤 순) 고정. **구현 티켓은 16-C 예약 유지(미발행)** — 현 T48 ⑧과 무관.
 
 ### T4. [대기] 경계 테라스/절벽 아트 정리
 - **배경**: `TerraceTop`/`CliffFace`/`Big Wall`은 이전 스킴의 임시 아트 그대로다. 신규 grass 기준 아트와 톤이 안 맞을 수 있고, 상위 레이어 테라스 타일이 깔린 뒤 플레이어 아바타 SortingLayer 최종 판정도 미완(`docs/design/skill-tree-plan.md` §5 4번).
@@ -155,13 +161,15 @@
 - **Acceptance**: ① 세 스폿에서 F→캐스팅→입질(!)→0.8s 내 재입력 성공 시 SpotType별 어종 지급, 놓침/조기 입력/이동 취소 정상 ② 어종·확률·대기시간 튜닝=CSV만 ③ PlayerController 무수정·이름 분기 0건 ④ **티켓 완료 즉시 refresh 수행, 빌드 Error 수를 보고서 §4에 자체 기재** ⑤ §4 보고 3종 필수 — 누락 시 재반려. Play 최종 확인은 제작자.
 - **충돌 주의**: **레인 2** — `PlayerController`/`PersistenceManager`/`ResourceSpawner` 수정 금지(레인 1 소유).
 
-### T19. [대기] 목장/가축 — 우리·먹이·생산 (Phase 15-E, 배치 C)
+### T19. [코드 완료 — 2026-07-14 | refresh Error=0 | 런타임 검증 보류(제작자 수행)] 목장/가축 — 우리·먹이·생산 (Phase 15-E, 배치 C)
 
 - **배경**: 기획서 §3.4. 농사와 대칭인 동물 생산 축. **영지 평화 원칙(전투·피격 없음) 유지**.
 - **Target**: 신규 `AnimalDataSet.csv`(AnimalId/PurchaseItem/FeedItem/FeedInterval/ProduceItem/ProduceInterval/SpriteRUID/WanderRadius), 신규 `Animal.mlua`+가축 모델 2종(닭/양), 우리 가구(`item_dataset`/`RecipeDataSet` 행+모델), 상점 데이터(가축 구매권), `PersistenceManager.mlua`(가축 목록·급여/생산 시각), (필요 시) `PlayerInventory.mlua`(T16 사용 경로에 전용 컬럼 훅 — 🧭 2026-07-14 소유 명시), `MapObjects/DataSets/RequestPoolDataSet.csv`(Change ⑦)
 - **Change**: ① 우리 설치(기존 가구 경로) ② 상점에서 가축 구매권 구매 → 우리 근처에서 사용(T16 consumable 경로 재사용, 전용 컬럼 판정) → 가축 스폰+영속 등록 ③ 우리 반경 내 배회(몬스터 wander 로직 재사용, 전투 없음) ④ 먹이 들고 F → 급여(fedAt 갱신) ⑤ 급여 상태에서 ProduceInterval 경과 시 산출물 드롭(기존 드롭 파이프라인) — 타이머는 타임스탬프 환산(오프라인 포함, T6 패턴) ⑥ 닭(먹이=씨앗, 산출=달걀)/양(먹이=Grass, 산출=양털) + 달걀·양털 아이템 행(달걀은 `CookingRecipeDataSet`에 요리 1행 추가) ⑦ (🧭 2026-07-14 지휘자 추가 — T20 Change ⑤ 잔여 확장) `MapObjects/DataSets/RequestPoolDataSet.csv`에 납품 의뢰 행 추가: 어류(T18 완료분 — `FishDataSet` 현존 어종만) + 달걀·양털(본 티켓 산출물). CSV 행 추가만, 코드 무변경.
 - **Acceptance**: 구매→스폰→급여→생산→수집 루프 / 재접속 후 가축·타이머 복원 / 신규 가축은 CSV 행 추가만. LSP+refresh 무에러, Play 보류.
 - **충돌 주의**: `PersistenceManager`/`PlayerInventory` 수정 — 배치 C 잔여 순차(**T19→T23**, T21·T22는 완료) 준수. `PlayerController.mlua` 수정 금지 — 필요해 보이면 [보류]+질문.
+- **구현 요약 (2026-07-14)**: Animal.mlua+Pen/Chicken/Sheep · UseAnimalId · homeAnimals 영속 · RequestPool 어류/달걀/양털. 스프라이트 placeholder. PlayerController 무수정. 보고서: `docs/agents/reports/T19-ranch-animals.md`.
+- **검증**: Maker refresh 빌드 **Error=0** (total 472 / Warning 15 / Info 457). **런타임 검증 보류(제작자 수행)**.
 
 ### T20. [완료 — Play PASS(제작자 2026-07-14, 납품 루프 확인) | refresh 레인 말미(T27) Error=0] 마을 의뢰 게시판 — 일일 납품 의뢰 (Phase 15-D, 배치 B) — ⚠️ 선행: T16(PlayerInventory 공유)
 
@@ -191,13 +199,15 @@
 - **Acceptance**: 카운터가 재접속 후에도 누적 유지 / 도감 자동 파생(신규 아이템 추가 시 코드 무수정) / 업적 달성→보상 1회 수령 / 미발견 실루엣. LSP+refresh 무에러, Play 보류.
 - **충돌 주의**: `PlayerInventory`/`PersistenceManager`/`Monster.mlua` 수정 — 배치 C 내 순차(T21 뒤).
 
-### T23. [대기] 펫 동반자 — 추종 + 자동 줍기 (Phase 15-H, 배치 C 마지막) — ⚠️ 선행: T16(사용 경로)
+### T23. [코드 완료 — 2026-07-14 | refresh Error=0 | 런타임 검증 보류(제작자 수행)] 펫 동반자 — 추종 + 자동 줍기 (Phase 15-H, 배치 C 마지막) — ⚠️ 선행: T16(사용 경로)
 
 - **배경**: 기획서 §3.8. 파밍 편의+애착. 전투 없음.
 - **Target**: 신규 `PetDataSet.csv`(PetId/DisplayName/SpriteRUID/MoveSpeed/PickupRange), 신규 `Pet.mlua`+펫 모델 1종(개), 펫 소환 아이템(`item_dataset` 행 — T16 사용 경로 재사용, 전용 컬럼 `UsePetId` 신설), (필요 시) `PlayerInventory.mlua`(사용 경로 `UsePetId` 훅 — 🧭 2026-07-14 소유 명시), `itemreact.mlua`(자석 픽업을 펫 위치 기준으로도 발동 — `PickupGrace` 규칙 유지), `PersistenceManager.mlua`(활성 펫), 상점(첫 펫 판매)
 - **Change**: ① 소환 아이템 사용 → 기존 펫 제거 후 스폰+영속(소환 아이템은 소모하지 않음 = 재사용 티켓 방식) ② 추종: 플레이어와 거리 유지 팔로우, 맵 이동 시 함께 워프 ③ 자동 줍기: PickupRange 내 드롭에 기존 자석 파이프라인 적용(소유권·PickupGrace 규칙 그대로 준수) ④ 초기 1종(개) — 희귀 펫은 T9/T22 보상 행으로 후속.
 - **Acceptance**: 소환→추종→맵 동반 이동→반경 자동 픽업(유예 규칙 위반 0) / 재접속 시 활성 펫 복원 / 신규 펫=CSV 행. LSP+refresh 무에러, Play 보류.
 - **충돌 주의**: `itemreact`/`PersistenceManager`/`item_dataset` 수정 — 배치 C 내 **T19 후 착수**(T21·T22는 완료 — 🧭 2026-07-14 순서 갱신).
+- **구현 요약 (2026-07-14)**: Pet.mlua+Pet_Dog · UsePetId 비소모 소환 · itemreact 펫 자석 · ActivePetId 영속. PlayerController 무수정. 보고서: `docs/agents/reports/T23-pet-companion.md`.
+- **검증**: Maker refresh 빌드 **Error=0** (total 490 / Warning 17 / Info 473). **런타임 검증 보류(제작자 수행)**.
 
 ### T27. [코드 완료 — 2026-07-11 | refresh 빌드 Error=0 | 런타임 검증 보류(제작자 수행)] 퀘스트 보상 → 레시피 해금 연결 (`RewardUnlockId`) — T25 잔여 분리
 
@@ -418,7 +428,7 @@
 - **검증**: Maker refresh 빌드 **Error=0** (total 452 / Warning 13 / Info 439). **런타임 검증 보류(제작자 수행)**.
 
 
-### T47. [코드 완료 — 2026-07-14 | refresh Error=0 | 런타임 검증 보류(제작자 수행)] 스킬트리 UX 보강 — 노드 클릭↔SP 투자 분리 + HUD 스킬트리 버튼 (Phase 16-A 후속, T45 제작자 Play 피드백 2026-07-14)
+### T47. [완료 — Play 확인(제작자 2026-07-14, 스킬트리 UI 일괄 점검) | refresh Error=0] 스킬트리 UX 보강 — 노드 클릭↔SP 투자 분리 + HUD 스킬트리 버튼 (Phase 16-A 후속, T45 제작자 Play 피드백 2026-07-14)
 
 - **배경(제작자 Play 피드백 2건)**: ① "스킬을 배치하려고 누를 때 SP를 투자하고 싶지 않은데 투자가 되어버려" — 원인 특정(지휘자): `UISkillTreeController.OnNodeClicked`(L152)가 클릭 즉시 `ServerRequestSkillLevelUp`(L164)을 호출 = 노드 클릭이 곧 SP 투자. 선택·장착 의도의 클릭에서 SP가 오투자된다. ② 스킬트리가 K 키로만 열려 발견성이 없다 — **HUD 버튼 필요(⚖️ 보스 확정: 스킬트리 여는 버튼. 온스크린 시전 버튼/모바일 대응은 범위 밖 — 후속 후보: 공식 key-binding-package)**.
 - **Target**: `UI/Scripts/UISkillTreeController.mlua`, `UI/Scripts/UIHUDController.mlua` + 해당 `.ui` 서브트리(스킬트리 팝업·HUD — **UIBuilder 경유**, UI 규칙 6). **서버 로직 무변경이 기대값**(`ServerRequestSkillLevelUp`/`ServerRequestEquipSkill`은 T45 산출물 그대로 — `PlayerController` 수정 금지, 부족하면 [보류]+질문).
@@ -433,7 +443,7 @@
 - **검증**: Maker refresh 빌드 **Error=0** (total 454 / Warning 11 / Info 443). **런타임 검증 보류(제작자 수행)**.
 - **후속 (2026-07-14)**: 제작자 Play 확인 중 비주얼 피드백 2건(HUD 버튼 위치 · Q 슬롯 근처 정체불명 박스) → **T48 발행**(원인 실사 = §3 상단 추기 3). 기능 Acceptance ①~③은 본 티켓 유지, 비주얼 정리는 T48.
 
-### T48. [대기] 스킬트리 UX 비주얼 정리 — HUD 버튼 미니맵 겹침 해소 + EquipBar 재배치 (T47 제작자 Play 피드백 2026-07-14, 배치 C 선두)
+### T48. [부분 완료·이관 종결 — ⑥⑦ 지휘자 캡처 검수 PASS | ⑨ 검수 실패(pivot (0,1) 오설정 — 이름 우측 82px 돌출, 보스 신고 일치) | 노드 텍스트 정리는 ⚖️ 2026-07-14 보스 방향 전환으로 **T50 이관, ⑨ 재시도 금지**] 스킬트리 UX 비주얼 정리 — HUD 버튼 미니맵 겹침 해소 + EquipBar 재배치 (T47 제작자 Play 피드백 2026-07-14, 배치 C 선두)
 
 - **배경**: T47 Play 확인 중 제작자 피드백 2건 — ① HUD 스킬트리 버튼 위치 이상 ② 스킬트리 팝업 Q 슬롯 근처 정체불명 박스. 지휘자 정적 실사(§3 상단 추기 3)로 원인 특정: HUD `BtnSkillTree`가 미니맵과 122×51px 겹침 / EquipBar 상단행의 비활성 [레벨업] 회색 박스(저대비)가 Q 칩에 2px/6px 밀착 + 좌하단 절반 공백 / (잠재) EquipBar 밴드가 노드 4행과 48px 겹침 / Hint 1px 돌출.
 - **Target**: `ui/HUDGroup.ui`·`ui/PopupGroup.ui`(**UIBuilder 경유**), `UI/Scripts/UISkillTreeController.mlua`(MaxRows·비활성 톤 상수만). **`UIHUDController.mlua` 무수정 기대** — `BtnSkillTree` 이름/경로(`/ui/HUDGroup/BtnSkillTree`) 절대 불변(컨트롤러가 경로 참조), 위치만 이동.
@@ -445,6 +455,46 @@
   ⑤ **[레벨업] 비활성 시인성**: `RefreshEquipDetail`의 disabledText (0.55,0.55,0.58) → **(0.72,0.72,0.75)** — 비활성이어도 라벨·사유가 읽혀 "정체불명 박스"로 보이지 않게.
 - **Acceptance**: ① HUD 버튼-미니맵 겹침 0(실측 좌표 병기) ② EquipBar-노드 겹침 0(전 행) ③ Hint Bg 내부 ④ 버튼 간 최소 8px 간격 ⑤ Q 칩 주변 무라벨/저대비 요소 0 ⑥ T47 기능 회귀 0(노드 클릭=선택만·레벨업 버튼·HUD/K 토글) ⑦ refresh Error=0 + `preview_ui_layout.cjs` 재실행 결과 첨부 + §7 루브릭 — **실측 좌표 근거로 작성**(T47 루브릭 실측 불일치 재발 금지).
 - **충돌 주의**: **배치 C 선두(T48→T19→T23)**. `UIHUDController`/`PlayerController` 수정 금지.
+- **구현 요약 (2026-07-14)**: HUD BtnSkillTree(−74,−196)·Node_4 제거·EquipBar 재배치·Hint(0,−160)·disabledText 0.72. UIHUDController 무수정. §7 8/8 실측. 보고서: `docs/agents/reports/T48-skill-tree-visual-cleanup.md`.
+- **검증**: Maker refresh 빌드 **Error=0** (total 452 / Warning 13 / Info 439). **런타임 검증 보류(제작자 수행)**.
+- **🔎 지휘자 Play 캡처 검수 (2026-07-14 — refresh 후 재캡처 3장 근거)**: HUD 이동(도감 아래, 미니맵 겹침 0)·Node_4 제거·QWER 좌/레벨업 우 분리·Hint 내부화 = **적용 확인 ✓**. 그러나 ① **제작자가 신고한 '알 수 없는 박스'가 그대로 잔존** — 정체 = `EquipBar/Bg`(stretch 앵커+Offset 0)가 런타임에서 stretch되지 않고 **RectSize 100×100 다크 박스로 렌더**(§1.2 신설 규칙 10), E~R 칩 위에 겹침. 캡처 실측(스케일 0.464) x 422~469·y 367~414 = Bg 100×100 계산 위치와 일치. Acceptance ⑤ FAIL ② 실파일은 팝업 920×840·Bg 680×760·EquipBar 640×132@(0,78)·QWER 64×40 pitch 72·LevelUp 220×40으로 **확대 적용**됐는데 보고서 §3은 스펙 원좌표(520×120 등)+"편차 없음"으로 기재 — 보고서-실파일 불일치. (확대 자체는 🧭 지휘자 사후 승인 — 가독성 향상 수용.)
+- **재작업 Change (2026-07-14 지휘자 발행)**:
+  ⑥ **EquipBar/Bg 명시 지오메트리 교체**: `SkillTreePopup/Bg/EquipBar/Bg`를 stretch 대신 **anchor middle-center · anchoredPosition (0,0) · rect_size 640×132**(현 EquipBar와 동일)로 재작성 — 색(0.12,0.13,0.11,0.9)·RUID `4fea64a3…` 유지, RaycastTarget=false 유지. §1.2 규칙 10 준수.
+  ⑦ **보고서 정정**: §3을 실파일 좌표로 갱신 + 팝업 확대(920×840)를 '스펙 편차(지휘자 사후 승인)'로 명기 + §8 이력에 재작업 append (새 파일 생성 금지 — §4 규약).
+  ⑧ **노드 이름 가림 수정 (⚖️ 2026-07-14 보스 피드백 — "파워 스트라이크 이름이 가려짐")**: 원인 = Icon(top-left (8,-8) 28×28)과 NameText(중앙 정렬 164×28, y 10~38)가 같은 높이에서 겹침 — 중앙 정렬된 이름의 첫 1~2글자가 아이콘 아래 들어감. 수정: 12개 노드 전부 `NameText`를 **top-left 앵커 (42,-8) · rect 122×30 · align 3(MiddleLeft) · BestFit(MinSize 12, MaxSize 20)** 으로 — 아이콘 오른쪽에서 시작, 긴 이름(슬래시 블러스트 8자)은 자동 축소. Icon·LvText·SubText 불변. 컨트롤러 무수정(레이아웃만).
+  → **⑧ 검수 결과 (지휘자 캡처 2026-07-14): 부분 실패 — 신규 결함.** 스펙대로 적용됐으나 BestFit이 폰트 축소 대신 **122px 폭에서 2줄 줄바꿈으로 '맞춤'** (30px 높이에 12px×2줄이 들어가므로) → "파워 스트라이크"·"슬래시 블러스트"가 2줄이 되어 아래 LvText/SubText 행을 침범. 좁은 폭+BestFit 조합의 구조적 함정 — ⑨로 대체.
+  ⑨ **노드 세로 스택 재배치 (2026-07-14 지휘자 발행 — ⑧ 대체)**: 12개 노드(9슬롯) 전부, 노드 172×108 기준 위에서부터 4행 스택(전부 top-center 앵커·pivot):
+  - `Icon`: top-center **(0,-4)** · 28×28 (좌상단 배지 → 상단 중앙 배지로 이동. 겹침 원천 제거)
+  - `NameText`: top-center **(0,-34)** · rect **164×22** · align 4(MiddleCenter) · font 16 · **BestFit(MinSize 12, MaxSize 16)** — 전폭 1줄(현행 최장 8자=128px ≤164 ✓, 10자까지 수용). **높이 22 = 12px 2줄(24px)이 물리적으로 못 들어가는 값** — 줄바꿈 재발 차단.
+  - `LvText`: top-center **(0,-58)** · 164×22 · font 16 유지
+  - `SubText`: top-center **(0,-82)** · 164×22 · font 14 유지 (하단 여백 4px)
+  컨트롤러 무수정(레이아웃만). ⚠️ 검증: refresh 후 **6스킬 이름 전부**(파워 스트라이크·매직 클로·플래시 점프·슬래시 블러스트·신속 채집·강력 채집) 1줄 표시·행 침범 0을 보고서에 명시 — 최종 판정은 지휘자 재캡처.
+  → **⑨ 검수 결과 (지휘자 파일 실측 2026-07-14): 실패.** 앵커는 top-center(0.5,1)로 적용됐으나 **pivot이 (0,1)** — 이름 랙트 왼쪽 끝이 노드 중앙에 붙어 오른쪽으로 82px 삐져나감(보스 "점점 이상해진다" 신고와 일치). ⑧⑨ 연속 실패로 노드 내 텍스트 배치 접근 자체를 폐기 — **⚖️ 보스 방향 전환: T50(노드 아이콘화 + 상세 사이드 패널)으로 이관. ⑨ 재시도 금지.**
+- **재작업 Acceptance**: EquipBar 배경이 640×132 밴드로 렌더되어 100×100 박스 소멸(지휘자 재캡처로 확인) / QWER·레벨업·DetailText가 밴드 위에 정상 안착 / **노드 이름 전체 글자 표시(파워 스트라이크·슬래시 블러스트 포함, 아이콘과 겹침 0)** / refresh Error=0 / 보고서-실파일 좌표 일치.
+- **재작업 구현 요약 (2026-07-14)**: ⑥ EquipBar/Bg stretch 제거 → middle-center 640×132 ⑦ 보고서 실좌표·사후승인 편차 ⑧ NameText 보정은 캡처 부분 실패 → **⑨ 세로 스택 대체**: 9노드 Icon(0,−4)28×28 / Name(0,−34)164×22 align4 BestFit12–16 / Lv(0,−58) / Sub(0,−82) 전부 top-center. 컨트롤러 무수정. 6스킬 1줄 정적 PASS. 보고서 `T48-skill-tree-visual-cleanup.md` §8 append. refresh **Error=0** (total 490 / W17 / I473). **런타임·지휘자 재캡처 보류**.
+
+### T49. [코드 완료 — 2026-07-14 | refresh Error=0 | 런타임 검증 보류(제작자 수행)] 가축·우리·펫 전용 아트 — 슬라임 placeholder 교체 (T19/T23 후속, CSV·모델 RUID-only)
+
+- **배경**: T19/T23이 기능 완성했으나 닭/양/개 가축·펫과 우리(Animal Pen)가 전부 슬라임 스프라이트 placeholder(보고서 §5 명시). 신규 아이템 아이콘(Egg/Wool/Ticket/Dog Whistle/Pen/Omelette)도 확인 필요.
+- **Target**: `MapObjects/Models/Animal_Chicken.model`·`Animal_Sheep.model`·`Pet_Dog.model`, `Furniture/Models/Furniture_AnimalPen.model`·`item/Models/Item_AnimalPen.model` (ModelBuilder — SpriteRUID/ActionSheet만), `item/DataSets/item_dataset.csv` 해당 행 `IconRUID` 셀.
+- **Change**: ① msw-search로 닭/양/개/우리 스프라이트·애니메이션 검색(원작 몬스터·동물 리소스 우선) → 모델 SpriteRUID 교체 ② 신규 아이템 IconRUID가 placeholder면 교체 ③ **적합 리소스 없는 항목은 placeholder 유지+보고(임의 대체 금지)** ④ 게임 로직 컬럼·컴포넌트 무변경(RUID 셀/값만).
+- **Acceptance**: 가축·펫·우리가 슬라임이 아닌 전용 외형으로 표시(육안은 제작자) / RUID 외 변경 0 / refresh Error=0 보고서 기재.
+- **충돌 주의**: T48 ⑨ 완료 후 착수(동일 에이전트 순차). 모델 수정은 Model Work Preflight(model.md+builder-protocol.md 전문) 필수.
+- **구현 요약 (2026-07-14)**: Preflight 후 ModelBuilder SpriteRUID — 닭 `c1bc28ed…`(mob/9600001 stand) · 양 `bb0d2f1e…`(mob/9600003 stand) · 들개 `180fcf49…`(mob/9410000 stand) · 우리/펜 `5c883e34…`(strawberryfarm fence). CSV IconRUID 7행(달걀/양털/오믈렛/호루라기/티켓/우리). placeholder 유지 0. 로직 무변경. 보고서 `docs/agents/reports/T49-animal-pet-pen-art.md`. refresh **Error=0** (total 490 / W17 / I473). **Play 보류**.
+
+### T50. [완료 — Play 확인(제작자 2026-07-14, 스킬트리 UI 점검 완료 — 일부 스킬 수정 사항은 후속 보류) | refresh Error=0] 스킬트리 노드 아이콘화 + 상세 사이드 패널 (⚖️ 2026-07-14 보스 확정 — T48 ⑧⑨ 대체, 배치 C 잔여 선두)
+
+- **배경 (⚖️ 보스 결정 원문 요지)**: "스킬 이름·부가 정보가 노드에 한번에 보일 필요 없다. **노드는 아이콘만**, 마우스 호버나 클릭 시 **옆에 따로 팝업**으로 상세정보. 팝업에 팝업 나쁘지 않다." — T48 ⑧⑨의 노드 내 텍스트 배치 시도 2연속 실패(2줄 래핑/pivot 돌출)로 접근 자체를 폐기하고 구조 전환.
+- **Target**: `ui/PopupGroup.ui` SkillTreePopup 서브트리(**UIBuilder 경유**), `UI/Scripts/UISkillTreeController.mlua`(노드 렌더·상세 패널·호버). **서버(`PlayerController`) 무수정.**
+- **Change** (Bg 680×760 기준 좌표 확정 — 임의 변경 금지, §1.2 규칙 10 준수: 전 요소 명시 anchor+rect):
+  ① **노드 아이콘 칩화**: 9개 노드(`Node_r_c`)를 **76×76**로 축소. 내부 = `Icon` 48×48 중앙(middle-center (0,4)) + `LvText` **우하단 뱃지**(bottom-right (-4,4) · 40×18 · font 12 · "3/5" 형식). `NameText`·`SubText` **엔티티 삭제**(컨트롤러 `SetNodeVisual`에서 해당 접근 제거). 노드 4상태 배경 톤·선택 하이라이트는 유지. **IconRUID 공란 행(패시브 2종)은 이름 앞 2글자를 Icon 자리에 텍스트 폴백**(신규 `FallbackText` 44×44 font 18 — 컨트롤러가 Icon 공란일 때만 표시).
+  ② **그리드 좌측 재배치**: 3열 중심 x **−230/−130/−30** · 3행 중심 y **190/90/−10** (pitch 100).
+  ③ **상세 사이드 패널 신설** `SkillDetailPanel`: 중심 **(170, 90) · 280×300** — 트리 오른쪽 고정(경계 클리핑·모바일 부재 리스크로 플로팅 툴팁 대신 고정 패널 채택, "옆에 팝업" 취지 충족). 내부(위→아래, 전부 명시 rect): `DIcon` 40×40 / `DName` 220×24 font 18 / `DTypeLv` 240×20 font 14 ("액티브 · Lv 2/5") / `DDesc` 240×90 font 14 **Description 컬럼 표시**(현재 미노출 데이터 활용) / `DGate` 240×40 font 13 (게이트 사유·업적 진행 %) / `DCost` 240×20 font 14 ("레벨업: SP 1"). 패널 서페이스 = 기존 칩 RUID `4fea64a3…` + 팝업 팔레트(새 스타일 발명 금지). 미선택 시 "노드를 선택하세요" 1줄만.
+  ④ **컨트롤러**: `RefreshDetailPanel(skillId)` 신설 — 클릭 선택 시 갱신(T47 선택 흐름 유지). EquipBar `DetailText`는 삭제하고 그 역할을 패널로 이관(QWER·[레벨업]은 EquipBar 유지). **호버(PC 부가)**: 노드 hover 진입 시 패널 미리보기, 이탈 시 선택 노드로 복귀 — msw-ui-system `references/runtime-patterns.md`에서 hover/터치 이벤트 확인 후 구현, **리스크 크면 생략 가능(클릭만으로 Acceptance 충족 — 생략 시 보고서에 명시)**.
+- **Acceptance**: ① 노드에 텍스트 침범/돌출 0(아이콘+Lv 뱃지만) ② 노드 클릭 → 우측 패널에 이름·설명·게이트·비용 표시 ③ 패시브(아이콘 공란) 폴백 정상 ④ T47 기능 회귀 0(클릭=선택만·[레벨업]·QWER 장착·HUD/K 토글) ⑤ 이름/수치 하드코딩 0(전부 SkillDataSet 컬럼) ⑥ refresh Error=0 + §7 루브릭(실측 좌표) — 최종 판정은 지휘자 재캡처.
+- **충돌 주의**: 단독 소유(`UISkillTreeController`+SkillTreePopup 서브트리). **T49(아트)는 T50 완료 후 착수.** 16-C 확장 설계(skill-tree-plan.md §7)와 정합 — 사이드 패널은 탭 도입 후에도 공용.
+- **구현 요약 (2026-07-14)**: 노드 76×76 칩(Icon 48+(0,4)/Lv bottom-right/FallbackText) · NameText·SubText 삭제 · 그리드 −230/−130/−30 × 190/90/−10 · SkillDetailPanel (170,90) 280×300 · DetailText 제거→RefreshDetailPanel · 호버=ButtonStateChangeEvent · 서버 무수정. §7 8/8 실측. 보고서: `docs/agents/reports/T50-skill-node-icon-detail-panel.md`.
+- **검증**: Maker refresh 빌드 **Error=0** (total 490 / Warning 17 / Info 473). **런타임 검증 보류(제작자 수행)**. T48 ⑨ 재시도 없음.
 
 ### (신규 작업 추가 템플릿)
 ```

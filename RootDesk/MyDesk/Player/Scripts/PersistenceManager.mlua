@@ -281,6 +281,7 @@ script PersistenceManager extends Logic
 				inv.DailyCompletedRequestsJson = data.dailyCompletedRequests or "[]"
 				inv.DexItemsJson = data.dexItems or "{}"
 				inv.DexMonstersJson = data.dexMonsters or "{}"
+				inv.ActivePetId = data.activePetId or ""
 				inv:ApplyHeldToolCostume()
 				inv:MigrateLegacyRecipeUnlocks()
 				-- 통화 스택→Coin 프로퍼티 흡수 (IsCurrency 미기입 사고 복구)
@@ -356,6 +357,16 @@ script PersistenceManager extends Logic
 			_ResourceSpawner:SetTerrainEditsJson(mapName, editsRaw)
 			_ResourceSpawner:LoadDestroyedResourcesFromJson(mapName, destRaw)
 			_ResourceSpawner:ReconstructWorldPlacementsForMap(map)
+
+			-- T19: 가축 복원 (가구 재구성 이후)
+			local animalsRaw = data.homeAnimals or "[]"
+			self:ReconstructHomeAnimals(map, animalsRaw, userId)
+
+			-- T23: 활성 펫 재소환 (홈 로드 시점 — 이후 맵 이동은 Pet.WarpToOwner)
+			local invPet = player:GetComponent("script.PlayerInventory")
+			if isvalid(invPet) and invPet.ActivePetId ~= nil and invPet.ActivePetId ~= "" then
+				invPet:TrySummonPet(invPet.ActivePetId)
+			end
 
 			-- Reconstruct 후 상자 아이템 데이터 복원
 			local furnList = {}
@@ -530,6 +541,7 @@ script PersistenceManager extends Logic
 		local capDailyDone = inv.DailyCompletedRequestsJson or "[]"
 		local capDexItems = inv.DexItemsJson or "{}"
 		local capDexMonsters = inv.DexMonstersJson or "{}"
+		local capActivePet = inv.ActivePetId or ""
 
 		local posX = livePosX
 		local posY = livePosY
@@ -609,6 +621,8 @@ script PersistenceManager extends Logic
 		local destJson = _ResourceSpawner:GetDestroyedResourcesAsJson(mapName)
 		local permList = self.GuestPermissions[userId] or {}
 		local permJson = self:SafeEncodeJson(permList, "[]")
+		-- T19: 가축 목록 선캡처 (Yield 전)
+		local animalsJson = self:CollectHomeAnimalsJson(mapName)
 
 		local data = {
 			level = capLevel,
@@ -629,6 +643,7 @@ script PersistenceManager extends Logic
 			dailyCompletedRequests = capDailyDone,
 			dexItems = capDexItems,
 			dexMonsters = capDexMonsters,
+			activePetId = capActivePet,
 			unlockedWaypoints = capWaypoints,
 			skillLevels = capSkills,
 			sp = capSp,
@@ -641,6 +656,7 @@ script PersistenceManager extends Logic
 			homeFurniture = furnJson,
 			homeTerrainEdits = _ResourceSpawner:GetTerrainEditsJson(mapName) or "[]",
 			homeDestroyedResources = destJson or "[]",
+			homeAnimals = animalsJson,
 			guestPermissions = permJson
 		}
 
@@ -913,6 +929,79 @@ script PersistenceManager extends Logic
 				pc:ClientSetCurrentMapPermissions(newPerm, newPerm, newPerm)
 			end
 		end
+	end
+
+	@ExecSpace("ServerOnly")
+	method string CollectHomeAnimalsJson(string mapName)
+		-- T19: 홈 맵의 Animal 컴포넌트 목록을 JSON 배열로 직렬화 (Save 선캡처용).
+		local list = {}
+		local map = _EntityService:GetEntityByPath("/maps/" .. mapName)
+		if not isvalid(map) then return "[]" end
+		local comps = map:GetChildComponentsByTypeName("script.Animal", true)
+		if comps ~= nil then
+			for _, comp in ipairs(comps) do
+				if isvalid(comp) and isvalid(comp.Entity) then
+					local entry = comp:ToSaveEntry()
+					if entry ~= nil then
+						table.insert(list, entry)
+					end
+				end
+			end
+		end
+		return self:SafeEncodeJson(list, "[]")
+	end
+
+	@ExecSpace("ServerOnly")
+	method void ReconstructHomeAnimals(Entity map, string animalsRaw, string ownerUserId)
+		-- T19: 세이브 homeAnimals JSON → 가축 스폰 + InitializeFromSave.
+		if not isvalid(map) then return end
+		if animalsRaw == nil or animalsRaw == "" or animalsRaw == "[]" then return end
+		local ok, list = pcall(function() return _HttpService:JSONDecode(animalsRaw) end)
+		if not ok or list == nil then
+			log_warning("PersistenceManager: homeAnimals decode failed")
+			return
+		end
+		local ads = _DataService:GetTable("AnimalDataSet")
+		for _, a in ipairs(list) do
+			if type(a) == "table" and a.animalId ~= nil and a.animalId ~= "" then
+				local animalId = tostring(a.animalId)
+				local modelName = "Animal_" .. animalId
+				if ads ~= nil then
+					local row = ads:FindRow("AnimalId", animalId)
+					if row ~= nil then
+						local okM, vM = pcall(function() return row:GetItem("ModelName") end)
+						if okM and vM ~= nil and tostring(vM) ~= "" then
+							modelName = tostring(vM)
+						end
+					end
+				end
+				local modelId = _EntryService:GetModelIdByName(modelName)
+				if modelId == nil or modelId == "" then
+					log_warning("PersistenceManager: animal model missing " .. modelName)
+					continue
+				end
+				local hx = tonumber(a.x) or tonumber(a.homeX) or 0.0
+				local hy = tonumber(a.y) or tonumber(a.homeY) or 0.0
+				local penX = math.floor(tonumber(a.penX) or 0)
+				local penY = math.floor(tonumber(a.penY) or 0)
+				local fedAt = math.floor(tonumber(a.fedAt) or 0)
+				local lastProd = math.floor(tonumber(a.lastProduceAt) or 0)
+				local produced = a.produced == true
+				local spawnPos = Vector3(hx, hy, 0)
+				local ent = _SpawnService:SpawnByModelId(modelId, "Animal_" .. animalId .. "_load", spawnPos, map)
+				if isvalid(ent) then
+					local ac = ent:GetComponent("script.Animal")
+					if not isvalid(ac) then
+						ent:AddComponent("script.Animal")
+						ac = ent:GetComponent("script.Animal")
+					end
+					if isvalid(ac) then
+						ac:InitializeFromSave(animalId, penX, penY, hx, hy, fedAt, lastProd, produced, ownerUserId)
+					end
+				end
+			end
+		end
+		log("PersistenceManager: homeAnimals reconstructed for " .. tostring(ownerUserId))
 	end
 
 	@ExecSpace("ServerOnly")

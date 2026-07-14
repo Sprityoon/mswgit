@@ -1,7 +1,7 @@
 {
   "Id": "",
   "GameId": "",
-  "EntryKey": "userdataset://c9f5d23b-4e6a-5b8c-0d1e-2f3a4b5c6d7e",
+  "EntryKey": "userdataset://b23c1d5e-f6a7-4890-b123-c4d5e6f7a8b9",
   "ContentType": "x-mod/userdataset",
   "Content": "",
   "Usage": 0,
@@ -13,8 +13,8 @@
   "ContentProto": {
     "Use": "Json",
     "Json": {
-      "name": "CookingRecipeDataSet",
-      "id": "c9f5d23b-4e6a-5b8c-0d1e-2f3a4b5c6d7e",
+      "name": "PetDataSet",
+      "id": "b23c1d5e-f6a7-4890-b123-c4d5e6f7a8b9",
       "serveronly": false,
       "syncDataSetWebUrl": "",
       "dynamicloading": 0

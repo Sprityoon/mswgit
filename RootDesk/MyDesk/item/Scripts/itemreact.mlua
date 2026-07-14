@@ -133,7 +133,7 @@ script itemreact extends Component
 			return
 		end
 
-		-- 3. Detect nearby players for pickup
+		-- 3. Detect nearby players (or their pets — T23) for pickup. PickupGrace already enforced above.
 		local mapComp = self.Entity.CurrentMap.MapComponent
 		if not isvalid(mapComp) then return end
 
@@ -141,7 +141,8 @@ script itemreact extends Component
 		if not users then return end
 		
 		local closestPlayer = nil
-		local minDistance = 2.0 -- Detection/Magnet range (2.0 units)
+		local magnetPos = nil
+		local minDistance = 2.0 -- player magnet range (2.0 units)
 		
 		for _, user in ipairs(users) do
 			if isvalid(user) then
@@ -149,27 +150,47 @@ script itemreact extends Component
 				local dist = Vector2.Distance(Vector2(self.BasePosition.x, self.BasePosition.y), Vector2(playerPos.x, playerPos.y))
 				if dist < minDistance then
 					closestPlayer = user
+					magnetPos = playerPos
 					minDistance = dist
+				end
+			end
+		end
+
+		-- T23: 펫 위치 기준 자석 — 소유 플레이어에게 Collect. PickupGrace·소유권 규칙 유지.
+		local pets = self.Entity.CurrentMap:GetChildComponentsByTypeName("script.Pet", true)
+		if pets ~= nil then
+			for _, pet in ipairs(pets) do
+				if isvalid(pet) and isvalid(pet.Entity) then
+					local range = tonumber(pet.PickupRange) or 2.5
+					local petPos = pet.Entity.TransformComponent.WorldPosition
+					local dist = Vector2.Distance(Vector2(self.BasePosition.x, self.BasePosition.y), Vector2(petPos.x, petPos.y))
+					if dist < range and dist < minDistance then
+						local ownerId = pet.OwnerUserId or ""
+						local owner = nil
+						if ownerId ~= "" then
+							owner = _UserService:GetUserEntityByUserId(ownerId)
+						end
+						if isvalid(owner) and owner.CurrentMap == self.Entity.CurrentMap then
+							closestPlayer = owner
+							magnetPos = petPos
+							minDistance = dist
+						end
+					end
 				end
 			end
 		end
 		
 		-- 4. Magnet Pull and Pickup
-		if closestPlayer then
-			local playerPos = closestPlayer.TransformComponent.WorldPosition
-			
-			-- Move towards player position
-			local dx = playerPos.x - transform.WorldPosition.x
-			local dy = playerPos.y - transform.WorldPosition.y
+		if closestPlayer and magnetPos ~= nil then
+			local dx = magnetPos.x - transform.WorldPosition.x
+			local dy = magnetPos.y - transform.WorldPosition.y
 			local dist = math.sqrt(dx * dx + dy * dy)
 			if dist > 0.01 then
 				local dirX = dx / dist
 				local dirY = dy / dist
-				-- Pull item towards player
 				self.BasePosition = self.BasePosition + Vector3(dirX, dirY, 0) * delta * 4.5
 			end
 		
-			-- Pickup threshold
 			if minDistance < 0.4 then
 				self.IsCollected = true
 				self:Collect(closestPlayer)

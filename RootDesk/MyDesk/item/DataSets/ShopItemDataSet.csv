@@ -1,4 +1,4 @@
-Name,BuyPrice,SellPrice
+﻿Name,BuyPrice,SellPrice
 Wood,0,2
 Stone,0,2
 Copper Ore,0,5
@@ -8,3 +8,7 @@ Stone Pickaxe,30,0
 Bed,50,0
 Carrot Seed,10,0
 Carrot,0,5
+Chicken Ticket,80,0
+Sheep Ticket,100,0
+Animal Pen,40,0
+Dog Whistle,120,0

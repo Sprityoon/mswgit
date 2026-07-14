@@ -1,0 +1,3 @@
+﻿AnimalId,PurchaseItem,FeedItem,FeedInterval,ProduceItem,ProduceInterval,SpriteRUID,WanderRadius,ModelName
+Chicken,Chicken Ticket,Carrot Seed,60,Egg,120,50faf654ee5d479cb2958edce9feaef0,2.5,Animal_Chicken
+Sheep,Sheep Ticket,Grass,60,Wool,180,dc932872543f4a02bf41e977ab79e5ad,2.5,Animal_Sheep

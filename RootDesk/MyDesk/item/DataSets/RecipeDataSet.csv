@@ -1,4 +1,4 @@
-RecipeName,Desc,Icon,Ing1Name,Ing1Count,Ing2Name,Ing2Count,Tier,Category,UnlockId,UnlockHint
+﻿RecipeName,Desc,Icon,Ing1Name,Ing1Count,Ing2Name,Ing2Count,Tier,Category,UnlockId,UnlockHint
 Hand Axe,A simple axe made of stone. Used to cut trees.,57345d4aa6a640419af19e340c29940f,Stone,2,,0,1,tool,,
 Stone Pickaxe,A sturdy tool for mining ores and breaking large stones.,428577ffb2964719b8ab0bb18e5171e1,Wood,1,Stone,3,1,tool,,
 Stone Axe,A sturdy axe made of stone and wood. Used to cut trees faster.,2e0751aabbb14ccf85cfb99c024511c9,Stone,3,Wood,1,1,tool,,
@@ -16,3 +16,4 @@ Copper Axe,A refined copper axe.,thumbnail://233fd0760c124458b57928542f77bdc2,Co
 Iron Pickaxe,A sturdy iron pickaxe.,thumbnail://475260585aa44acba3bca0e4b820e208,Iron Bar,3,Wood,1,3,tool,research_iron_tools,연구소: '철 도구' 연구
 Iron Axe,A sturdy iron axe.,thumbnail://963cde7d88654f4a94b045e035ca1cae,Iron Bar,3,Wood,1,3,tool,research_iron_tools,연구소: '철 도구' 연구
 Fishing Rod,A simple fishing rod made of wood.,460cfed8406645d7a145883a3e51bc4c,Wood,2,,0,1,tool,,
+Animal Pen,A wooden pen for livestock on your home farm.,22e9f409617b4e4180f9c92fb26b13f7,Wood,12,Stone,4,1,furniture,,

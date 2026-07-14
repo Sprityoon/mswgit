@@ -1,0 +1,2 @@
+﻿PetId,DisplayName,SpriteRUID,MoveSpeed,PickupRange,ModelName
+Dog,강아지,50faf654ee5d479cb2958edce9feaef0,2.8,2.5,Pet_Dog

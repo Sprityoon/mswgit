@@ -1,0 +1,350 @@
+@Component
+script Animal extends Component
+	-- T19 가축: 우리 반경 배회 + 급여(F) + 타임스탬프 생산 드롭. 전투 없음.
+	-- FeedInterval = 재급여 쿨다운(초), ProduceInterval = 급여 후 산출까지 초.
+
+	@Sync
+	property string AnimalId = ""
+
+	@Sync
+	property integer PenCellX = 0
+
+	@Sync
+	property integer PenCellY = 0
+
+	@Sync
+	property number HomeX = 0.0
+
+	@Sync
+	property number HomeY = 0.0
+
+	@Sync
+	property integer FedAtUnix = 0
+
+	@Sync
+	property integer LastProduceUnix = 0
+
+	@Sync
+	property boolean ProducedForFeed = false
+
+	property string OwnerUserId = ""
+
+	property number WanderRadius = 2.5
+
+	property number StateTimer = 0.0
+
+	property string CurrentAIState = "STAND"
+
+	property Vector2 MoveDir = Vector2(0, 0)
+
+	property number WanderMin = 1.0
+
+	property number WanderMax = 2.5
+
+	property number StandMin = 0.8
+
+	property number StandMax = 2.0
+
+	property number produceTickAccum = 0.0
+
+	property any keyHandler = nil
+
+	method void OnBeginPlay()
+		-- 서버: 앵커·배회 / 클라: F 급여 입력.
+		if self:IsServer() then
+			if self.HomeX == 0.0 and self.HomeY == 0.0 and isvalid(self.Entity.TransformComponent) then
+				local p = self.Entity.TransformComponent.WorldPosition
+				self.HomeX = p.x
+				self.HomeY = p.y
+			end
+			self:ApplyDatasetVisual()
+			self:EnterState("STAND")
+			log("[ANIMAL] begin id=" .. tostring(self.AnimalId)
+				.. " pen=(" .. tostring(self.PenCellX) .. "," .. tostring(self.PenCellY) .. ")")
+		end
+		if self:IsClient() then
+			self.keyHandler = _InputService:ConnectEvent(KeyDownEvent, self.OnKeyDown)
+		end
+	end
+
+	method void OnEndPlay()
+		-- 클라 키 핸들러 해제.
+		if self:IsClient() and self.keyHandler ~= nil then
+			_InputService:DisconnectEvent(KeyDownEvent, self.keyHandler)
+			self.keyHandler = nil
+		end
+	end
+
+	@ExecSpace("ServerOnly")
+	method void OnUpdate(number delta)
+		-- 배회 + 생산 타이머(1초 폴링, 오프라인 환산은 타임스탬프).
+		self:TickWander(delta)
+		self.produceTickAccum = self.produceTickAccum + delta
+		if self.produceTickAccum >= 1.0 then
+			self.produceTickAccum = 0.0
+			self:TryProduce()
+		end
+	end
+
+	@ExecSpace("ServerOnly")
+	method void InitializeFromSave(string animalId, integer penX, integer penY, number homeX, number homeY, integer fedAt, integer lastProduce, boolean produced, string ownerUserId)
+		-- 영속 복원 / 소환 직후 상태 주입.
+		self.AnimalId = animalId or ""
+		self.PenCellX = penX or 0
+		self.PenCellY = penY or 0
+		self.HomeX = homeX or 0.0
+		self.HomeY = homeY or 0.0
+		self.FedAtUnix = fedAt or 0
+		self.LastProduceUnix = lastProduce or 0
+		self.ProducedForFeed = produced == true
+		self.OwnerUserId = ownerUserId or ""
+		self:ApplyDatasetVisual()
+		if isvalid(self.Entity.TransformComponent) then
+			local body = self.Entity.KinematicbodyComponent
+			if isvalid(body) then
+				body:SetWorldPosition(Vector2(self.HomeX, self.HomeY))
+			else
+				self.Entity.TransformComponent.WorldPosition = Vector3(self.HomeX, self.HomeY, 0)
+			end
+		end
+		log("[ANIMAL] init " .. self.AnimalId .. " fedAt=" .. tostring(self.FedAtUnix)
+			.. " produced=" .. tostring(self.ProducedForFeed))
+	end
+
+	method any GetAnimalRow()
+		-- AnimalDataSet 행 조회 (AnimalId 키).
+		if self.AnimalId == nil or self.AnimalId == "" then return nil end
+		local ds = _DataService:GetTable("AnimalDataSet")
+		if ds == nil then return nil end
+		return ds:FindRow("AnimalId", self.AnimalId)
+	end
+
+	@ExecSpace("ServerOnly")
+	method void ApplyDatasetVisual()
+		-- CSV SpriteRUID·WanderRadius 반영.
+		local row = self:GetAnimalRow()
+		if row == nil then return end
+		local okR, ruid = pcall(function() return row:GetItem("SpriteRUID") end)
+		if okR and ruid ~= nil and ruid ~= "" then
+			local spr = self.Entity.SpriteRendererComponent
+			if isvalid(spr) then spr.SpriteRUID = ruid end
+		end
+		local okW, wr = pcall(function() return row:GetItem("WanderRadius") end)
+		if okW and wr ~= nil then
+			local n = tonumber(wr)
+			if n ~= nil and n > 0 then self.WanderRadius = n end
+		end
+	end
+
+	@ExecSpace("ServerOnly")
+	method void TickWander(number delta)
+		-- 우리(Home) 반경 내 랜덤 배회. 반경 밖이면 홈 방향으로 복귀.
+		if not isvalid(self.Entity) or not isvalid(self.Entity.TransformComponent) then return end
+		local pos = self.Entity.TransformComponent.WorldPosition
+		local dx = pos.x - self.HomeX
+		local dy = pos.y - self.HomeY
+		local dist = math.sqrt(dx * dx + dy * dy)
+		if dist > self.WanderRadius then
+			local len = dist
+			if len < 0.001 then len = 0.001 end
+			self.MoveDir = Vector2(-dx / len, -dy / len)
+			self.CurrentAIState = "WANDER"
+			self:MoveDirVec(self.MoveDir, delta)
+			return
+		end
+		self.StateTimer = self.StateTimer - delta
+		if self.CurrentAIState == "WANDER" then
+			self:MoveDirVec(self.MoveDir, delta)
+			if self.StateTimer <= 0 then self:EnterState("STAND") end
+		else
+			if self.CurrentAIState ~= "STAND" then self:EnterState("STAND") end
+			if self.StateTimer <= 0 then self:EnterState("WANDER") end
+		end
+	end
+
+	@ExecSpace("ServerOnly")
+	method void EnterState(string newState)
+		-- STAND/WANDER 타이머·방향 설정.
+		self.CurrentAIState = newState
+		if newState == "STAND" then
+			self.StateTimer = self.StandMin + _UtilLogic:RandomDouble() * (self.StandMax - self.StandMin)
+			self:StopMovement()
+		elseif newState == "WANDER" then
+			local ang = _UtilLogic:RandomDouble() * 6.2831853
+			self.MoveDir = Vector2(math.cos(ang), math.sin(ang))
+			self.StateTimer = self.WanderMin + _UtilLogic:RandomDouble() * (self.WanderMax - self.WanderMin)
+		end
+	end
+
+	@ExecSpace("ServerOnly")
+	method void MoveDirVec(Vector2 dir, number delta)
+		-- MovementComponent 방향 이동 + 좌우 플립.
+		local move = self.Entity.MovementComponent
+		if not isvalid(move) then return end
+		if dir == nil then return end
+		move:MoveToDirection(dir, delta)
+		local spr = self.Entity.SpriteRendererComponent
+		if isvalid(spr) and dir.x ~= 0 then
+			spr.FlipX = dir.x < 0
+		end
+	end
+
+	@ExecSpace("ServerOnly")
+	method void StopMovement()
+		-- 정지.
+		local move = self.Entity.MovementComponent
+		if isvalid(move) then
+			move:MoveToDirection(Vector2(0, 0), 0)
+		end
+	end
+
+	@ExecSpace("ServerOnly")
+	method void TryProduce()
+		-- 급여 후 ProduceInterval 경과 시 1회 드롭 (타임스탬프 — 오프라인 포함).
+		if self.FedAtUnix <= 0 then return end
+		if self.ProducedForFeed then return end
+		local row = self:GetAnimalRow()
+		if row == nil then return end
+		local produceItem = ""
+		local okP, vP = pcall(function() return row:GetItem("ProduceItem") end)
+		if okP and vP ~= nil then produceItem = tostring(vP) end
+		if produceItem == "" then return end
+		local interval = 120
+		local okI, vI = pcall(function() return row:GetItem("ProduceInterval") end)
+		if okI and vI ~= nil then
+			local n = tonumber(vI)
+			if n ~= nil and n > 0 then interval = math.floor(n) end
+		end
+		local now = math.floor(os.time())
+		if now - self.FedAtUnix < interval then return end
+
+		local map = self.Entity.CurrentMap
+		if not isvalid(map) then return end
+		local pos = self.Entity.TransformComponent.WorldPosition
+		local dropPos = Vector3(pos.x + 0.3, pos.y, 0)
+		_TileDurabilityManager:SpawnResourceDrop(map, dropPos, produceItem, 1, 1, 0.5)
+		self.ProducedForFeed = true
+		self.LastProduceUnix = now
+		self:MarkOwnerDirty()
+		log("[ANIMAL] produce " .. self.AnimalId .. " -> " .. produceItem)
+	end
+
+	@ExecSpace("ClientOnly")
+	method void OnKeyDown(KeyDownEvent event)
+		-- F: 근처 로컬 플레이어가 먹이 급여 요청.
+		if event.key ~= KeyboardKey.F then return end
+		local lp = _UserService.LocalPlayer
+		if not isvalid(lp) then return end
+		local dist = self:GetDistanceToPlayer(lp)
+		if dist > 2.5 then return end
+		self:ServerRequestFeed()
+	end
+
+	@ExecSpace("ClientOnly")
+	method number GetDistanceToPlayer(Entity player)
+		-- 월드 거리.
+		local myPos = self.Entity.TransformComponent.WorldPosition
+		local playerPos = player.TransformComponent.WorldPosition
+		return Vector2.Distance(Vector2(myPos.x, myPos.y), Vector2(playerPos.x, playerPos.y))
+	end
+
+	@ExecSpace("Server")
+	method void ServerRequestFeed()
+		-- 급여: FeedItem 1 소모, FedAt 갱신, 생산 플래그 리셋. FeedInterval 쿨다운.
+		local userId = senderUserId
+		if userId == nil or userId == "" then return end
+		local player = _UserService:GetUserEntityByUserId(userId)
+		if not isvalid(player) then return end
+
+		local dist = Vector2.Distance(
+			Vector2(self.Entity.TransformComponent.WorldPosition.x, self.Entity.TransformComponent.WorldPosition.y),
+			Vector2(player.TransformComponent.WorldPosition.x, player.TransformComponent.WorldPosition.y)
+		)
+		if dist > 3.0 then
+			self:Feedback(player, "가축에게 더 가까이 가세요.")
+			return
+		end
+
+		local row = self:GetAnimalRow()
+		if row == nil then
+			self:Feedback(player, "알 수 없는 가축입니다.")
+			return
+		end
+		local feedItem = ""
+		local okF, vF = pcall(function() return row:GetItem("FeedItem") end)
+		if okF and vF ~= nil then feedItem = tostring(vF) end
+		if feedItem == "" then return end
+
+		local feedInterval = 60
+		local okFi, vFi = pcall(function() return row:GetItem("FeedInterval") end)
+		if okFi and vFi ~= nil then
+			local n = tonumber(vFi)
+			if n ~= nil and n > 0 then feedInterval = math.floor(n) end
+		end
+		local now = math.floor(os.time())
+		if self.FedAtUnix > 0 and (now - self.FedAtUnix) < feedInterval and not self.ProducedForFeed then
+			self:Feedback(player, "아직 배가 부릅니다.")
+			return
+		end
+
+		local inv = player:GetComponent("script.PlayerInventory")
+		if not isvalid(inv) then return end
+		if inv:GetItemCount(feedItem) < 1 then
+			self:Feedback(player, "먹이가 필요합니다: " .. feedItem)
+			return
+		end
+		if not inv:RemoveItem(feedItem, 1) then return end
+
+		self.FedAtUnix = now
+		self.ProducedForFeed = false
+		self:MarkOwnerDirty()
+		self:Feedback(player, self.AnimalId .. "에게 " .. feedItem .. "을(를) 줬습니다.")
+		log("[ANIMAL] feed " .. self.AnimalId .. " item=" .. feedItem .. " by=" .. userId)
+	end
+
+	@ExecSpace("ServerOnly")
+	method void Feedback(Entity player, string msg)
+		-- PlayerController 피드백 (정의 존재 확인된 메서드만).
+		if not isvalid(player) then return end
+		local pc = player:GetComponent("script.PlayerController")
+		if isvalid(pc) then
+			pc:ShowMineFeedback(msg)
+		end
+	end
+
+	@ExecSpace("ServerOnly")
+	method void MarkOwnerDirty()
+		-- 소유 홈 세이브 더티.
+		local uid = self.OwnerUserId
+		if uid == nil or uid == "" then
+			-- 홈 맵 이름에서 추출
+			local map = self.Entity.CurrentMap
+			if isvalid(map) then
+				local n = map.Name or ""
+				if string.sub(n, 1, 5) == "Home_" then
+					uid = string.sub(n, 6)
+				end
+			end
+		end
+		if uid ~= nil and uid ~= "" then
+			_PersistenceManager:MarkPlayerDirty(uid)
+		end
+	end
+
+	method table ToSaveEntry()
+		-- 영속 JSON 원소.
+		local pos = self.Entity.TransformComponent.WorldPosition
+		return {
+			animalId = self.AnimalId,
+			penX = self.PenCellX,
+			penY = self.PenCellY,
+			x = pos.x,
+			y = pos.y,
+			fedAt = self.FedAtUnix,
+			lastProduceAt = self.LastProduceUnix,
+			produced = self.ProducedForFeed,
+			ownerUserId = self.OwnerUserId
+		}
+	end
+
+end

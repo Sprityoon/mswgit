@@ -1,0 +1,153 @@
+@Component
+script Pet extends Component
+	-- T23 펫: 플레이어 추종 + 자동 줍기(자석 기준점). 전투 없음. 소환 아이템 비소모.
+
+	@Sync
+	property string PetId = ""
+
+	@Sync
+	property string OwnerUserId = ""
+
+	@Sync
+	property number MoveSpeed = 2.5
+
+	@Sync
+	property number PickupRange = 2.5
+
+	property number FollowDistance = 1.2
+
+	property number warpCooldown = 0.0
+
+	method void OnBeginPlay()
+		-- 데이터셋 스탯 적용.
+		if self:IsServer() then
+			self:ApplyDataset()
+			log("[PET] begin id=" .. tostring(self.PetId) .. " owner=" .. tostring(self.OwnerUserId))
+		end
+	end
+
+	@ExecSpace("ServerOnly")
+	method void Initialize(string petId, string ownerUserId)
+		-- 소환/복원 직후 상태.
+		self.PetId = petId or ""
+		self.OwnerUserId = ownerUserId or ""
+		self:ApplyDataset()
+	end
+
+	@ExecSpace("ServerOnly")
+	method void ApplyDataset()
+		-- PetDataSet 조회.
+		if self.PetId == nil or self.PetId == "" then return end
+		local ds = _DataService:GetTable("PetDataSet")
+		if ds == nil then return end
+		local row = ds:FindRow("PetId", self.PetId)
+		if row == nil then return end
+		local okS, speed = pcall(function() return row:GetItem("MoveSpeed") end)
+		if okS and speed ~= nil then
+			local n = tonumber(speed)
+			if n ~= nil and n > 0 then self.MoveSpeed = n end
+		end
+		local okP, pr = pcall(function() return row:GetItem("PickupRange") end)
+		if okP and pr ~= nil then
+			local n = tonumber(pr)
+			if n ~= nil and n > 0 then self.PickupRange = n end
+		end
+		local okR, ruid = pcall(function() return row:GetItem("SpriteRUID") end)
+		if okR and ruid ~= nil and ruid ~= "" then
+			local spr = self.Entity.SpriteRendererComponent
+			if isvalid(spr) then spr.SpriteRUID = ruid end
+		end
+		local move = self.Entity.MovementComponent
+		if isvalid(move) then
+			move.InputSpeed = self.MoveSpeed
+		end
+	end
+
+	@ExecSpace("ServerOnly")
+	method void OnUpdate(number delta)
+		-- 소유자 추종. 맵이 다르면 재스폰 워프.
+		if self.OwnerUserId == nil or self.OwnerUserId == "" then return end
+		if self.warpCooldown > 0 then
+			self.warpCooldown = self.warpCooldown - delta
+			return
+		end
+		local owner = _UserService:GetUserEntityByUserId(self.OwnerUserId)
+		if not isvalid(owner) then return end
+		if not isvalid(owner.CurrentMap) or not isvalid(self.Entity.CurrentMap) then return end
+		if owner.CurrentMap ~= self.Entity.CurrentMap then
+			self:WarpToOwner(owner)
+			return
+		end
+		self:FollowOwner(owner, delta)
+	end
+
+	@ExecSpace("ServerOnly")
+	method void FollowOwner(Entity owner, number delta)
+		-- 거리 유지 팔로우.
+		local myPos = self.Entity.TransformComponent.WorldPosition
+		local op = owner.TransformComponent.WorldPosition
+		local dx = op.x - myPos.x
+		local dy = op.y - myPos.y
+		local dist = math.sqrt(dx * dx + dy * dy)
+		local move = self.Entity.MovementComponent
+		if not isvalid(move) then return end
+		if dist > self.FollowDistance + 0.15 then
+			local len = dist
+			if len < 0.001 then len = 0.001 end
+			local dir = Vector2(dx / len, dy / len)
+			move:MoveToDirection(dir, delta)
+			local spr = self.Entity.SpriteRendererComponent
+			if isvalid(spr) and dir.x ~= 0 then
+				spr.FlipX = dir.x < 0
+			end
+		else
+			move:MoveToDirection(Vector2(0, 0), 0)
+		end
+		-- 너무 멀면 순간이동
+		if dist > 12.0 then
+			local body = self.Entity.KinematicbodyComponent
+			if isvalid(body) then
+				body:SetWorldPosition(Vector2(op.x - 0.8, op.y))
+			end
+		end
+	end
+
+	@ExecSpace("ServerOnly")
+	method void WarpToOwner(Entity owner)
+		-- 맵 변경 동반: 현재 펫 제거 후 소유자 맵에 재스폰.
+		self.warpCooldown = 0.5
+		local petId = self.PetId
+		local ownerId = self.OwnerUserId
+		local map = owner.CurrentMap
+		if not isvalid(map) then
+			self.Entity:Destroy()
+			return
+		end
+		local ds = _DataService:GetTable("PetDataSet")
+		local modelName = "Pet_Dog"
+		if ds ~= nil then
+			local row = ds:FindRow("PetId", petId)
+			if row ~= nil then
+				local okM, vM = pcall(function() return row:GetItem("ModelName") end)
+				if okM and vM ~= nil and tostring(vM) ~= "" then modelName = tostring(vM) end
+			end
+		end
+		local modelId = _EntryService:GetModelIdByName(modelName)
+		local op = owner.TransformComponent.WorldPosition
+		local spawnPos = Vector3(op.x - 0.8, op.y, 0)
+		self.Entity:Destroy()
+		if modelId == nil or modelId == "" then return end
+		local ent = _SpawnService:SpawnByModelId(modelId, "Pet_" .. petId, spawnPos, map)
+		if not isvalid(ent) then return end
+		local pc = ent:GetComponent("script.Pet")
+		if not isvalid(pc) then
+			ent:AddComponent("script.Pet")
+			pc = ent:GetComponent("script.Pet")
+		end
+		if isvalid(pc) then
+			pc:Initialize(petId, ownerId)
+		end
+		log("[PET] warp " .. tostring(petId) .. " to map " .. tostring(map.Name))
+	end
+
+end
