@@ -77,8 +77,9 @@ script PlayerController extends Component
 	@Sync
 	property boolean CanInteractOnCurrentMap = true
 
+	-- T45: 신규 캐릭터는 QWER 공백. 해금 후 자동/수동 장착.
 	@Sync
-	property string EquippedSkillsJson = "[\"power_strike\", \"fireball\", \"dash\", \"earth_shatter\"]"
+	property string EquippedSkillsJson = "[]"
 
 	-- Skill Tree (S2): 보유 스킬 레벨 맵 JSON (skillId -> level). 0 또는 부재 = 미해금.
 	@Sync
@@ -1712,13 +1713,160 @@ script PlayerController extends Component
 		end
 	end
 
+	method table EnsureEquipSlots(any decoded)
+		-- 항상 길이 4 슬롯 배열로 정규화 (빈 값 = 미장착).
+		local slots = { "", "", "", "" }
+		if type(decoded) == "table" then
+			for i = 1, 4 do
+				local v = decoded[i]
+				if v ~= nil then slots[i] = tostring(v) end
+			end
+		end
+		return slots
+	end
+
+	method table GetEquippedSlots()
+		-- EquippedSkillsJson → 길이 4 슬롯 테이블.
+		local ok, decoded = pcall(function() return _HttpService:JSONDecode(self.EquippedSkillsJson) end)
+		if not ok then return self:EnsureEquipSlots(nil) end
+		return self:EnsureEquipSlots(decoded)
+	end
+
+	@ExecSpace("ServerOnly")
+	method void SanitizeEquippedSkills()
+		-- T45⑥: 로드 시 미해금·패시브·중복 장착 정리. 세이브 경로 무변경.
+		local slots = self:GetEquippedSlots()
+		local seen = {}
+		local changed = false
+		for i = 1, 4 do
+			local sid = slots[i]
+			if sid ~= nil and sid ~= "" then
+				local level = self:GetSkillLevel(sid)
+				local drop = false
+				if level < 1 then
+					drop = true
+				else
+					local ds = _DataService:GetTable("SkillDataSet")
+					if ds ~= nil then
+						local row = ds:FindRow("SkillId", sid)
+						if row ~= nil and (row:GetItem("Type") or "") == "Passive" then
+							drop = true
+						end
+					end
+					if seen[sid] then drop = true end
+				end
+				if drop then
+					slots[i] = ""
+					changed = true
+				else
+					seen[sid] = true
+				end
+			end
+		end
+		if changed then
+			self.EquippedSkillsJson = _HttpService:JSONEncode(slots)
+			log("[SKILL] SanitizeEquippedSkills filtered unequipped/passive/dupes")
+		else
+			-- 기본 "[]" 등을 4슬롯 형태로 정규화
+			local ok, raw = pcall(function() return _HttpService:JSONDecode(self.EquippedSkillsJson) end)
+			if not ok or type(raw) ~= "table" or #raw ~= 4 then
+				self.EquippedSkillsJson = _HttpService:JSONEncode(slots)
+			end
+		end
+	end
+
+	@ExecSpace("ServerOnly")
+	method void TryAutoEquipOnUnlock(string skillId)
+		-- T45④: 해금(0→1) 시 빈 슬롯이 있을 때만 자동 장착. 패시브 제외.
+		if skillId == nil or skillId == "" then return end
+		if self:GetSkillLevel(skillId) < 1 then return end
+		local ds = _DataService:GetTable("SkillDataSet")
+		if ds == nil then return end
+		local row = ds:FindRow("SkillId", skillId)
+		if row == nil then return end
+		if (row:GetItem("Type") or "") == "Passive" then return end
+
+		local slots = self:GetEquippedSlots()
+		for i = 1, 4 do
+			if slots[i] == skillId then return end
+		end
+		for i = 1, 4 do
+			if slots[i] == nil or slots[i] == "" then
+				slots[i] = skillId
+				self.EquippedSkillsJson = _HttpService:JSONEncode(slots)
+				log("[SKILL] AutoEquip unlock " .. skillId .. " -> slot " .. tostring(i))
+				return
+			end
+		end
+		log("[SKILL] AutoEquip skipped (no empty slot) " .. skillId)
+	end
+
+	@ExecSpace("Server")
+	method void ServerRequestEquipSkill(integer slotIndex, string skillId)
+		-- T45②: 슬롯 장착/해제 RPC. skillId 빈 문자열=해제. 미해금·패시브 거부, 중복 시 스왑.
+		local playerComp = self.Entity.PlayerComponent
+		if playerComp == nil or senderUserId ~= playerComp.UserId then return end
+		if slotIndex < 1 or slotIndex > 4 then return end
+
+		local slots = self:GetEquippedSlots()
+		local sid = skillId or ""
+
+		if sid == "" then
+			slots[slotIndex] = ""
+			self.EquippedSkillsJson = _HttpService:JSONEncode(slots)
+			if _PersistenceManager then
+				_PersistenceManager:MarkPlayerDirty(playerComp.UserId)
+			end
+			log("[SKILL] Unequip slot " .. tostring(slotIndex))
+			return
+		end
+
+		if self:GetSkillLevel(sid) < 1 then
+			self:ClientShowMineFeedback("아직 해금하지 않은 스킬입니다.", playerComp.UserId)
+			return
+		end
+
+		local ds = _DataService:GetTable("SkillDataSet")
+		if ds == nil then return end
+		local row = ds:FindRow("SkillId", sid)
+		if row == nil then return end
+		if (row:GetItem("Type") or "") == "Passive" then
+			self:ClientShowMineFeedback("패시브 스킬은 장착할 수 없습니다.", playerComp.UserId)
+			return
+		end
+
+		-- 이미 다른 슬롯에 있으면 스왑 (그 슬롯 ↔ 대상 슬롯)
+		local other = 0
+		for i = 1, 4 do
+			if i ~= slotIndex and slots[i] == sid then
+				other = i
+				break
+			end
+		end
+		if other > 0 then
+			local prev = slots[slotIndex]
+			slots[slotIndex] = sid
+			slots[other] = prev
+		else
+			slots[slotIndex] = sid
+		end
+		self.EquippedSkillsJson = _HttpService:JSONEncode(slots)
+		if _PersistenceManager then
+			_PersistenceManager:MarkPlayerDirty(playerComp.UserId)
+		end
+		local sname = row:GetItem("Name") or sid
+		local keys = { "Q", "W", "E", "R" }
+		self:ClientShowMineFeedback("[" .. (keys[slotIndex] or "?") .. "] " .. tostring(sname) .. " 장착", playerComp.UserId)
+		log("[SKILL] Equip " .. sid .. " slot=" .. tostring(slotIndex))
+	end
+
 	@ExecSpace("ClientOnly")
 	method void TryCastSlot(integer slotIndex)
 		-- Resolve the skill bound to slotIndex, do a client-side cooldown/stamina precheck, then RPC.
 		if self.IsDead then return end
 		
-		local ok, skills = pcall(function() return _HttpService:JSONDecode(self.EquippedSkillsJson) end)
-		if not ok or not skills or slotIndex < 1 or slotIndex > #skills then return end
+		local skills = self:GetEquippedSlots()
+		if slotIndex < 1 or slotIndex > 4 then return end
 		
 		local skillId = skills[slotIndex]
 		if not skillId or skillId == "" then return end
@@ -1798,6 +1946,11 @@ script PlayerController extends Component
 		
 		if effectRUID ~= nil and effectRUID ~= "" then
 			self:MulticastPlayEffect(effectRUID, self.Entity.TransformComponent.WorldPosition)
+		end
+		-- T46: SoundRUID 시전 사운드 (데이터 주도)
+		local soundRUID = row:GetItem("SoundRUID")
+		if soundRUID ~= nil and soundRUID ~= "" then
+			self:MulticastPlaySkillSound(soundRUID)
 		end
 	end
 
@@ -1985,6 +2138,11 @@ script PlayerController extends Component
 		levels[skillId] = curLevel + 1
 		self.SP = self.SP - spCost
 		self.SkillLevelsJson = _HttpService:JSONEncode(levels)
+
+		-- T45④: 최초 해금 시 빈 슬롯 자동 장착 (액티브만)
+		if curLevel == 0 then
+			self:TryAutoEquipOnUnlock(skillId)
+		end
 		
 		if _PersistenceManager then
 			_PersistenceManager:MarkPlayerDirty(playerComp.UserId)
@@ -2127,6 +2285,13 @@ script PlayerController extends Component
 			-- PlayEffect(ruid, instigator, position, zRotation:float, scale:Vector3, isLoop:bool)
 			_EffectService:PlayEffect(effectRUID, nil, pos, 0.0, Vector3(1, 1, 1), false)
 		end
+	end
+
+	@ExecSpace("Multicast")
+	method void MulticastPlaySkillSound(string soundRUID)
+		-- T46: 시전 사운드 (SoundService — 클라 재생).
+		if soundRUID == nil or soundRUID == "" then return end
+		_SoundService:PlaySound(soundRUID, 1.0)
 	end
 
 	@ExecSpace("ServerOnly")

@@ -50,8 +50,8 @@
             },
             "Value": {
               "$type": "MOD.Core.MODVector2, MOD.Core",
-              "x": 1.07,
-              "y": 0.4
+              "x": 1.0,
+              "y": 0.5
             }
           },
           {
@@ -85,8 +85,8 @@
             },
             "Value": {
               "$type": "MOD.Core.MODVector2, MOD.Core",
-              "x": 1.07,
-              "y": 0.4
+              "x": 1.0,
+              "y": 0.5
             }
           },
           {

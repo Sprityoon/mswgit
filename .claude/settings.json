@@ -19,7 +19,9 @@
       "Bash(node \"C:/Users/mh566/AppData/Local/Temp/claude/d-------/09cd0e1f-f0bb-47a3-a3f3-6ecd147da4e3/scratchpad/dex_bgcheck.cjs\")",
       "Bash(node \"C:/Users/mh566/AppData/Local/Temp/claude/d-------/09cd0e1f-f0bb-47a3-a3f3-6ecd147da4e3/scratchpad/dex_build2.cjs\")",
       "Bash(node \"C:/Users/mh566/AppData/Local/Temp/claude/d-------/09cd0e1f-f0bb-47a3-a3f3-6ecd147da4e3/scratchpad/dex_verify.cjs\")",
-      "Bash(node \"C:/Users/mh566/AppData/Local/Temp/claude/d-------/09cd0e1f-f0bb-47a3-a3f3-6ecd147da4e3/scratchpad/dex_idcheck.cjs\")"
+      "Bash(node \"C:/Users/mh566/AppData/Local/Temp/claude/d-------/09cd0e1f-f0bb-47a3-a3f3-6ecd147da4e3/scratchpad/dex_idcheck.cjs\")",
+      "WebFetch(domain:api.github.com)",
+      "mcp__msw-mcp__mlua_document_retriever"
     ]
   },
   "hooks": {

@@ -1,0 +1,6 @@
+Kind,Rarity,RewardCoin,RewardXp
+item,Common,5,5
+item,Uncommon,10,10
+item,Rare,25,25
+item,Epic,50,50
+monster,,15,15

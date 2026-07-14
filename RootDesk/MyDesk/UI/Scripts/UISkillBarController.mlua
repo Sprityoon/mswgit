@@ -39,14 +39,19 @@ script UISkillBarController extends Component
 	@ExecSpace("ClientOnly")
 	method void UpdateSlots()
 		-- description: Refresh each slot's key/name labels and cooldown overlay from live player state.
+		-- T45: 빈 슬롯은 어두운 배경 + "—" 표기로 명확히 구분.
 		local keys = { "Q", "W", "E", "R" }
+		local filledBg = Color(0.22, 0.24, 0.30, 0.92)
+		local emptyBg = Color(0.10, 0.10, 0.12, 0.88)
+		local lockedBg = Color(0.14, 0.12, 0.12, 0.90)
 
 		local pc = self:GetLocalPlayerController()
-		local skills = nil
+		local skills = { "", "", "", "" }
 		local cdMap = {}
 		if pc ~= nil then
-			local ok, decoded = pcall(function() return _HttpService:JSONDecode(pc.EquippedSkillsJson) end)
-			if ok and decoded then skills = decoded end
+			---@type PlayerController
+			local controller = pc
+			skills = controller:GetEquippedSlots()
 			if pc.CooldownMap ~= nil then cdMap = pc.CooldownMap end
 		end
 
@@ -56,7 +61,8 @@ script UISkillBarController extends Component
 		for i = 1, self.SlotCount do
 			local slot = self.Entity:GetChildByName("SkillSlot" .. i, true)
 			if isvalid(slot) then
-				local skillId = skills ~= nil and skills[i] or nil
+				local skillId = skills[i]
+				if skillId == nil then skillId = "" end
 
 				-- Key label (Q/W/E/R)
 				local keyEnt = slot:GetChildByName("Key", true)
@@ -69,14 +75,18 @@ script UISkillBarController extends Component
 				local overlay = slot:GetChildByName("Cooldown", true)
 				local cdText = slot:GetChildByName("CdText", true)
 
-				local displayName = ""
+				local displayName = "—"
 				local cd = 0
 				local locked = false
-				if skillId ~= nil and ds ~= nil then
+				local empty = (skillId == "")
+				local iconRuid = ""
+				if not empty and ds ~= nil then
 					local row = ds:FindRow("SkillId", skillId)
 					if row ~= nil then
 						displayName = row:GetItem("Name") or skillId
 						cd = tonumber(row:GetItem("Cooldown")) or 0
+						local okI, ir = pcall(function() return row:GetItem("IconRUID") end)
+						if okI and ir ~= nil then iconRuid = tostring(ir) end
 						-- 스킬트리 연동(S3): 미해금 스킬은 잠금 표시, 보유 스킬은 실효 쿨다운 반영
 						if pc ~= nil then
 							---@type PlayerController
@@ -89,20 +99,52 @@ script UISkillBarController extends Component
 								cd = controller:GetEffectiveCooldown(skillId, level)
 							end
 						end
+					else
+						displayName = skillId
+					end
+				end
+
+				-- 슬롯 배경 톤 (빈/잠김/장착)
+				if isvalid(slot.SpriteGUIRendererComponent) then
+					if empty then
+						slot.SpriteGUIRendererComponent.Color = emptyBg
+					elseif locked then
+						slot.SpriteGUIRendererComponent.Color = lockedBg
+					else
+						slot.SpriteGUIRendererComponent.Color = filledBg
+					end
+				end
+
+				-- T46: IconRUID 표시 (공란이면 아이콘 숨김 — 텍스트 폴백)
+				local iconEnt = slot:GetChildByName("Icon", true)
+				if isvalid(iconEnt) then
+					local ispr = iconEnt.SpriteGUIRendererComponent
+					if isvalid(ispr) and iconRuid ~= "" and not empty then
+						iconEnt.Enable = true
+						ispr.ImageRUID = iconRuid
+						if locked then
+							ispr.Color = Color(0.35, 0.35, 0.38, 1.0)
+						else
+							ispr.Color = Color(1, 1, 1, 1)
+						end
+					else
+						iconEnt.Enable = false
 					end
 				end
 
 				if isvalid(nameEnt) and isvalid(nameEnt.TextComponent) then
 					nameEnt.TextComponent.Text = displayName
-					if locked then
+					if empty then
+						nameEnt.TextComponent.FontColor = Color(0.45, 0.45, 0.48, 1.0)
+					elseif locked then
 						nameEnt.TextComponent.FontColor = Color(0.55, 0.55, 0.55, 1.0)
 					else
-						nameEnt.TextComponent.FontColor = Color(1.0, 1.0, 1.0, 1.0)
+						nameEnt.TextComponent.FontColor = Color(0.94, 0.91, 0.82, 1.0)
 					end
 				end
 
 				local remain = 0
-				if skillId ~= nil and not locked then
+				if not empty and not locked then
 					local last = cdMap[skillId] or -999.0
 					remain = cd - (now - last)
 				end

@@ -12,10 +12,17 @@ script UICollectionController extends Component
 	property ButtonComponent tabItem = "ea9c427b-14dd-4839-b574-17ea9697bff4"
 	property ButtonComponent tabMonster = "440b6b81-f110-49b6-a546-3acc65784d9c"
 	property ButtonComponent tabAchv = "78a1ce77-7b10-4705-921a-547fd2aa7eb1"
+	-- T42: 아이템 탭 카테고리 칩 (제작창 CategoryBar 패턴 재사용)
+	property Entity categoryBar = "117a7db2-16f5-4cf3-a431-b08c64217ef7"
+	property Entity categoryChipTemplate = "92a5124b-1dc2-4ef9-800d-dff3ff2aa433"
 
 	property string currentTab = "item"
 	property table rows = {}
 	property table rowHandlers = {}
+	property table categoryOptions = {}
+	property integer selectedCategoryIndex = 1
+	property table categoryChipButtons = {}
+	property table categoryChipHandlers = {}
 
 	property any closeHandler = nil
 	property any tabItemHandler = nil
@@ -33,6 +40,8 @@ script UICollectionController extends Component
 		self:ResolveRefs()
 		self.Entity.Enable = false
 		if isvalid(self._T.rowTemplate) then self._T.rowTemplate.Enable = false end
+		if isvalid(self._T.chipTemplate) then self._T.chipTemplate.Enable = false end
+		if isvalid(self._T.categoryBar) then self._T.categoryBar.Enable = false end
 
 		if isvalid(self._T.closeE) then
 			self.closeHandler = self._T.closeE:ConnectEvent(ButtonClickEvent, function() self:Close() end)
@@ -48,7 +57,8 @@ script UICollectionController extends Component
 		end
 		log("[DEX] UICollectionController ready close=" .. tostring(isvalid(self._T.closeE))
 			.. " template=" .. tostring(isvalid(self._T.rowTemplate))
-			.. " list=" .. tostring(isvalid(self._T.listScroll)))
+			.. " list=" .. tostring(isvalid(self._T.listScroll))
+			.. " catBar=" .. tostring(isvalid(self._T.categoryBar)))
 	end
 
 	@ExecSpace("ClientOnly")
@@ -60,6 +70,8 @@ script UICollectionController extends Component
 		self._T.tabItemE = self.Entity:GetChildByName("TabItem", true)
 		self._T.tabMonsterE = self.Entity:GetChildByName("TabMonster", true)
 		self._T.tabAchvE = self.Entity:GetChildByName("TabAchv", true)
+		self._T.categoryBar = self.Entity:GetChildByName("CategoryBar", true)
+		self._T.chipTemplate = self.Entity:GetChildByName("ChipTemplate", true)
 	end
 
 	@ExecSpace("ClientOnly")
@@ -68,6 +80,7 @@ script UICollectionController extends Component
 		if isvalid(self._T.tabItemE) and self.tabItemHandler then self._T.tabItemE:DisconnectEvent(ButtonClickEvent, self.tabItemHandler) end
 		if isvalid(self._T.tabMonsterE) and self.tabMonsterHandler then self._T.tabMonsterE:DisconnectEvent(ButtonClickEvent, self.tabMonsterHandler) end
 		if isvalid(self._T.tabAchvE) and self.tabAchvHandler then self._T.tabAchvE:DisconnectEvent(ButtonClickEvent, self.tabAchvHandler) end
+		self:ClearFilterChips()
 		self:ClearRows()
 	end
 
@@ -95,9 +108,11 @@ script UICollectionController extends Component
 		end
 		self:ApplyScaleTween(1.0)
 		self:RefreshTabHighlight()
+		self:UpdateCategoryBarVisibility()
 		self:RebuildList()
 		self:ResetListScroll()
-		log("[DEX] Open tab=" .. tostring(self.currentTab) .. " rows=" .. tostring(#self.rows))
+		log("[DEX] Open tab=" .. tostring(self.currentTab) .. " rows=" .. tostring(#self.rows)
+			.. " cat=" .. tostring(self.categoryOptions[self.selectedCategoryIndex] or "all"))
 	end
 
 	@ExecSpace("ClientOnly")
@@ -158,8 +173,146 @@ script UICollectionController extends Component
 		if tab == self.currentTab and #self.rows > 0 then return end
 		self.currentTab = tab
 		self:RefreshTabHighlight()
+		self:UpdateCategoryBarVisibility()
 		self:RebuildList()
 		self:ResetListScroll()
+	end
+
+	@ExecSpace("ClientOnly")
+	method void UpdateCategoryBarVisibility()
+		-- 아이템 탭에서만 카테고리 칩 행 노출. 몬스터/업적은 숨김.
+		local show = (self.currentTab == "item")
+		if isvalid(self._T.categoryBar) then
+			self._T.categoryBar.Enable = show
+		end
+		if show then
+			self:RebuildFilterOptions()
+			self:BuildFilterChips()
+		else
+			self:ClearFilterChips()
+		end
+	end
+
+	@ExecSpace("ClientOnly")
+	method void RebuildFilterOptions()
+		-- item_dataset.Category 고유값에서 칩 목록 파생 (코드 하드코딩 금지). 첫 항 = all.
+		self.categoryOptions = { "all" }
+		local catSeen = {}
+		catSeen["all"] = true
+		local ds = _DataService:GetTable("item_dataset")
+		if ds == nil then return end
+		local n = ds:GetRowCount()
+		for i = 1, n do
+			local cat = ds:GetCell(i, "Category") or ""
+			if cat ~= "" and not catSeen[cat] then
+				catSeen[cat] = true
+				table.insert(self.categoryOptions, cat)
+			end
+		end
+		if self.selectedCategoryIndex < 1 or self.selectedCategoryIndex > #self.categoryOptions then
+			self.selectedCategoryIndex = 1
+		end
+	end
+
+	@ExecSpace("ClientOnly")
+	method void ClearFilterChips()
+		-- 동적 카테고리 칩 정리.
+		for key, chip in pairs(self.categoryChipButtons) do
+			if isvalid(chip) then
+				if self.categoryChipHandlers[key] ~= nil then
+					chip:DisconnectEvent(ButtonClickEvent, self.categoryChipHandlers[key])
+				end
+				chip:Destroy()
+			end
+		end
+		self.categoryChipButtons = {}
+		self.categoryChipHandlers = {}
+	end
+
+	@ExecSpace("ClientOnly")
+	method void BuildFilterChips()
+		-- 제작창 T26 CategoryBar 패턴: 가로 칩 복제 + 선택 하이라이트.
+		self:ClearFilterChips()
+		local tmpl = self._T.chipTemplate
+		if not isvalid(tmpl) then tmpl = self.categoryChipTemplate end
+		if isvalid(tmpl) then tmpl.Enable = false end
+		if not isvalid(tmpl) then
+			log("[DEX] BuildFilterChips skip — ChipTemplate missing")
+			return
+		end
+
+		local chipW = 110
+		local chipH = 32
+		local gap = 8
+		local startX = 16
+		for i, catVal in ipairs(self.categoryOptions) do
+			local chip = tmpl:Clone("CatChip_" .. tostring(catVal))
+			if not isvalid(chip) then continue end
+			chip.Enable = true
+			local x = startX + (i - 1) * (chipW + gap)
+			local tr = chip.UITransformComponent
+			if isvalid(tr) then
+				tr.anchoredPosition = Vector2(x, 0)
+				tr.RectSize = Vector2(chipW, chipH)
+			end
+			local textComp = chip.TextComponent
+			if isvalid(textComp) then
+				-- T26 미러: 옵션 값을 라벨로 그대로 표시 (all / resource / tool …).
+				textComp.Text = tostring(catVal)
+				textComp.FontSize = 15
+			end
+			local idx = i
+			local h = chip:ConnectEvent(ButtonClickEvent, function()
+				self:SelectCategoryIndex(idx)
+			end)
+			self.categoryChipButtons[tostring(catVal)] = chip
+			self.categoryChipHandlers[tostring(catVal)] = h
+		end
+		self:RefreshChipHighlight()
+		log("[DEX] BuildFilterChips n=" .. tostring(#self.categoryOptions)
+			.. " selected=" .. tostring(self.categoryOptions[self.selectedCategoryIndex] or "all"))
+	end
+
+	@ExecSpace("ClientOnly")
+	method void SelectCategoryIndex(integer index)
+		-- 카테고리 칩 클릭 → 리스트 재구성.
+		if index < 1 or index > #self.categoryOptions then return end
+		if index == self.selectedCategoryIndex and #self.rows > 0 then return end
+		self.selectedCategoryIndex = index
+		self:RefreshChipHighlight()
+		self:RebuildList()
+		self:ResetListScroll()
+	end
+
+	@ExecSpace("ClientOnly")
+	method void RefreshChipHighlight()
+		-- 선택 칩 = 액센트 골드, 비선택 = 서페이스 (제작창 RefreshChipHighlight 동일 토큰).
+		local selectedBg = Color(0.94, 0.66, 0.19, 1.0)
+		local idleBg = Color(0.18, 0.20, 0.16, 1.0)
+		local selectedText = Color(0.15, 0.12, 0.08, 1.0)
+		local idleText = Color(0.79, 0.75, 0.70, 1.0)
+		for i, catVal in ipairs(self.categoryOptions) do
+			local chip = self.categoryChipButtons[tostring(catVal)]
+			if isvalid(chip) then
+				local selected = (i == self.selectedCategoryIndex)
+				local spr = chip.SpriteGUIRendererComponent
+				if isvalid(spr) then
+					if selected then spr.Color = selectedBg else spr.Color = idleBg end
+				end
+				local textComp = chip.TextComponent
+				if isvalid(textComp) then
+					if selected then textComp.FontColor = selectedText else textComp.FontColor = idleText end
+				end
+				local tr = chip.UITransformComponent
+				if isvalid(tr) then
+					if selected then
+						tr.RectSize = Vector2(114, 34)
+					else
+						tr.RectSize = Vector2(110, 32)
+					end
+				end
+			end
+		end
 	end
 
 	@ExecSpace("ClientOnly")
@@ -237,16 +390,22 @@ script UICollectionController extends Component
 
 	@ExecSpace("ClientOnly")
 	method void BuildItems()
+		-- 선택 카테고리 칩 필터. IsCurrency 노출 여부는 T22 현행 유지(필터 없음).
 		local dex = self:DecodeLocalDex()
 		local ds = _DataService:GetTable("item_dataset")
 		if ds == nil then return end
+		if #self.categoryOptions == 0 then self:RebuildFilterOptions() end
+		local catFilter = self.categoryOptions[self.selectedCategoryIndex] or "all"
 		local n = ds:GetRowCount()
 		for i = 1, n do
 			local name = ds:GetCell(i, "Name") or ""
 			if name ~= "" then
-				local icon = ds:GetCell(i, "IconRUID") or ""
-				local count = math.floor(tonumber(dex.items[name]) or 0)
-				self:AddRow(icon, name, count > 0, tostring(count) .. " 개 획득")
+				local cat = ds:GetCell(i, "Category") or ""
+				if catFilter == "all" or cat == catFilter then
+					local icon = ds:GetCell(i, "IconRUID") or ""
+					local count = math.floor(tonumber(dex.items[name]) or 0)
+					self:AddRow(icon, name, count > 0, tostring(count) .. " 개 획득")
+				end
 			end
 		end
 	end

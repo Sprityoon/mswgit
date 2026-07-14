@@ -210,6 +210,8 @@ script PersistenceManager extends Logic
 				pc.UnlockedWaypointsJson = data.unlockedWaypoints or "[]"
 				pc.SkillLevelsJson = data.skillLevels or "{}"
 				pc.SP = data.sp or 0
+				-- T45⑥: 로드 직후 미해금 장착 필터 (세이브 경로 무변경 — 장착 목록은 @Sync 세션 값)
+				pc:SanitizeEquippedSkills()
 				
 				-- Offline sleeping recovery (T8): 10분(600s) 비례 회복. ≥600s면 풀충전.
 				local savedIsSleeping = data.isSleeping or false
@@ -452,6 +454,8 @@ script PersistenceManager extends Logic
 			pc.GatheringSpeed = 1.0
 			pc.SkillLevelsJson = "{}"
 			pc.SP = 0
+			pc.EquippedSkillsJson = "[]"
+			pc:SanitizeEquippedSkills()
 			pc.IsSleeping = false
 			pc.SleepStartTimeTicks = "0"
 		end

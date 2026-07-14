@@ -3,12 +3,17 @@ script UISkillTreeController extends Component
 
 	-- SkillTreePopup: SkillDataSet의 TreeRow/TreeCol 좌표로 노드를 배치하고 노드 4상태
 	-- (잠김 / 목표 진행 중 / 해금 가능 / 보유)를 렌더링한다. (docs/design/skill-tree-plan.md §2 UI)
-	-- 노드 슬롯은 .ui에 Node_<row>_<col> 범용 슬롯으로 깔려 있고, 어떤 스킬이 어느 슬롯에
-	-- 앉을지는 전적으로 CSV(TreeRow/TreeCol)가 결정한다 — UI에 스킬 하드코딩 없음.
+	-- T45: 보유 스킬 선택 → QWER 장착 버튼 + 현재 장착 슬롯 표시.
 
 	property Entity btnClose = "da9d3a55-39ec-42c3-8e38-14c714c3cf71"
 
 	property Entity spText = "4e3d8f52-1eec-4615-8d8d-2b68360f4b6b"
+
+	property Entity equipDetailText = "de497519-cec6-4f98-b1b8-1bc8f15b572e"
+	property ButtonComponent btnEquipQ = "ad27c86b-d307-4ce1-99cb-92e8dd5685b3"
+	property ButtonComponent btnEquipW = "cc23b1a5-be5c-4772-8ca1-01bc64033a6b"
+	property ButtonComponent btnEquipE = "3deee177-323d-49b5-9c3d-ff5fbde0eea7"
+	property ButtonComponent btnEquipR = "61e8acd4-707c-4da1-8a43-a9457da438c0"
 
 	property integer MaxRows = 4
 
@@ -17,21 +22,36 @@ script UISkillTreeController extends Component
 	property any closeHandler = nil
 
 	property table nodeHandlers = {}
+	property table equipHandlers = {}
 
 	-- "row_col" -> skillId (Refresh 시 CSV 기준으로 재구성)
 	property table nodeSkillMap = {}
+
+	property string selectedSkillId = ""
 
 	property number RefreshAccum = 0.0
 
 	@ExecSpace("ClientOnly")
 	method void OnBeginPlay()
 		self.Entity.Enable = false
+		self:ResolveEquipRefs()
 
 		if isvalid(self.btnClose) then
 			self.closeHandler = self.btnClose:ConnectEvent(ButtonClickEvent, self.OnCloseClicked)
 		end
 
 		self:SetupNodeEvents()
+		self:SetupEquipButtons()
+	end
+
+	@ExecSpace("ClientOnly")
+	method void ResolveEquipRefs()
+		-- 경로 해석으로 장착 바 자식 확보 (UUID 폴백).
+		self._T.detailTextE = self.Entity:GetChildByName("DetailText", true)
+		self._T.btnQE = self.Entity:GetChildByName("BtnQ", true)
+		self._T.btnWE = self.Entity:GetChildByName("BtnW", true)
+		self._T.btnEE = self.Entity:GetChildByName("BtnE", true)
+		self._T.btnRE = self.Entity:GetChildByName("BtnR", true)
 	end
 
 	@ExecSpace("ClientOnly")
@@ -45,6 +65,12 @@ script UISkillTreeController extends Component
 			end
 		end
 		self.nodeHandlers = {}
+		for ent, h in pairs(self.equipHandlers) do
+			if isvalid(ent) then
+				ent:DisconnectEvent(ButtonClickEvent, h)
+			end
+		end
+		self.equipHandlers = {}
 	end
 
 	@ExecSpace("ClientOnly")
@@ -59,6 +85,7 @@ script UISkillTreeController extends Component
 	@ExecSpace("ClientOnly")
 	method void Open()
 		self.Entity.Enable = true
+		self:ResolveEquipRefs()
 		self:Refresh()
 	end
 
@@ -102,16 +129,132 @@ script UISkillTreeController extends Component
 	end
 
 	@ExecSpace("ClientOnly")
+	method void SetupEquipButtons()
+		-- T45: QWER 장착 버튼.
+		local pairs_ = {
+			{ ent = self._T.btnQE, slot = 1 },
+			{ ent = self._T.btnWE, slot = 2 },
+			{ ent = self._T.btnEE, slot = 3 },
+			{ ent = self._T.btnRE, slot = 4 },
+		}
+		for _, p in ipairs(pairs_) do
+			if isvalid(p.ent) then
+				local slotIdx = p.slot
+				local h = p.ent:ConnectEvent(ButtonClickEvent, function()
+					self:OnEquipSlotClicked(slotIdx)
+				end)
+				self.equipHandlers[p.ent] = h
+			end
+		end
+	end
+
+	@ExecSpace("ClientOnly")
 	method void OnNodeClicked(string key)
-		-- 노드 클릭 = 해금/레벨업 요청. 검증은 전부 서버(ServerRequestSkillLevelUp)가 수행한다.
+		-- 노드 클릭: 선택 + 해금/레벨업 요청 (서버 검증).
 		local skillId = self.nodeSkillMap[key]
 		if skillId == nil or skillId == "" then return end
+
+		self.selectedSkillId = skillId
+		self:RefreshEquipDetail()
 
 		local pc = self:GetLocalPlayerController()
 		if pc == nil then return end
 		---@type PlayerController
 		local controller = pc
 		controller:ServerRequestSkillLevelUp(skillId)
+	end
+
+	@ExecSpace("ClientOnly")
+	method void OnEquipSlotClicked(integer slotIndex)
+		-- 선택 스킬을 해당 슬롯에 장착. 이미 그 슬롯이면 해제.
+		if self.selectedSkillId == nil or self.selectedSkillId == "" then return end
+		local pc = self:GetLocalPlayerController()
+		if pc == nil then return end
+		---@type PlayerController
+		local controller = pc
+		if controller:GetSkillLevel(self.selectedSkillId) < 1 then return end
+
+		local slots = controller:GetEquippedSlots()
+		local equipId = self.selectedSkillId
+		if slots[slotIndex] == equipId then
+			equipId = ""
+		end
+		controller:ServerRequestEquipSkill(slotIndex, equipId)
+		self:RefreshEquipDetail()
+	end
+
+	@ExecSpace("ClientOnly")
+	method void RefreshEquipDetail()
+		-- 선택 스킬 + 현재 장착 슬롯 표시, QWER 버튼 하이라이트.
+		local detailE = self._T.detailTextE
+		if not isvalid(detailE) then detailE = self.equipDetailText end
+		local pc = self:GetLocalPlayerController()
+		local sid = self.selectedSkillId or ""
+		local name = sid
+		local level = 0
+		local isPassive = false
+		local equipKeys = ""
+		local slots = { "", "", "", "" }
+		if pc ~= nil then
+			---@type PlayerController
+			local controller = pc
+			slots = controller:GetEquippedSlots()
+			if sid ~= "" then
+				level = controller:GetSkillLevel(sid)
+			end
+		end
+		local ds = _DataService:GetTable("SkillDataSet")
+		if sid ~= "" and ds ~= nil then
+			local row = ds:FindRow("SkillId", sid)
+			if row ~= nil then
+				name = row:GetItem("Name") or sid
+				isPassive = (row:GetItem("Type") or "") == "Passive"
+			end
+		end
+		local keyNames = { "Q", "W", "E", "R" }
+		for i = 1, 4 do
+			if slots[i] == sid and sid ~= "" then
+				if equipKeys ~= "" then equipKeys = equipKeys .. "," end
+				equipKeys = equipKeys .. keyNames[i]
+			end
+		end
+
+		local line = "스킬을 선택하세요"
+		if sid ~= "" then
+			if level < 1 then
+				line = name .. " (미해금)"
+			elseif isPassive then
+				line = name .. " Lv." .. tostring(level) .. " · 패시브(장착 불가)"
+			elseif equipKeys ~= "" then
+				line = name .. " · 장착: " .. equipKeys
+			else
+				line = name .. " · 미장착 (QWER 클릭)"
+			end
+		end
+		if isvalid(detailE) and isvalid(detailE.TextComponent) then
+			detailE.TextComponent.Text = line
+		end
+
+		-- 버튼 하이라이트: 선택 스킬이 장착된 슬롯 = 골드
+		local selBg = Color(0.94, 0.66, 0.19, 1.0)
+		local idleBg = Color(0.18, 0.20, 0.16, 1.0)
+		local selText = Color(0.15, 0.12, 0.08, 1.0)
+		local idleText = Color(0.79, 0.75, 0.70, 1.0)
+		local btnEnts = { self._T.btnQE, self._T.btnWE, self._T.btnEE, self._T.btnRE }
+		for i = 1, 4 do
+			local be = btnEnts[i]
+			if isvalid(be) then
+				local on = (sid ~= "" and slots[i] == sid)
+				local spr = be.SpriteGUIRendererComponent
+				if isvalid(spr) then
+					if on then spr.Color = selBg else spr.Color = idleBg end
+				end
+				local txt = be.TextComponent
+				if isvalid(txt) then
+					if on then txt.FontColor = selText else txt.FontColor = idleText end
+				end
+			end
+		end
 	end
 
 	@ExecSpace("ClientOnly")
@@ -154,7 +297,7 @@ script UISkillTreeController extends Component
 	end
 
 	@ExecSpace("ClientOnly")
-	method void SetNodeVisual(Entity node, Color bgColor, string nameStr, string lvStr, string subStr)
+	method void SetNodeVisual(Entity node, Color bgColor, string nameStr, string lvStr, string subStr, string iconRuid, boolean dimIcon)
 		if isvalid(node.SpriteGUIRendererComponent) then
 			node.SpriteGUIRendererComponent.Color = bgColor
 		end
@@ -169,6 +312,22 @@ script UISkillTreeController extends Component
 		local subEnt = node:GetChildByName("SubText")
 		if isvalid(subEnt) and isvalid(subEnt.TextComponent) then
 			subEnt.TextComponent.Text = subStr
+		end
+		-- T46: IconRUID (공란이면 숨김)
+		local iconEnt = node:GetChildByName("Icon")
+		if isvalid(iconEnt) then
+			local ispr = iconEnt.SpriteGUIRendererComponent
+			if isvalid(ispr) and iconRuid ~= nil and iconRuid ~= "" then
+				iconEnt.Enable = true
+				ispr.ImageRUID = iconRuid
+				if dimIcon then
+					ispr.Color = Color(0.25, 0.25, 0.28, 1.0)
+				else
+					ispr.Color = Color(1, 1, 1, 1)
+				end
+			else
+				iconEnt.Enable = false
+			end
 		end
 	end
 
@@ -213,6 +372,8 @@ script UISkillTreeController extends Component
 				end
 			end
 		end
+
+		self:RefreshEquipDetail()
 	end
 
 	@ExecSpace("ClientOnly")
@@ -226,16 +387,20 @@ script UISkillTreeController extends Component
 		local parentId = ds:GetCell(rowIndex, "ParentSkillId")
 		local reqLevel = tonumber(ds:GetCell(rowIndex, "RequiredLevel")) or 1
 		local achId = tonumber(ds:GetCell(rowIndex, "UnlockAchievementId"))
+		local iconRuid = ds:GetCell(rowIndex, "IconRUID") or ""
 
 		local level = controller:GetSkillLevel(skillId)
+		local selected = (self.selectedSkillId == skillId)
 
 		if level >= 1 then
-			-- 보유: 파랑. 강화 가능 여부를 서브텍스트로.
+			-- 보유: 파랑(선택 시 골드 테두리 톤). 강화 가능 여부를 서브텍스트로.
 			local sub = "MAX"
 			if level < maxLevel then
 				sub = "강화: SP " .. spCost
 			end
-			self:SetNodeVisual(node, Color(0.16, 0.32, 0.55, 1.0), skillName, "Lv." .. level .. "/" .. maxLevel, sub)
+			local bg = Color(0.16, 0.32, 0.55, 1.0)
+			if selected then bg = Color(0.28, 0.42, 0.62, 1.0) end
+			self:SetNodeVisual(node, bg, skillName, "Lv." .. level .. "/" .. maxLevel, sub, iconRuid, false)
 			return
 		end
 
@@ -245,11 +410,11 @@ script UISkillTreeController extends Component
 
 		if parentOk and levelOk and achOk then
 			-- 해금 가능: 초록
-			self:SetNodeVisual(node, Color(0.15, 0.45, 0.22, 1.0), skillName, "해금 가능", "해금: SP " .. spCost)
+			self:SetNodeVisual(node, Color(0.15, 0.45, 0.22, 1.0), skillName, "해금 가능", "해금: SP " .. spCost, iconRuid, false)
 		elseif parentOk and levelOk and not achOk then
 			-- 목표(업적) 진행 중: 주황 + 진행도 %
 			local pct = math.floor(self:GetAchievementPctClient(achId) * 100)
-			self:SetNodeVisual(node, Color(0.55, 0.38, 0.12, 1.0), skillName, "목표 진행 중", "진행도 " .. pct .. "%")
+			self:SetNodeVisual(node, Color(0.55, 0.38, 0.12, 1.0), skillName, "목표 진행 중", "진행도 " .. pct .. "%", iconRuid, true)
 		else
 			-- 잠김: 회색 + 사유
 			local reason = ""
@@ -258,7 +423,7 @@ script UISkillTreeController extends Component
 			elseif not levelOk then
 				reason = "Lv." .. reqLevel .. " 필요"
 			end
-			self:SetNodeVisual(node, Color(0.22, 0.22, 0.26, 1.0), skillName, "잠김", reason)
+			self:SetNodeVisual(node, Color(0.22, 0.22, 0.26, 1.0), skillName, "잠김", reason, iconRuid, true)
 		end
 	end
 

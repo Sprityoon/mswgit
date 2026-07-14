@@ -1882,10 +1882,15 @@ script ResourceSpawner extends Logic
 		local list = (json ~= nil and json ~= "") and _HttpService:JSONDecode(json) or {}
 		-- Drop any records outside the current playable area (e.g. left over from a previously
 		-- larger MapRadius) so they can never respawn a stone in/beyond the wall band.
+		-- x/y는 셀 정수로 정규화 (float 잔존 시 점유 검사·스폰 좌표 오염 방지).
 		local cleaned = {}
 		for _, rec in ipairs(list) do
-			if rec ~= nil and rec.x ~= nil and rec.y ~= nil and self:IsInsidePlayable(rec.x, rec.y) then
-				table.insert(cleaned, rec)
+			if rec ~= nil and rec.x ~= nil and rec.y ~= nil then
+				rec.x = math.floor(tonumber(rec.x) or 0)
+				rec.y = math.floor(tonumber(rec.y) or 0)
+				if self:IsInsidePlayable(rec.x, rec.y) then
+					table.insert(cleaned, rec)
+				end
 			end
 		end
 		self.DestroyedResourcesMap[mapName] = cleaned
@@ -1968,26 +1973,34 @@ script ResourceSpawner extends Logic
 					continue
 				end
 
+				-- 좌표는 셀 정수로 정규화 (구세이브 float → BoxShape InvalidValue 방지)
+				local cellX = math.floor(tonumber(item.x) or 0)
+				local cellY = math.floor(tonumber(item.y) or 0)
+				item.x = cellX
+				item.y = cellY
+
 				local isOccupied = false
-				local key = item.x .. "_" .. item.y
+				local key = cellX .. "_" .. cellY
 				if gridToEntity[key] ~= nil then
 					isOccupied = true
 				else
-					local checkShape = BoxShape(Vector2(item.x + 0.5, item.y + 0.5), Vector2(0.9, 0.9), 0)
+					local checkShape = BoxShape(Vector2(cellX + 0.5, cellY + 0.5), Vector2(0.9, 0.9), 0)
 					local simulator = _CollisionService:GetSimulator(map)
 					if simulator then
 						local overlaps = simulator:OverlapAll({ CollisionGroups.Default, CollisionGroups.HitBox }, checkShape)
-						for _, comp in ipairs(overlaps) do
-							if isvalid(comp) and isvalid(comp.Entity) and comp.Entity.PlayerComponent then
-								isOccupied = true
-								break
+						if overlaps then
+							for _, comp in ipairs(overlaps) do
+								if isvalid(comp) and isvalid(comp.Entity) and comp.Entity.PlayerComponent then
+									isOccupied = true
+									break
+								end
 							end
 						end
 					end
 				end
 				
 				if not isOccupied then
-					local spawned = self:SpawnResourceWithAnimation(map, item.sourceName, item.modelId, item.x, item.y)
+					local spawned = self:SpawnResourceWithAnimation(map, item.sourceName, item.modelId, cellX, cellY)
 					if isvalid(spawned) then
 						table.remove(destroyedResources, i)
 						if string.sub(mapName, 1, 5) == "Home_" then
@@ -2047,9 +2060,25 @@ script ResourceSpawner extends Logic
 		local key = x .. "_" .. y
 		spawnedEntities[key] = resEntity
 		
+		-- 등장 스케일 연출: 0 스케일 금지 (PhysicsCollider BoxSize * Scale = 0 → LWA-3009 InvalidValue).
+		-- 모델 기본 스케일을 캡처해 비율 유지, 5%→100%로 보간.
 		local transform = resEntity.TransformComponent
 		if isvalid(transform) then
-			transform.Scale = Vector3(0, 0, 1)
+			local base = transform.Scale
+			local bx = 1.0
+			local by = 1.0
+			local bz = 1.0
+			if base ~= nil then
+				bx = tonumber(base.x) or 1.0
+				by = tonumber(base.y) or 1.0
+				bz = tonumber(base.z) or 1.0
+			end
+			if bx <= 0 then bx = 1.0 end
+			if by <= 0 then by = 1.0 end
+			if bz <= 0 then bz = 1.0 end
+
+			local minT = 0.05
+			transform.Scale = Vector3(bx * minT, by * minT, bz)
 			local step = 0
 			local animTimerId = 0
 			animTimerId = _TimerService:SetTimerRepeat(function()
@@ -2058,10 +2087,11 @@ script ResourceSpawner extends Logic
 					return
 				end
 				step = step + 1
-				local scaleVal = step / 10
-				transform.Scale = Vector3(scaleVal, scaleVal, 1)
+				local t = minT + (1.0 - minT) * (step / 10)
+				if t > 1.0 then t = 1.0 end
+				transform.Scale = Vector3(bx * t, by * t, bz)
 				if step >= 10 then
-					transform.Scale = Vector3(1, 1, 1)
+					transform.Scale = Vector3(bx, by, bz)
 					_TimerService:ClearTimer(animTimerId)
 				end
 			end, 0.05)

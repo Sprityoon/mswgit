@@ -79,6 +79,7 @@
 >   - **T17 요리**(`Furnace` 레시피 테이블 프로퍼티 일반화=제련 무회귀 / `CookingRecipeDataSet` / 냄비 가구 / 음식 3종=버프) → Phase 15-B. 보고서 `reports/T17-*`.
 >   - 해금 3소스 현황: 연구=T7✓ · 도안=T9✓ · **퀘스트=T27(잔여)**. 아트 placeholder(침대/도안/냄비 아이콘)는 기능 PASS — 전용 아트 별도 티켓.
 
+> - **버그픽스·낚시·날씨·원거리·도감 Play PASS 일괄(제작자 2026-07-13)**: T36(자원 통과)·T37(로그아웃 정책+세이브 유실 핫픽스)·T38(몬스터 전투 체감)·T18(낚시 완결)·T15(도구 4종 전용 아트)·T21(날씨)·T39(HornMushroom 원거리)·T22(도감 & 업적). 스펙 원문은 §3 유지(후속 작업 참조). T22 피드백 → 배치 E(T42→T43→T44). 잔여 Play 대기: T20·T27.
 > - **감사 배치 T28~T35 — 제작자 Play PASS(2026-07-11)**: 몬스터 식별 체계(`MonsterId`)+코인 드롭 복구(T28) / 채집 XP 컬럼화·`SeedDrop*` 죽은 컬럼 정리(T29) / 가구 프리뷰·화로 외형 데이터화(T30) / 버프 정합 ①(T31) / 데이터 위생 ①③(T32) / 통화·포탈 컬럼화 `IsCurrency`·`FurnitureKind`·`IsDefault`(T33) / 스폰 튜닝·보물상자 데이터화 `SpawnTuningDataSet`·`TreasureChestSpawnDataSet`(T34) / `UserDataRow.RowIndex` API 오용 핫픽스(T35 — §1.2 규칙 7의 유래). 상세: `reports/T28-*`~`T35-*`. 지휘자 일괄 refresh 396건 Error=0(2026-07-11).
 
 ---
@@ -103,13 +104,28 @@
 > - **🍖 배치 D 발행 (2026-07-12 — 단일 에이전트 순차)**: **T32 → T31 → T39**. 소유: `item/DataSets/*.csv`(+userdataset), `Furniture/DataSets/CookingRecipeDataSet.csv`, `MapObjects/DataSets/ItemDropDataSet.csv`, `Monster/Scripts/MonsterAI.mlua`, `Monster/Models/*`(HornMushroom + 신규 투사체 모델). ⚠️ Play 대기 티켓(T36~38·T18·T15·T20·T27)의 재작업이 발생하면 지휘자가 조정 — 배치 D는 해당 파일 중 `MonsterAI.mlua`만 겹침(보스가 리스크 수용).
 > - **T39 경위**: 직전 세션이 큐 항목 없이 착수 후 무보고 종료(커밋 d335015 — 무보고 4회차). `MonsterProjectile.mlua` 컴포넌트만 존재. 지휘자가 실사 후 소급 발행.
 > - **배치 C는 버그픽스 배치 Play PASS 후 발행** (지휘자 결정 2026-07-12 — `PersistenceManager` 등 소유 겹침으로 재작업 충돌 방지).
+>
+> 🧭 **실행 계획 갱신 (지휘자 2026-07-13)**
+> - **✅ Play 검증 PASS 일괄(제작자 2026-07-13 확인)**: T36 · T37🔴 · T38 / T18 · T15 / T21 · T39 — 7건 전부 PASS 처리(각 항목 상태 갱신, §2 포인터 추가). T39의 보류였던 refresh는 이후 T21/T22 refresh(total 450/454, **Error=0**)가 동일 트리에서 수행돼 해소. **잔여 Play 대기 = T20 · T27 2건**(의뢰 게시판 납품 루프 + 퀘스트 107→냄비 레시피 해금 — 체크리스트는 각 보고서 §6).
+> - **✅ T22 도감 Play PASS(제작자 2026-07-13) + 피드백 2건** → 후속 발행: ① 아이템 탭이 39종 평면 리스트(분류 없음) → **T42** ② 도감 해금(발견) 보상 없음 → **T43**. ⚖️ **2026-07-13 보스 확정: 도감 보상 = 최초 발견 즉시 자동 지급**(코인+XP, Rarity별 차등 CSV — 마일스톤 수령형은 채택 안 함, 필요 시 후속 티켓). ※ 제작자가 이 피드백을 "T19"로 지칭했으나 내용상 T22(도감) — T19(목장/가축)는 미착수 [대기] 유지(가축 산출물 부재 실사 확인).
+> - **🎨 배치 E 발행 (2026-07-13 — 단일 에이전트 순차)**: **T42 → T43 → T44**. 소유: `ui/PopupGroup.ui`(UIBuilder 경유)·`UI/Scripts/UICollectionController.mlua`·`Player/Scripts/PlayerInventory.mlua`·신규 `item/DataSets/DexRewardDataSet.csv`(+userdataset)·(T44 확인) `UI/Scripts/UIInventoryController.mlua`. 참고: T21/T22 산출물은 커밋 185e0b1로 반영 완료 — 클린 트리에서 착수.
+> - **배치 C 잔여(T19 목장 → T23 펫)는 배치 E 완료 후 발행** — T43과 `PlayerInventory` 소유가 겹쳐 순차 강제(지휘자 관리).
+> - **(2026-07-14 추기)** T20 의뢰 게시판 납품 루프 **Play PASS(제작자)** — 잔여 Play 대기 = **T27 1건**(퀘스트 107 완료→냄비 레시피 해금. ⚠️ 이미 107을 완료한 세이브에는 훅이 소급 발동하지 않음 — 미완료 캐릭터로 확인).
+>
+> 🧭 **실행 계획 갱신 (지휘자 2026-07-14)**
+> - **✅ 배치 E(T42·T43·T44) Play PASS(제작자 2026-07-14)** — 보고 3종·refresh Error=0·§7 루브릭 검수 통과.
+> - **⚔️ 배치 F 발행 (⚖️ 2026-07-14 보스 지시 — 스킬 메이플 원작화)**: **T45(해금·장착 흐름 정합) → T46(원작 스킬 리소스 스킨)** — 단일 에이전트 순차. 소유: `Player/Scripts/PlayerController.mlua`·`PersistenceManager.mlua`, `Player/DataSets/SkillDataSet.csv`(+userdataset), `UI/Scripts/UISkillTreeController.mlua`·`UISkillBarController.mlua`, `ui/*.ui` 중 스킬트리/스킬바 서브트리(UIBuilder). 배경 실사: 스킬트리 인프라(S1~S4)는 2026-07-05 검증 완료이나 `EquippedSkillsJson` 기본 선장착이 해금 흐름을 무력화 + EffectRUID 전량 공란. 설계 원본: `docs/design/skill-tree-plan.md` §6.
+> - **배치 C(T19 목장 → T23 펫)는 배치 F 완료 후로 순연** — T45가 `PlayerController`/`PersistenceManager`를 만져 소유 겹침(보스 신규 지시 우선).
+> - **전직/직업 = Phase 16-C 예약**(티켓 미발행) — 기초 스킬 안착 후 기획 확정.
+> - **(추기 — 배치 F 검수·후속 발행 2026-07-14)**: T45·T46 보고 3종·refresh Error=0 검수 통과. 제작자 Play 확인 중 피드백 2건 → **T47 발행(스킬트리 UX 보강)**: ① **노드 클릭 = 곧바로 SP 투자**(`UISkillTreeController.OnNodeClicked` L152 → `ServerRequestSkillLevelUp` L164) — 클릭은 선택/상세만으로 분리, 투자는 [레벨업] 버튼으로 ② 스킬트리 여는 **HUD 버튼** 신설(⚖️ 보스 확정 — 온스크린 시전 버튼/모바일 대응은 범위 밖, 후속 후보 = 공식 key-binding-package).
+> - **⚖️ 공식 소스 조사 결론(지휘자 2026-07-14, 보스 질문 회신)**: MSWPackages 저장소 29종 전수 확인 — **스킬 시스템 패키지 없음**. MSW 공식 제공 방식 = 원작 스킬 리소스 태그 검색(`#skillname#ID`) + `_EffectService:PlayEffect` 재생 = **T46이 이미 채택한 방식 그대로**. 자작 트리 인프라(SP/게이트) 유지 확정.
 ### T4. [대기] 경계 테라스/절벽 아트 정리
 - **배경**: `TerraceTop`/`CliffFace`/`Big Wall`은 이전 스킴의 임시 아트 그대로다. 신규 grass 기준 아트와 톤이 안 맞을 수 있고, 상위 레이어 테라스 타일이 깔린 뒤 플레이어 아바타 SortingLayer 최종 판정도 미완(`docs/design/skill-tree-plan.md` §5 4번).
 - **Target**: `RootDesk/MyDesk/wall.tileset`(Maker에서 아트 교체) + 필요 시 `scripts/build_maps.cjs` 밴드/데코 페인팅
 - **Change**: 신규 타일 아트 확정 후 테라스 링/절벽면 리스킨, 플레이어가 테라스 타일 아래로 숨는지 확인.
 - **Acceptance**: 경계 밴드 비주얼이 잔디/흙 아트와 이어지고, 아바타가 지형 위에 정상 렌더.
 
-### T15. [완료 — 지휘자 대리 검수 2026-07-11(4종 전용 RUID 교체 실사 + refresh Error=0) | ⚠️ 에이전트 보고서 부재 | Play 육안 보류(제작자)] 지형 편집·낚시 도구 전용 아트 — Shovel/Hoe/Grass Seed/Fishing Rod placeholder 교체 (Phase 14-G)
+### T15. [완료 — Play PASS(제작자 2026-07-13) | 지휘자 대리 검수 2026-07-11(4종 전용 RUID 교체 실사 + refresh Error=0) | ⚠️ 에이전트 보고서 부재] 지형 편집·낚시 도구 전용 아트 — Shovel/Hoe/Grass Seed/Fishing Rod placeholder 교체 (Phase 14-G)
 
 - **배경**: Shovel·Hoe는 스톤 곡괭이 RUID, Grass Seed는 Grass RUID 재사용 placeholder — 인벤/퀵슬롯에서 구분 불가. Fishing Rod도 `WeaponRUID`가 스톤 곡괭이 재사용(아이콘은 전용 여부 확인). 코드 무변경 CSV-only.
 - **Target**: `item/DataSets/item_dataset.csv`의 Shovel/Hoe/Grass Seed/Fishing Rod 행 — `IconRUID`/`WeaponRUID` 셀 교체(`EntryId` 드롭 모델은 placeholder 유지 허용).
@@ -117,7 +133,7 @@
 - **Acceptance**: 4종 도구가 전용 아트로 구분 표시, CSV 외 변경 0, 티켓 완료 즉시 refresh Error 수 보고서 기재. 육안은 제작자.
 - **충돌 주의**: **레인 2 마지막** — T18 재작업 완료 후.
 
-### T18. [완료 — 지휘자 대리 검수 2026-07-11 | ⚠️ 에이전트 보고서 부재(무보고 3회차) | Play 보류(제작자)] 낚시 시스템 완결 — 낚시터 스폿 실체화 + 루프 마감 (Phase 15-C)
+### T18. [완료 — Play PASS(제작자 2026-07-13) | 지휘자 대리 검수 2026-07-11 | ⚠️ 에이전트 보고서 부재(무보고 3회차)] 낚시 시스템 완결 — 낚시터 스폿 실체화 + 루프 마감 (Phase 15-C)
 
 - **지휘자 대리 검수(2026-07-11 — 세션이 보고서 없이 종료되어 지휘자가 산출물 실사로 대체)**: ✅ `FishingSpot_Pond.model` 존재 ✅ map01/template_field/town 3맵 배치 확인 ✅ `FishDataSet` town 어종 2행 추가 ✅ rod 게이트는 `PlayerController.IsEquippedFishingRod`(L2216 — `ToolType=="rod"` 컬럼 판정, 이름 분기 없음)+취소 RPC 존재 ✅ 지휘자 refresh 431건 **Error=0**(Warning 8=기존 소음). **잔여 = 제작자 Play**: 세 스폿에서 캐스팅→입질→성공/놓침/조기입력/이동취소 + 낚싯대 미장착 거부.
 
@@ -142,7 +158,7 @@
 - **Acceptance**: 구매→스폰→급여→생산→수집 루프 / 재접속 후 가축·타이머 복원 / 신규 가축은 CSV 행 추가만. LSP+refresh 무에러, Play 보류.
 - **충돌 주의**: `PersistenceManager` 수정 — 배치 C 내 순차(T19→T21→T22→T23) 준수.
 
-### T20. [코드 완료 — 2026-07-11 | refresh 레인 말미(T27) | 런타임 검증 보류(제작자 수행)] 마을 의뢰 게시판 — 일일 납품 의뢰 (Phase 15-D, 배치 B) — ⚠️ 선행: T16(PlayerInventory 공유)
+### T20. [완료 — Play PASS(제작자 2026-07-14, 납품 루프 확인) | refresh 레인 말미(T27) Error=0] 마을 의뢰 게시판 — 일일 납품 의뢰 (Phase 15-D, 배치 B) — ⚠️ 선행: T16(PlayerInventory 공유)
 
 - **배경**: 기획서 §3.5. 일일 접속 훅. 서버 일 번호 시드 → **전 서버 공통 "오늘의 의뢰 3건"**(커뮤니티 대화거리).
 - **Target**: 신규 `RequestPoolDataSet.csv`(RequestId/RequiredItem/RequiredCount/RewardItem/RewardCount/Weight), 신규 `BulletinBoard.mlua`+게시판 픽스처(`map/town.map` 배치), 신규 의뢰 UI(.ui 빌더 — 3행 목록+납품 버튼의 간단 팝업), `PlayerInventory.mlua`(납품 RPC), `PersistenceManager.mlua`(일자별 완료 기록)
@@ -152,7 +168,7 @@
 - **구현 요약 (2026-07-11)**: RequestPool 8행·BulletinBoard·RequestPopup·ServerRequestDeliver·영속 day/완료. ui-aesthetics §7 8/8. 보고서: `docs/agents/reports/T20-bulletin-board.md`.
 - **검증**: 레인 말미 T27과 일괄 Maker refresh 빌드 **Error=0**. **런타임 검증 보류(제작자 수행)**.
 
-### T21. [완료 — 2026-07-13 | refresh Error=0 | 런타임 검증 보류(제작자 수행)] 날씨 시스템 — 맑음/비/안개 + 성장·입질 보너스 (Phase 15-F, 배치 C) — ⚠️ 선행: T6(완료)·T18
+### T21. [완료 — Play PASS(제작자 2026-07-13) | refresh Error=0] 날씨 시스템 — 맑음/비/안개 + 성장·입질 보너스 (Phase 15-F, 배치 C) — ⚠️ 선행: T6(완료)·T18
 
 - **배경**: 기획서 §3.6. **보너스만 주는** 날씨(페널티 금지 ⚖️). 낮/밤 연출 파이프라인 재사용.
 - **Target**: 신규 `WeatherDataSet.csv`(WeatherId/Weight/DurationMin/DurationMax/OverlayColor/EffectRUID/CropBoostPerMin/FishBiteMult), 신규 `WeatherManager.mlua`(서버 전역 — 낮/밤 매니저와 동일한 배치 위치), 클라 오버레이(밤 오버레이 구현 파일에 날씨 레이어 추가), `Crop.mlua`(비 가속 틱 훅), `FishingSpot.mlua`(입질 배율 훅)
@@ -206,7 +222,7 @@
 - **Acceptance**: 해당 셀 1건 외 변경 0. refresh(가능 시) Error 수 보고서 기재.
 - **충돌 주의**: **배치 D 첫 항목**.
 
-### T36. [코드 완료 — 2026-07-11 재작업 | refresh Error=0 | 런타임 검증 보류(제작자 수행)] 자원/가구 통과 버그 수정 — ResolveOverlaps 원-대-AABB (재작업 지시 포함)
+### T36. [완료 — Play PASS(제작자 2026-07-13) | 2026-07-11 재작업 | refresh Error=0] 자원/가구 통과 버그 수정 — ResolveOverlaps 원-대-AABB (재작업 지시 포함)
 
 - **🔁 재작업 지시(지휘자 재진단 2026-07-11 — AABB 수식·프로퍼티·필터 구조는 정상, 결함 2건 특정)**:
   ① **탐지 형상 ≠ 해소 형상**: 후보 수집이 여전히 플레이어 중심 r=0.3 `OverlapAll`이라, 자원 트리거 콜라이더가 해소용 AABB보다 작으면 **AABB에 침투했는데 감지가 안 되는 사각지대**가 생긴다. → 후보 수집 질의 반경을 넓혀라(`CircleShape(currentPos, 2.5)` 등 — 상수는 프로퍼티화). 차단 여부·침투 판정은 지금처럼 `GetObstacleAABB`+`ResolveCircleAABB`가 전담하므로 질의는 "근처 후보 나열"로만 쓰인다 — 트리거 크기 의존이 사라진다.
@@ -232,7 +248,7 @@
 - **검증**: refresh 빌드 **Error=0** (total 436). **런타임 검증 보류(제작자 수행)**.
 - **재작업 요약 (2026-07-11)**: `OverlapQueryRadius=2.5` 후보 수집 + `PlaceableFurniture.BlocksMovement` + Portal false. §7 이력 append. refresh total 440 Error=0.
 
-### T37. [코드 완료 — 2026-07-11 재작업 🔴 | refresh Error=0 | 런타임 검증 보류(제작자 수행)] 로그아웃 위치 정책 — 세이브 유실 핫픽스 포함 (재작업 지시 포함)
+### T37. [완료 — Play PASS(제작자 2026-07-13) | 2026-07-11 재작업 🔴 세이브 유실 핫픽스 | refresh Error=0] 로그아웃 위치 정책 — 세이브 유실 핫픽스 포함 (재작업 지시 포함)
 
 - **🔁 재작업 지시(지휘자 재진단 2026-07-11 — 유실 경로 특정)**:
   ① **원인**: 이번 구현이 `SavePlayerData` **한가운데에** `storagePeek:GetAndWait("SaveData")`(L498-517, 이전 홈 좌표 조회)를 넣었다. `GetAndWait`는 **Yield 함수** — 로그아웃 동기 저장 중 코루틴이 양보된 사이 플레이어 엔티티/컴포넌트가 파괴되면, 재개 후 읽는 `inv.InventoryDataJson` 등이 nil이 되어 `or "{}"` 폴백으로 **빈 인벤토리가 저장**된다(level/xp/coin도 기본값 오염 가능). 비홈 맵에서 종료할 때만 이 경로를 타므로 "마을 스폰 + 전량 소실" 증상과 정확히 일치.
@@ -250,7 +266,7 @@
 - **검증**: refresh 빌드 **Error=0** (total 436). **런타임 검증 보류(제작자 수행)**.
 - **재작업 요약 (2026-07-11)**: SavePlayerData 내 GetAndWait 제거 · LastHomePos 세션 캐시 · pc/inv 선캡처. §7 이력 append. refresh total 440 Error=0.
 
-### T38. [코드 완료 — 2026-07-11 | refresh Error=0 | 런타임 검증 보류(제작자 수행)] 몬스터 전투 체감 개선 — 접촉 데미지 신설 + 공격 텔레그래프/타이밍·거리 정정 (제작자 피드백 2026-07-11)
+### T38. [완료 — Play PASS(제작자 2026-07-13) | refresh Error=0] 몬스터 전투 체감 개선 — 접촉 데미지 신설 + 공격 텔레그래프/타이밍·거리 정정 (제작자 피드백 2026-07-11)
 
 - **배경(지휘자 진단 2026-07-11)**: 제작자 리포트 "붙어도 충돌 데미지 0 + 딱 붙어서 어색하게 공격". 코드 원인 확정:
   (a) **접촉 데미지가 설계상 존재하지 않음** — 데미지는 `MonsterAI.EnterState("ATTACK")` 진입 순간의 `DoAttack()` 1회뿐이고, `AttackCooldown`(1.5s) 동안은 몸이 겹쳐 있어도 무해.
@@ -269,7 +285,7 @@
 - **구현 요약 (2026-07-11)**: Touch 틱·윈드업 타격·TelegraphOn·AttackRange/StopDistance. 보고서 `docs/agents/reports/T38-monster-combat-feel.md`.
 - **검증**: refresh 빌드 **Error=0** (total 439). **런타임 검증 보류(제작자 수행)**.
 
-### T39. [완료 — 배치 D 2026-07-12 (커밋 1835d49) | 지휘자 코드리뷰 검수 PASS | refresh 검증 보류(Maker 미가동) | Play 보류(제작자)] 몬스터 원거리 공격 — HornMushroom 포자 투사체 (T38 후속)
+### T39. [완료 — Play PASS(제작자 2026-07-13) | 배치 D 2026-07-12 (커밋 1835d49) | 지휘자 코드리뷰 검수 PASS | refresh 해소(후속 T21/T22 refresh Error=0, 동일 트리)] 몬스터 원거리 공격 — HornMushroom 포자 투사체 (T38 후속)
 
 - **경위(지휘자 소급 발행 2026-07-12)**: 직전 세션이 **큐 항목 없이 착수 후 무보고 종료**(커밋 d335015 — §5 조항 11 위반 4회차). 지휘자 실사 후 이 항목으로 소급 정식화. 배경: T38로 근접 전투는 정비됐으나 전 몬스터가 근접 단일 패턴 — 원거리 1종으로 전투 다양화. **⚖️ 2026-07-12 보스 확정: HornMushroom**(버섯 포자 — 원거리 전형).
 - **현재 자산 실사(지휘자 2026-07-12 — 그대로 사용, 재구현 금지)**:
@@ -312,7 +328,7 @@
 - **Acceptance**: ① Big Stone 등 자원/가구 8방향 통과 불가하되 충돌 범위 = 모델 Trigger 박스만큼 ② 점프하며 근처 이동 시 순간이동·수직 스냅·끼임 없음 ③ 이름 분기 0건 ④ 대시/워프 안전위치 검사 회귀 없음. 
 - **검증**: `mlua-diagnose` errors=0/warnings=0(남은 info는 기존 크로스스크립트 오탐), Maker refresh 빌드 **Error=0**(total 437). Play: 제작자 확인(구두 "잘 시행됐어"). 보고서 `reports/T41-resource-collider-collision-jump.md`.
 
-### T22. [코드 완료 — 2026-07-13 | mlua-diagnose errors=0 | refresh Error=0 | 런타임: 카운터/3탭 로그 검증 PASS | Play(육안): 제작자] 도감 & 업적 — 수집 도감 신규 + 업적은 기존 패키지 재사용
+### T22. [완료 — Play PASS(제작자 2026-07-13) | refresh Error=0 | 피드백 후속: T42(아이템 탭 분류)·T43(발견 보상)] 도감 & 업적 — 수집 도감 신규 + 업적은 기존 패키지 재사용
 
 - **⚖️ 접근 재조정(2026-07-13, 보스 확정)**: 착수 시 조사 결과 **QuestAndAchievement 패키지에 업적 시스템이 이미 완비**(AchievementDataSet 5행 + AchievementStepDataSet 보상 + Kill/Gather/Craft/Smelt/Warp 조건·훅). 티켓 원문("신규 AchievementDataSet 생성")은 패키지와 중복이라, 보스가 **"도감 신규 + 업적 재사용"**으로 확정. 실제 빈 곳(=도감)만 신규 구현하고, 업적은 도감 UI의 '업적' 탭으로 기존 데이터를 노출.
 - **Target**: `Player/Scripts/PlayerInventory.mlua`(도감 카운터), `Monster/Scripts/Monster.mlua`(처치 훅), `Player/Scripts/PersistenceManager.mlua`(영속), `Monster/DataSets/MonsterCoinDropDataSet.csv`(몬스터 표시명/아이콘 보강), `ui/PopupGroup.ui`(도감 팝업, UIBuilder), 신규 `UI/Scripts/UICollectionController.mlua`, `Player/Scripts/PlayerController.mlua`(J 키).
@@ -325,6 +341,89 @@
 - **검증**: mlua-diagnose errors=0. refresh 빌드 **Error=0**(total 454). 런타임: 서버에서 RecordItemAcquired/Kill 호출 → `DexItemsJson={"Carp":2,"Wood":5}`·`DexMonstersJson={"boar":1,"slime":2}` 확인(슬라임 2회→2). 3탭 구성 확인(아이템 39·몬스터 4·업적 5행), CollectionPopup 런타임 오류 0. **Play 육안(J로 열기·실루엣·탭 전환·재접속 유지)은 제작자.**
 - **발견한 문제(범위 밖)**: `InventoryPopup/CoinText`(HEAD 미포함 = 이전 미커밋 세션 산출물)에서 `LEA-3044` FontColor/OutlineColor 직렬화 오류. T22와 무관(내 CollectionPopup 엔티티는 무오류) — 별도 확인 필요. 보고서 §5 참조.
 - **보고서**: `docs/agents/reports/T22-collection-dex.md`.
+
+### T42. [완료 — Play PASS(제작자 2026-07-14) | refresh Error=0 | ui-aesthetics §7 8/8] 도감 아이템 탭 카테고리 분류 — 칩 필터 행 (T22 제작자 피드백 ①, 배치 E)
+
+- **배경**: T22 Play 검증(제작자 2026-07-13) 피드백 — 아이템 탭이 39종 평면 세로 리스트라 탐색이 어렵다. 아이템 수는 계속 늘어난다(배치 C 가축·펫 산출물 예정).
+- **Target**: `ui/PopupGroup.ui`의 `CollectionPopup` 서브트리(**UIBuilder 경유** — 칩 행 추가), `RootDesk/MyDesk/UI/Scripts/UICollectionController.mlua`(필터 로직).
+- **Change**: ① 아이템 탭 선택 시 상단에 카테고리 칩 행 노출 — **제작창(T26) 탭/칩 행 패턴·비주얼 그대로 재사용**(새 스타일 발명 금지, ui-aesthetics 비주얼 아이덴티티 유지) ② 칩 목록 = "전체" + `item_dataset`의 `Category` 컬럼 **고유값에서 파생**(현재 resource/tool/furniture/consumable — 코드에 카테고리 목록 하드코딩 금지, 행 순회로 수집. 칩 표시 라벨도 제작창 T26의 라벨 처리 방식을 그대로 미러) ③ 칩 선택 시 해당 `Category` 행만으로 리스트 재구성(기존 template-clone 재구성 경로 재사용) — 실루엣/카운트 표시 로직 무변경 ④ 몬스터/업적 탭에서는 칩 행 숨김 ⑤ 통화(`IsCurrency=true`) 행 노출 여부는 현행 T22 동작 유지(변경 금지).
+- **Acceptance**: ① 아이템 탭에서 전체/카테고리별 필터 동작, 실루엣·카운트 회귀 0 ② 신규 카테고리는 CSV의 `Category` 값 추가만으로 칩 자동 생성(코드 무수정) ③ 이름 분기 0건 ④ UI 작업 — §1.2 규칙 6(ui-aesthetics 전문 로드 + §7 자가 리뷰 루브릭 표를 보고서에 첨부) ⑤ 티켓 완료 즉시 refresh, Error 수 보고서 §4 기재. Play는 제작자.
+- **충돌 주의**: **배치 E 첫 항목** — `CollectionPopup`/`UICollectionController` 소유. T44와 같은 `.ui` 파일이므로 배치 내 순차 엄수.
+- **구현 요약 (2026-07-14)**: CategoryBar+ChipTemplate(UIBuilder) / CSV Category 파생 칩 / 아이템 탭 전용 표시. ui-aesthetics §7 8/8. 보고서: `docs/agents/reports/T42-collection-category-chips.md`.
+- **검증**: Maker refresh 빌드 **Error=0** (total 447 / Warning 13 / Info 434). **런타임 검증 보류(제작자 수행)**.
+
+### T43. [완료 — Play PASS(제작자 2026-07-14) | refresh Error=0] 도감 최초 발견 보상 — 코인+XP 자동 지급 (T22 제작자 피드백 ②, 배치 E) — ⚖️ 2026-07-13 보스 확정: 즉시 보상형
+
+- **배경**: T22 Play 검증 피드백 — 도감 해금(발견) 시 보상이 없어 수집 동기가 약하다. **⚖️ 2026-07-13 보스 확정: 최초 발견 즉시 자동 보상**(마일스톤 수령형 채택 안 함 — 필요해지면 후속 티켓).
+- **Target**: 신규 `RootDesk/MyDesk/item/DataSets/DexRewardDataSet.csv`(+`.userdataset`), `Player/Scripts/PlayerInventory.mlua`(`RecordItemAcquired`/`RecordMonsterKill` 0→1 전이 지급), 클라 토스트는 기존 피드백 경로 재사용(레시피 해금 토스트 등 — 정의 확인 후, 규칙 8).
+- **Change**:
+  ① `DexRewardDataSet.csv`: `Kind`(item|monster) / `Rarity`(공란=해당 Kind 기본행) / `RewardCoin` / `RewardXp`. 아이템은 `item_dataset.Rarity`(Common/Uncommon/Rare/Epic)로 행 매칭, 몬스터는 Rarity 컬럼이 없으므로 `Kind=monster` 기본행 1개로 시작(추후 컬럼 확장 자유). 수치 초안: Common 5코인/5XP ~ Epic 50코인/50XP — **CSV 튜닝 자유**.
+  ② 지급 지점: `RecordItemAcquired`/`RecordMonsterKill`에서 카운트 **0→1 전이 시에만** 서버가 코인+XP 지급 — 카운터 자체가 수령 기록이라 별도 영속 필드 불필요(멱등).
+  ③ ⚠️ **보상은 코인/XP 한정(1차)**: `RecordItemAcquired`는 `AddItem` 내부 훅이라 아이템 보상을 `AddItem`으로 지급하면 **재귀** — 코인은 `AddItem` 상단 early-return(통화 분기)이라 안전. 아이템 보상이 필요해지면 별도 티켓+재귀 가드 설계.
+  ④ XP 지급은 기존 메서드 재사용 — 대상 스크립트에서 정의를 Grep으로 확인 후 호출(규칙 8, 추정 호출 금지). 코인 지급도 기존 통화 지급 경로 재사용.
+  ⑤ 클라 알림: 발견 시 "도감 등록: <표시명> (+N코인 +N XP)" 토스트 — 기존 토스트 파이프라인 재사용, 신규 UI 발명 금지.
+  ⑥ **소급 없음(정책)**: 이미 발견(count>0)된 항목은 미지급 — 0→1 전이 시에만 지급되는 구조상 자연 성립.
+- **Acceptance**: ① 첫 획득/첫 처치 시 1회만 코인·XP 지급+토스트, 같은 항목 재획득 시 미지급(재접속 후에도) ② 보상 수치·차등 변경=CSV만 ③ 이름 분기 0건 ④ 세이브 경로 무변경(§1.2 규칙 9 — Yield 추가 금지) ⑤ 티켓 완료 즉시 refresh, Error 수 보고서 §4 기재. Play는 제작자.
+- **충돌 주의**: **배치 E — T42 완료 후 착수**. `PlayerInventory` 소유 — 배치 C(T19·T23)와 겹치므로 배치 E 종료 전 배치 C 발행 금지(지휘자 관리).
+- **구현 요약 (2026-07-14)**: DexRewardDataSet 5행 + GrantDexDiscoveryReward(0→1) + ShowMineFeedback 토스트. 세이브 경로 무변경. 보고서: `docs/agents/reports/T43-dex-discovery-reward.md`.
+- **검증**: Maker refresh 빌드 **Error=0** (total 449 / Warning 13 / Info 436). **런타임 검증 보류(제작자 수행)**.
+
+### T44. [완료 — Play PASS(제작자 2026-07-14) | refresh Error=0] `InventoryPopup/CoinText` LEA-3044 직렬화 오류 수정 (T22 보고서 §5 발견 사항 소급, 배치 E 마지막)
+
+- **배경**: T22 검증 중 발견(보고서 §5) — 인벤토리 코인 표시 엔티티 `InventoryPopup/CoinText`(커밋 185e0b1에 포함)에서 `LEA-3044` FontColor/OutlineColor 직렬화 실패 로그. T22 산출물(`CollectionPopup`)은 무관·무오류. 값 형태는 정상(`{r,g,b,a}`)으로 보였으나 런타임 역직렬화 실패 — 원인 미상.
+- **Target**: `ui/PopupGroup.ui`의 `InventoryPopup/CoinText`(**UIBuilder 경유** — 직접 Read/Edit 금지), (확인만) `UI/Scripts/UIInventoryController.mlua`의 `UpdateCoinDisplay`.
+- **Change**: ① 재현: refresh→play→인벤토리 열기→`maker_logs`에서 LEA-3044 확인 ② 원인 조사: 정상 동작하는 기존 TextComponent(예: `ShopPopup/Bg/CoinText`)와 UIBuilder 산출 속성 비교 ③ 수정: 색상 속성 재기입 또는 엔티티 재생성(UIBuilder 경유) ④ 코인 수치 표시 기능 회귀 확인.
+- **Acceptance**: Play 로그에서 해당 LEA-3044 0건, 인벤토리 코인 표시 정상. 티켓 완료 즉시 refresh, Error 수 보고서 §4 기재.
+- **충돌 주의**: **배치 E 마지막** — T42와 같은 `ui/PopupGroup.ui`를 만지므로 순차 필수.
+- **구현 요약 (2026-07-14)**: Shop CoinText 비교 → UIBuilder 재생성+색/UseOutLine 정렬, UUID 유지(바인딩 무변경). mlua 수정 0. ui-aesthetics §7 8/8. 보고서: `docs/agents/reports/T44-inventory-cointext-lea3044.md`.
+- **검증**: Maker refresh 빌드 **Error=0** (total 449). **런타임 검증 보류(제작자 수행)** — Play LEA-3044 소멸은 제작자 확인.
+
+
+### T45. [완료 — Play 확인(제작자 2026-07-14, UX 피드백 2건 → T47 후속) | refresh Error=0 | §7 8/8] 스킬 해금·장착 흐름 정합 — QWER 선장착 제거 + 장착 RPC + 시전 검증 (Phase 16-A, 배치 F) — ⚖️ 2026-07-14 보스 지시
+
+- **배경**: 스킬트리 인프라(SP·업적 게이트 1001~1005·레벨 게이트·K 트리 팝업·`ServerRequestSkillLevelUp` 서버 검증 — `docs/design/skill-tree-plan.md` S1~S4, 2026-07-05 검증)는 완성 상태. 그러나 `PlayerController.EquippedSkillsJson` **기본값이 `["power_strike","fireball","dash","earth_shatter"]`(L81)** 라 신규 캐릭터가 해금 없이 QWER 완비로 시작 — 메이플식 "해금→장착" 진행이 무력화. 장착 변경 RPC도 없음(Cast/LevelUp만 존재).
+- **Target**: `Player/Scripts/PlayerController.mlua`, `Player/Scripts/PersistenceManager.mlua`(로드 시 정리), `UI/Scripts/UISkillTreeController.mlua`·`UISkillBarController.mlua` + 해당 `.ui` 서브트리(UIBuilder — UI 규칙 6), (읽기) `Player/DataSets/SkillDataSet.csv`.
+- **Change**:
+  ① `EquippedSkillsJson` 기본값 → `"[]"` — 신규 캐릭터는 QWER 공백으로 시작.
+  ② **장착 RPC 신설**: `ServerRequestEquipSkill(slotIndex, skillId)`(skillId 빈 문자열=해제) — 서버 검증: senderUserId / `skillLevels[skillId] ≥ 1`(미해금 거부) / `Type=Passive` 장착 불가 / 이미 다른 슬롯에 장착된 스킬이면 스왑. @Sync 반영으로 스킬바 즉시 갱신.
+  ③ **시전 검증**: `ServerRequestCastSkill`(L1758)에 미해금(레벨 0) 스킬 차단이 있는지 확인 — 없으면 서버 측 추가.
+  ④ **해금 시 빈 슬롯 자동 장착 유지**(⚖️ 지휘자 확정 — 온보딩 편의): 기존 S3 자동 장착 동작을 "빈 슬롯이 있을 때만"으로 확인·정합, ②로 언제든 수동 변경 가능.
+  ⑤ **장착 UX**: SkillTreePopup 보유 노드 상세에 Q/W/E/R 슬롯 장착 버튼 + 현재 장착 슬롯 표시 — 기존 팝업 확장(새 화면 발명 금지, 기존 비주얼 아이덴티티). 스킬바 빈 슬롯은 시각적으로 명확히(어두운 슬롯 등).
+  ⑥ **기존 세이브 정리**: 로드 시 장착 목록에서 미해금 스킬 필터 제거 — 로드 경로에서만, 세이브 경로 무변경(§1.2 규칙 9).
+- **Acceptance**: ① 신규 캐릭 QWER 공백 → 레벨업 SP·업적 → 트리 해금 → 장착 → 시전 전 과정 동작 ② 미해금 장착·시전 서버 거부 ③ 패시브 장착 불가 ④ 기존 세이브 로드 시 미해금 장착 자동 정리, 해금분 회귀 없음 ⑤ 이름/수치 하드코딩 0 ⑥ 티켓 완료 즉시 refresh, Error 수 보고서 §4 기재 + ui-aesthetics §7 루브릭(팝업/스킬바 변경분). Play는 제작자.
+- **충돌 주의**: **배치 F 첫 항목** — `PlayerController`/`PersistenceManager` 소유. 배치 C(T19·T23)는 배치 F 완료 후 발행(지휘자 관리).
+- **구현 요약 (2026-07-14)**: 기본 `[]` + Equip RPC + AutoEquip + Sanitize + 트리 EquipBar + 스킬바 빈슬롯 톤. 시전 미해금 차단 기존 확인. ui-aesthetics §7 8/8. 보고서: `docs/agents/reports/T45-skill-equip-flow.md`.
+- **검증**: Maker refresh 빌드 **Error=0** (total 453 / Warning 13 / Info 440). **런타임 검증 보류(제작자 수행)**.
+
+### T46. [완료 — Play 확인(제작자 2026-07-14, 스킨 이상 보고 없음) | refresh Error=0] 원작 메이플 스킬 리소스 스킨 + 기초 스킬 세트 정렬 (Phase 16-B, 배치 F) — ⚖️ 2026-07-14 보스 지시
+
+- **배경**: 현 스킬 6종(강타/화염구/대시/대지 붕괴/패시브 2)은 커스텀 명칭에 `EffectRUID` 전 행 공란(시전 비주얼 없음), 아이콘 컬럼 부재. 보스 지시: **MSW 제공 원작 메이플 스킬 리소스를 최대한 그대로** — 초기엔 기초 스킬 감성, 추후 전직 확장(16-C 예약).
+- **⚖️ 세이브 호환 정책(지휘자 확정 2026-07-14 — 이견 시 [보류]+질문)**: 내부 `SkillId` 6종은 **유지**(`skillLevels` 저장 키 — 변경 시 기존 투자 소실). 표시명(Name)·Description·이펙트·사운드·아이콘만 원작 기초 스킬로 교체. 스킬 추가는 신규 행으로만.
+- **Target**: `Player/DataSets/SkillDataSet.csv`(+`.userdataset` — `IconRUID`(+재생 경로 확인 후 `SoundRUID`) 컬럼 신설, `EffectRUID` 채움), `UI/Scripts/UISkillBarController.mlua`·`UISkillTreeController.mlua`(아이콘 표시), `PlayerController.mlua`(시전 시 이펙트/사운드 재생 — 소비 지점 확인 후 없으면 클라 연출 추가).
+- **Change**:
+  ① **R1 선확인**: msw-packages 카탈로그에 스킬 시스템 패키지 존재 여부 확인 — 있으면 착수 전 [보류]+질문(자작 인프라와의 통합 여부는 보스 결정).
+  ② **리소스 확보**: msw-search로 원작 스킬 이펙트(animationclip)/사운드/스킬 아이콘 RUID 검색 — 기초 스킬 후보(파워 스트라이크·매직 클로·플래시 점프류 등 초보자~1차 감성)로 6행 매핑. **적합 리소스 없는 행은 placeholder 유지+보고(임의 대체 금지)**.
+  ③ CSV: `IconRUID`·`SoundRUID` 컬럼 신설, `EffectRUID` 공란 채움, Name/Description 원작풍 교체 — **게이트·밸런스 컬럼(ParentSkillId/RequiredLevel/UnlockAchievementId/MaxLevel/SPCost/Damage*/Cooldown*/Passive*) 무변경**.
+  ④ UI: 스킬바 슬롯·트리 노드에 IconRUID 표시(현재 아이콘 소스 없음 — RUID 공란이면 기존 텍스트 표기 폴백 유지).
+  ⑤ 시전 연출: CastSkill 파이프라인의 EffectRUID 소비 지점 확인 — 있으면 그대로, 없으면 클라 측 재생 1곳 추가(@Sync→`OnSyncProperty` 패턴, 서버에서 클라 전용 객체 직접 조작 금지).
+  ⑥ **매핑 표(원작 스킬명 ↔ SkillId ↔ Effect/Icon/Sound RUID)를 보고서 §3에 첨부** — 감성 최종 픽은 제작자(교체는 CSV 셀 단위).
+- **Acceptance**: ① 6스킬 아이콘이 스킬바·트리에 표시, 시전 시 이펙트(확보분) 재생 ② 게이트·밸런스 수치 무변경(해금/강화 회귀 0) ③ 신규 스킬=CSV 행 추가만 ④ 하드코딩 0 ⑤ 티켓 완료 즉시 refresh, Error 수 보고서 §4 기재 + §7 루브릭(UI 변경분). Play는 제작자.
+- **충돌 주의**: **배치 F — T45 완료 후 착수**(동일 파일 순차).
+- **구현 요약 (2026-07-14)**: 원작 pack 4종 매핑(파워스트라이크/매직클로/플래시점프/슬래시블러스트) + Icon/Sound 컬럼 + MulticastPlaySkillSound. 패시브 2종 placeholder. 보고서 매핑 표: `docs/agents/reports/T46-skill-maple-skin.md`.
+- **검증**: Maker refresh 빌드 **Error=0** (total 452 / Warning 13 / Info 439). **런타임 검증 보류(제작자 수행)**.
+
+
+### T47. [대기] 스킬트리 UX 보강 — 노드 클릭↔SP 투자 분리 + HUD 스킬트리 버튼 (Phase 16-A 후속, T45 제작자 Play 피드백 2026-07-14)
+
+- **배경(제작자 Play 피드백 2건)**: ① "스킬을 배치하려고 누를 때 SP를 투자하고 싶지 않은데 투자가 되어버려" — 원인 특정(지휘자): `UISkillTreeController.OnNodeClicked`(L152)가 클릭 즉시 `ServerRequestSkillLevelUp`(L164)을 호출 = 노드 클릭이 곧 SP 투자. 선택·장착 의도의 클릭에서 SP가 오투자된다. ② 스킬트리가 K 키로만 열려 발견성이 없다 — **HUD 버튼 필요(⚖️ 보스 확정: 스킬트리 여는 버튼. 온스크린 시전 버튼/모바일 대응은 범위 밖 — 후속 후보: 공식 key-binding-package)**.
+- **Target**: `UI/Scripts/UISkillTreeController.mlua`, `UI/Scripts/UIHUDController.mlua` + 해당 `.ui` 서브트리(스킬트리 팝업·HUD — **UIBuilder 경유**, UI 규칙 6). **서버 로직 무변경이 기대값**(`ServerRequestSkillLevelUp`/`ServerRequestEquipSkill`은 T45 산출물 그대로 — `PlayerController` 수정 금지, 부족하면 [보류]+질문).
+- **Change**:
+  ① **노드 클릭 = 선택/상세 표시만**: `OnNodeClicked`에서 `ServerRequestSkillLevelUp` 호출 제거 — 클릭 시 해당 노드 선택 하이라이트 + 상세 패널(이름/설명/현재 Lv/게이트 상태/장착 버튼) 갱신만. **어떤 노드를 몇 번 눌러도 SP 변동 0.**
+  ② **[레벨업 (SP n)] 버튼 신설**: 상세 패널에 명시적 레벨업 버튼 — `ServerRequestSkillLevelUp`은 오직 이 버튼에서만 호출. 게이트 미충족/SP 부족/최대 레벨이면 비활성 표시(+사유 텍스트 — 기존 노드 4상태 표기 재사용). T45의 장착 버튼(EquipBar)과 시각적으로 명확히 구분(장착=골드 액센트 유지, 레벨업은 다른 톤 — 기존 팔레트 내에서).
+  ③ **HUD 스킬트리 버튼**: HUD에 스킬트리 열기 버튼 추가 — 클릭 시 K 키와 동일한 토글 경로 호출(토글 함수 재사용, 새 open/close 로직 발명 금지). 기존 HUD 비주얼 아이덴티티 재사용, 다른 팝업 버튼을 나중에 옆에 추가할 수 있는 배치로.
+  ④ 회귀 금지: 해금/장착/시전/자동 장착(T45)·아이콘/이펙트(T46) 무변경.
+- **Acceptance**: ① 노드 클릭만으로는 SP 변동 0(반복 클릭 포함) ② [레벨업] 버튼으로만 투자, 불가 시 비활성+사유 ③ HUD 버튼으로 스킬트리 열림/닫힘(K 키와 동등) ④ 장착 버튼과 레벨업 버튼 혼동 없는 배치 ⑤ 이름/수치 하드코딩 0 ⑥ 티켓 완료 즉시 refresh, Error 수 보고서 §4 기재 + ui-aesthetics §7 루브릭 표 첨부. Play는 제작자.
+- **충돌 주의**: 단독 티켓 — `UISkillTreeController`/`UIHUDController`/해당 `.ui` 소유. 배치 C(T19·T23)는 이 티켓과 소유 안 겹침(T47 완료 대기 불요 — 단, 동시 진행 시 `.ui` 파일 분리 확인).
 
 ### (신규 작업 추가 템플릿)
 ```
