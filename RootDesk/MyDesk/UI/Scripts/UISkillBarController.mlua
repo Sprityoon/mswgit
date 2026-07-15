@@ -4,27 +4,52 @@ script UISkillBarController extends Component
 	-- HUD skill bar: shows the 4 equipped skills (Q/W/E/R) and their cooldown state.
 	-- The bar reads the LOCAL player's PlayerController (EquippedSkillsJson + CooldownMap) and the
 	-- SkillDataSet, so it follows the data-driven slot mapping with no per-skill hardcoding.
+	-- T52: 슬롯 터치 시전(TryCastSlot) · 스킬명 숨김 · PC 호버 툴팁 · 모바일 우하단 재배치.
 
 	property integer SlotCount = 4
 	property any UpdateTimer = nil
+	property table clickHandlers = {}
+	property table hoverHandlers = {}
+	property integer hoverSlotIndex = 0
+	property boolean isMobileLayout = false
 
 	@ExecSpace("ClientOnly")
 	method void OnBeginPlay()
-		-- Populate slots once, then poll cooldowns ~10x/sec.
+		-- description: Wire slot click/hover, apply platform layout once, then poll cooldowns.
+		self.clickHandlers = {}
+		self.hoverHandlers = {}
+		self.hoverSlotIndex = 0
+		self:ApplyPlatformLayout()
+		self:SetupSlotEvents()
+		self:HideTooltip()
 		self:UpdateSlots()
 		self.UpdateTimer = _TimerService:SetTimerRepeat(function()
 			if not isvalid(self) or not isvalid(self.Entity) then return end
 			self:UpdateSlots()
 		end, 0.1)
+		log("[SKILL-BAR] OnBeginPlay mobile=" .. tostring(self.isMobileLayout))
 	end
 
 	@ExecSpace("ClientOnly")
 	method void OnEndPlay()
-		-- description: Release the polling timer.
+		-- description: Release timer and all slot event handlers.
 		if self.UpdateTimer then
 			_TimerService:ClearTimer(self.UpdateTimer)
 			self.UpdateTimer = nil
 		end
+		for ent, h in pairs(self.clickHandlers) do
+			if isvalid(ent) then
+				ent:DisconnectEvent(ButtonClickEvent, h)
+			end
+		end
+		self.clickHandlers = {}
+		for ent, h in pairs(self.hoverHandlers) do
+			if isvalid(ent) then
+				ent:DisconnectEvent(ButtonStateChangeEvent, h)
+			end
+		end
+		self.hoverHandlers = {}
+		self:HideTooltip()
 	end
 
 	method any GetLocalPlayerController()
@@ -37,9 +62,268 @@ script UISkillBarController extends Component
 	end
 
 	@ExecSpace("ClientOnly")
+	method boolean DetectMobilePlatform()
+		-- description: Client platform check via Environment.IsMobilePlatform (verified in .d.mlua).
+		if _Environment == nil then return false end
+		local ok, mobile = pcall(function()
+			return _Environment:IsMobilePlatform()
+		end)
+		if ok and mobile == true then return true end
+		return false
+	end
+
+	@ExecSpace("ClientOnly")
+	method void ApplyPlatformLayout()
+		-- description: PC keeps bottom-center bar; mobile moves bar to bottom-right thumb zone (≥88 hit).
+		self.isMobileLayout = self:DetectMobilePlatform()
+		local barTr = self.Entity.UITransformComponent
+		if not isvalid(barTr) then return end
+
+		if self.isMobileLayout then
+			-- Draft coords (absolute bottom-right): Q(-385,395) W(-285) E(-185) R(-85).
+			-- SkillBar center ≈ (-235, 395), size 400×100; slots local x = -150/-50/50/150.
+			barTr.AlignmentOption = AlignmentType.BottomRight
+			barTr.AnchorsMin = Vector2(1, 0)
+			barTr.AnchorsMax = Vector2(1, 0)
+			barTr.Pivot = Vector2(0.5, 0.5)
+			barTr.RectSize = Vector2(400, 100)
+			barTr.anchoredPosition = Vector2(-235, 395)
+
+			local slotXs = { -150, -50, 50, 150 }
+			for i = 1, self.SlotCount do
+				local slot = self.Entity:GetChildByName("SkillSlot" .. i, true)
+				if isvalid(slot) and isvalid(slot.UITransformComponent) then
+					local tr = slot.UITransformComponent
+					tr.RectSize = Vector2(88, 88)
+					tr.anchoredPosition = Vector2(slotXs[i], 0)
+					local cd = slot:GetChildByName("Cooldown", true)
+					if isvalid(cd) and isvalid(cd.UITransformComponent) then
+						cd.UITransformComponent.RectSize = Vector2(88, 88)
+					end
+					local icon = slot:GetChildByName("Icon", true)
+					if isvalid(icon) and isvalid(icon.UITransformComponent) then
+						icon.UITransformComponent.RectSize = Vector2(48, 48)
+					end
+					local key = slot:GetChildByName("Key", true)
+					if isvalid(key) and isvalid(key.UITransformComponent) then
+						key.UITransformComponent.anchoredPosition = Vector2(-28, 28)
+					end
+				end
+			end
+			log("[SKILL-BAR] mobile layout applied bar=(-235,395) slots=88 pitch=100")
+		else
+			-- PC defaults from .ui (bottom-center 0,142 / 72px slots). Re-apply so reload is stable.
+			barTr.AlignmentOption = AlignmentType.BottomCenter
+			barTr.AnchorsMin = Vector2(0.5, 0)
+			barTr.AnchorsMax = Vector2(0.5, 0)
+			barTr.Pivot = Vector2(0.5, 0)
+			barTr.RectSize = Vector2(420, 84)
+			barTr.anchoredPosition = Vector2(0, 142)
+
+			local slotXs = { -117, -39, 39, 117 }
+			for i = 1, self.SlotCount do
+				local slot = self.Entity:GetChildByName("SkillSlot" .. i, true)
+				if isvalid(slot) and isvalid(slot.UITransformComponent) then
+					local tr = slot.UITransformComponent
+					tr.RectSize = Vector2(72, 72)
+					tr.anchoredPosition = Vector2(slotXs[i], 0)
+					local cd = slot:GetChildByName("Cooldown", true)
+					if isvalid(cd) and isvalid(cd.UITransformComponent) then
+						cd.UITransformComponent.RectSize = Vector2(72, 72)
+					end
+					local icon = slot:GetChildByName("Icon", true)
+					if isvalid(icon) and isvalid(icon.UITransformComponent) then
+						icon.UITransformComponent.RectSize = Vector2(40, 40)
+					end
+					local key = slot:GetChildByName("Key", true)
+					if isvalid(key) and isvalid(key.UITransformComponent) then
+						key.UITransformComponent.anchoredPosition = Vector2(-22, 22)
+					end
+				end
+			end
+		end
+	end
+
+	@ExecSpace("ClientOnly")
+	method void SetupSlotEvents()
+		-- description: Connect click→TryCastSlot and PC hover→tooltip per slot.
+		for i = 1, self.SlotCount do
+			local slot = self.Entity:GetChildByName("SkillSlot" .. i, true)
+			if isvalid(slot) then
+				if isvalid(slot.SpriteGUIRendererComponent) then
+					slot.SpriteGUIRendererComponent.RaycastTarget = true
+				end
+				local idx = i
+				local clickH = slot:ConnectEvent(ButtonClickEvent, function()
+					self:OnSlotClicked(idx)
+				end)
+				self.clickHandlers[slot] = clickH
+				local hoverH = slot:ConnectEvent(ButtonStateChangeEvent, function(ev)
+					self:OnSlotHoverState(idx, ev)
+				end)
+				self.hoverHandlers[slot] = hoverH
+			else
+				log_warning("[SKILL-BAR] SkillSlot" .. i .. " missing")
+			end
+		end
+		log("[SKILL-BAR] slot events wired count=" .. tostring(self.SlotCount))
+	end
+
+	@ExecSpace("ClientOnly")
+	method void OnSlotClicked(integer slotIndex)
+		-- description: Reuse PlayerController.TryCastSlot — no new cast path.
+		local pc = self:GetLocalPlayerController()
+		if pc == nil then return end
+		---@type PlayerController
+		local controller = pc
+		if controller.TryCastSlot == nil then
+			log_warning("[SKILL-BAR] TryCastSlot missing on PlayerController")
+			return
+		end
+		log("[SKILL-BAR] click cast slot=" .. tostring(slotIndex))
+		controller:TryCastSlot(slotIndex)
+	end
+
+	@ExecSpace("ClientOnly")
+	method void OnSlotHoverState(integer slotIndex, ButtonStateChangeEvent ev)
+		-- description: PC hover shows SkillTooltip; leave hides. Mobile has no hover — no-op path is fine.
+		if ev == nil then return end
+		if self.isMobileLayout then return end
+		if ev.state == ButtonState.Hover then
+			self.hoverSlotIndex = slotIndex
+			self:ShowTooltipForSlot(slotIndex)
+		elseif ev.state == ButtonState.Normal or ev.state == ButtonState.Released then
+			if self.hoverSlotIndex == slotIndex then
+				self.hoverSlotIndex = 0
+				self:HideTooltip()
+			end
+		end
+	end
+
+	@ExecSpace("ClientOnly")
+	method Entity ResolveTooltipRoot()
+		-- description: SkillTooltip is a HUD sibling of SkillBar (not a child).
+		local parent = self.Entity.Parent
+		if isvalid(parent) then
+			local tip = parent:GetChildByName("SkillTooltip", false)
+			if isvalid(tip) then return tip end
+		end
+		local byPath = _EntityService:GetEntityByPath("/ui/HUDGroup/SkillTooltip")
+		if isvalid(byPath) then return byPath end
+		return nil
+	end
+
+	@ExecSpace("ClientOnly")
+	method void HideTooltip()
+		-- description: Disable SkillTooltip panel.
+		local tip = self:ResolveTooltipRoot()
+		if isvalid(tip) then
+			tip.Enable = false
+		end
+	end
+
+	@ExecSpace("ClientOnly")
+	method void ShowTooltipForSlot(integer slotIndex)
+		-- description: Fill Name/Meta/Desc from SkillDataSet + live level; show panel above bar.
+		local tip = self:ResolveTooltipRoot()
+		if not isvalid(tip) then return end
+
+		local pc = self:GetLocalPlayerController()
+		local skillId = ""
+		if pc ~= nil then
+			---@type PlayerController
+			local controller = pc
+			local skills = controller:GetEquippedSlots()
+			if skills ~= nil and skills[slotIndex] ~= nil then
+				skillId = skills[slotIndex]
+			end
+		end
+		if skillId == nil or skillId == "" then
+			tip.Enable = false
+			return
+		end
+
+		local ds = _DataService:GetTable("SkillDataSet")
+		if ds == nil then
+			tip.Enable = false
+			return
+		end
+		local row = ds:FindRow("SkillId", skillId)
+		if row == nil then
+			tip.Enable = false
+			return
+		end
+
+		local name = row:GetItem("Name") or skillId
+		local skType = row:GetItem("Type") or ""
+		local desc = ""
+		local okD, dval = pcall(function() return row:GetItem("Description") end)
+		if okD and dval ~= nil then desc = tostring(dval) end
+		-- CSV may wrap description in quotes
+		if string.sub(desc, 1, 1) == "\"" then
+			desc = string.sub(desc, 2)
+		end
+		if string.sub(desc, -1) == "\"" then
+			desc = string.sub(desc, 1, #desc - 1)
+		end
+
+		local level = 0
+		local cd = tonumber(row:GetItem("Cooldown")) or 0
+		local locked = false
+		if pc ~= nil then
+			---@type PlayerController
+			local controller = pc
+			level = controller:GetSkillLevel(skillId)
+			if level < 1 then
+				locked = true
+			else
+				cd = controller:GetEffectiveCooldown(skillId, level)
+			end
+		end
+
+		local nameEnt = tip:GetChildByName("Name", true)
+		if isvalid(nameEnt) and isvalid(nameEnt.TextComponent) then
+			if locked then
+				nameEnt.TextComponent.Text = name .. " (잠김)"
+				nameEnt.TextComponent.FontColor = Color(0.55, 0.55, 0.55, 1.0)
+			else
+				nameEnt.TextComponent.Text = name
+				nameEnt.TextComponent.FontColor = Color(0.95, 0.76, 0.31, 1.0)
+			end
+		end
+
+		local metaEnt = tip:GetChildByName("Meta", true)
+		if isvalid(metaEnt) and isvalid(metaEnt.TextComponent) then
+			local lvLabel = "Lv " .. tostring(level)
+			if locked then lvLabel = "미해금" end
+			metaEnt.TextComponent.Text = skType .. " · " .. lvLabel .. " · CD " .. string.format("%.1f", cd) .. "s"
+		end
+
+		local descEnt = tip:GetChildByName("Desc", true)
+		if isvalid(descEnt) and isvalid(descEnt.TextComponent) then
+			descEnt.TextComponent.Text = desc
+		end
+
+		-- Keep tooltip above PC skill bar (bottom-center).
+		if isvalid(tip.UITransformComponent) then
+			tip.UITransformComponent.anchoredPosition = Vector2(0, 280)
+		end
+		tip.Enable = true
+	end
+
+	@ExecSpace("ClientOnly")
+	method string MakeFallbackLabel(string skillName)
+		-- description: First ~2 Hangul chars (6 UTF-8 bytes) or short ascii — T50 FallbackText pattern.
+		local fb = skillName or ""
+		if #fb > 6 then
+			fb = string.sub(fb, 1, 6)
+		end
+		return fb
+	end
+
+	@ExecSpace("ClientOnly")
 	method void UpdateSlots()
-		-- description: Refresh each slot's key/name labels and cooldown overlay from live player state.
-		-- T45: 빈 슬롯은 어두운 배경 + "—" 표기로 명확히 구분.
+		-- description: Refresh key/icon/cooldown; names stay hidden (tooltip only on PC hover).
 		local keys = { "Q", "W", "E", "R" }
 		local filledBg = Color(0.22, 0.24, 0.30, 0.92)
 		local emptyBg = Color(0.10, 0.10, 0.12, 0.88)
@@ -64,18 +348,21 @@ script UISkillBarController extends Component
 				local skillId = skills[i]
 				if skillId == nil then skillId = "" end
 
-				-- Key label (Q/W/E/R)
 				local keyEnt = slot:GetChildByName("Key", true)
 				if isvalid(keyEnt) and isvalid(keyEnt.TextComponent) then
 					keyEnt.TextComponent.Text = keys[i] or ""
 				end
 
-				-- Skill name + cooldown
+				-- T52: Name always hidden (no permanent skill name on slot).
 				local nameEnt = slot:GetChildByName("Name", true)
+				if isvalid(nameEnt) then
+					nameEnt.Enable = false
+				end
+
 				local overlay = slot:GetChildByName("Cooldown", true)
 				local cdText = slot:GetChildByName("CdText", true)
 
-				local displayName = "—"
+				local displayName = ""
 				local cd = 0
 				local locked = false
 				local empty = (skillId == "")
@@ -87,14 +374,12 @@ script UISkillBarController extends Component
 						cd = tonumber(row:GetItem("Cooldown")) or 0
 						local okI, ir = pcall(function() return row:GetItem("IconRUID") end)
 						if okI and ir ~= nil then iconRuid = tostring(ir) end
-						-- 스킬트리 연동(S3): 미해금 스킬은 잠금 표시, 보유 스킬은 실효 쿨다운 반영
 						if pc ~= nil then
 							---@type PlayerController
 							local controller = pc
 							local level = controller:GetSkillLevel(skillId)
 							if level < 1 then
 								locked = true
-								displayName = "[잠김] " .. displayName
 							else
 								cd = controller:GetEffectiveCooldown(skillId, level)
 							end
@@ -104,7 +389,6 @@ script UISkillBarController extends Component
 					end
 				end
 
-				-- 슬롯 배경 톤 (빈/잠김/장착)
 				if isvalid(slot.SpriteGUIRendererComponent) then
 					if empty then
 						slot.SpriteGUIRendererComponent.Color = emptyBg
@@ -115,11 +399,12 @@ script UISkillBarController extends Component
 					end
 				end
 
-				-- T46: IconRUID 표시 (공란이면 아이콘 숨김 — 텍스트 폴백)
 				local iconEnt = slot:GetChildByName("Icon", true)
+				local fbEnt = slot:GetChildByName("FallbackText", true)
+				local hasIcon = (iconRuid ~= "" and not empty)
 				if isvalid(iconEnt) then
 					local ispr = iconEnt.SpriteGUIRendererComponent
-					if isvalid(ispr) and iconRuid ~= "" and not empty then
+					if isvalid(ispr) and hasIcon then
 						iconEnt.Enable = true
 						ispr.ImageRUID = iconRuid
 						if locked then
@@ -132,14 +417,20 @@ script UISkillBarController extends Component
 					end
 				end
 
-				if isvalid(nameEnt) and isvalid(nameEnt.TextComponent) then
-					nameEnt.TextComponent.Text = displayName
-					if empty then
-						nameEnt.TextComponent.FontColor = Color(0.45, 0.45, 0.48, 1.0)
-					elseif locked then
-						nameEnt.TextComponent.FontColor = Color(0.55, 0.55, 0.55, 1.0)
+				-- Icon blank (passive placeholder): 2-char fallback only — never full name.
+				if isvalid(fbEnt) then
+					if not empty and not hasIcon and displayName ~= "" then
+						if isvalid(fbEnt.TextComponent) then
+							fbEnt.TextComponent.Text = self:MakeFallbackLabel(displayName)
+							if locked then
+								fbEnt.TextComponent.FontColor = Color(0.45, 0.45, 0.5, 1.0)
+							else
+								fbEnt.TextComponent.FontColor = Color(0.96, 0.94, 0.9, 1.0)
+							end
+						end
+						fbEnt.Enable = true
 					else
-						nameEnt.TextComponent.FontColor = Color(0.94, 0.91, 0.82, 1.0)
+						fbEnt.Enable = false
 					end
 				end
 

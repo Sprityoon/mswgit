@@ -21,7 +21,11 @@
       "Bash(node \"C:/Users/mh566/AppData/Local/Temp/claude/d-------/09cd0e1f-f0bb-47a3-a3f3-6ecd147da4e3/scratchpad/dex_verify.cjs\")",
       "Bash(node \"C:/Users/mh566/AppData/Local/Temp/claude/d-------/09cd0e1f-f0bb-47a3-a3f3-6ecd147da4e3/scratchpad/dex_idcheck.cjs\")",
       "WebFetch(domain:api.github.com)",
-      "mcp__msw-mcp__mlua_document_retriever"
+      "mcp__msw-mcp__mlua_document_retriever",
+      "Bash(node \"C:/Users/mh566/AppData/Local/Temp/claude/d-------/75d73352-226f-4872-9471-9e83683df0b7/scratchpad/dump_hud.cjs\")",
+      "Bash(node \"C:/Users/mh566/AppData/Local/Temp/claude/d-------/75d73352-226f-4872-9471-9e83683df0b7/scratchpad/dump_popup.cjs\")",
+      "Bash(node \"C:/Users/mh566/AppData/Local/Temp/claude/d-------/75d73352-226f-4872-9471-9e83683df0b7/scratchpad/find_btn.cjs\")",
+      "Bash(git stash *)"
     ]
   },
   "hooks": {

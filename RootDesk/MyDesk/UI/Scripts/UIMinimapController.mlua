@@ -131,6 +131,9 @@ script UIMinimapController extends Component
 		end
 		if tileName == "FullGrass" then
 			return Color(0.39, 0.60, 0.13, 1.0)
+		elseif string.sub(tileName, 1, 8) == "SubGrass" then
+			-- SubGrass{LTRD|RTLD} = 대각 2칸 흙 (길의 대각 접속 — 2026-07-15 추가) — 방향 에지와 같은 흙색
+			return Color(0.76, 0.60, 0.42, 1.0)
 		elseif string.sub(tileName, 1, 5) == "Grass" then
 			if string.sub(tileName, -6) == "Corner" then
 				-- Grass{LT|RT|LD|RD}Corner = 오목 모서리 노치 (대부분 잔디) — 잔디색

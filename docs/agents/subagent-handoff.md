@@ -27,6 +27,7 @@
 8. **크로스 스크립트 API 호출 전 정의 확인 (2026-07-11 신설 — T18 치명 오류 재발 방지)**: 다른 스크립트의 메서드/프로퍼티를 호출하는 코드를 쓰기 전에 **반드시 대상 `.mlua` 파일에서 해당 정의를 검색해 존재와 시그니처를 확인**한다. 정의가 없으면 추정으로 호출하지 말 것 — 소유 레인 밖 파일에 정의를 새로 만들어 붙이는 것도 금지, [보류]+질문으로 전환한다. "아마 있을 것" 추정 호출이 직전 배치의 치명 런타임 오류 원인이었다.
 9. **세이브 경로 Yield 금지 (2026-07-11 신설 — T37 인벤토리 전량 유실 사고 재발 방지)**: `SavePlayerData` 등 영속 저장 루틴 안에서 `GetAndWait`/`SetAndWait` 외의 **추가 Yield 호출(다른 GetAndWait, 타이머 대기 등)을 절대 넣지 않는다**. Yield 사이에 플레이어 엔티티가 파괴되면 이후 읽는 컴포넌트 값이 nil → 기본값 폴백으로 **세이브가 빈 데이터로 덮인다**. 저장에 필요한 컴포넌트 값은 루틴 진입 직후 전부 지역 변수로 선캡처하고, 외부 조회가 필요하면 세션 캐시를 쓴다.
 10. **UI stretch 앵커 미신뢰 — RectSize 명시 (2026-07-14 신설 — T48 '정체불명 박스' 실증)**: 이 프로젝트 런타임(CoreVersion 26.5.0.0)에서 `.ui` 자식의 stretch 앵커(AnchorsMin≠AnchorsMax)+Offset 0 조합은 **부모 크기로 늘어나지 않고 `RectSize` 값 그대로 렌더**된다(지휘자 Play 캡처 실증 — `SkillTreePopup/Bg/EquipBar/Bg`가 RectSize 100×100 다크 박스로 렌더된 것이 제작자가 본 '알 수 없는 박스'의 정체). 기존 UI에서 문제가 안 보였던 이유는 전부 RectSize가 의도 크기와 일치했기 때문. 새/수정 `.ui` 자식은 **명시 anchor+rect_size로 작성**하고, 부모 크기를 바꾸면 stretch 자식의 RectSize 동기화 여부를 반드시 함께 확인한다.
+11. **Maker 스테일 저장이 빌더 산출 `.ui`를 되돌린다 (2026-07-15 신설 — 실사고)**: Maker 에디터는 저장 시 **에디터 메모리 상태로 워크스페이스 파일을 통째로 재직렬화**한다. 에디터가 구버전 상태(git pull·빌더 편집을 refresh로 반영하기 전)를 들고 있으면, 타일셋 편집 같은 무관한 저장에도 `ui/*.ui`가 구버전으로 덮인다 — 2026-07-15 제작자의 subgrass 타일 추가 저장(01:59)이 T47·T48·T50 스킬트리 UI를 워킹 트리에서 소실시킨 실사고(지휘자가 stash 백업 후 HEAD 복구, stash@{0}). **규칙**: ① git pull 또는 빌더로 `.map`/`.model`/`.ui`를 바꾼 뒤에는 Maker에서 어떤 저장이든 하기 전에 반드시 `refresh` 먼저 ② 에이전트는 Maker 저장 흔적(git status에 의도치 않은 `.ui`/`.csv` 변경)이 보이면 **덮어쓰기 여부부터 대조**하고 작업을 시작한다 ③ CSV의 BOM 재직렬화 변경은 무해(클린 필터가 처리)하나 `.ui` diff는 항상 의심 대상.
 
 ### 1.3 ⚖️ 현행 타일 스킴 (2026-07-08 밀착 페어 확정 — 이 문서의 최우선 배경지식)
 
@@ -41,11 +42,11 @@
 | Layer 5 (SL4) | `RectTileMap5` | 경계 테라스 비주얼 (TerraceTop 링 + 북벽 CliffFace) |
 | MapLayer5 | (엔티티 전용) | 몬스터·NPC·자원·가구·드롭 |
 
-- **서브셀 흙 마스크 (단일 표현)**: 모든 지형 문법은 셀당 2×2 서브셀 흙 마스크 하나로 통일. 셀 패턴 → 타일: 흙 0칸=`FullGrass` / 인접 2칸=`Grass{T|D|L|R}` / 3칸=볼록 `Grass{LT|RT|LD|RD}` / 1칸=오목 `Grass*Corner` / 4칸=L2 홀(L1 Soil 노출) / 대각 2칸=무효(산출 검사 에러). 접미사 방향 = 흙(길) 쪽.
+- **서브셀 흙 마스크 (단일 표현)**: 모든 지형 문법은 셀당 2×2 서브셀 흙 마스크 하나로 통일. 셀 패턴 → 타일: 흙 0칸=`FullGrass` / 인접 2칸=`Grass{T|D|L|R}` / 3칸=볼록 `Grass{LT|RT|LD|RD}` / 1칸=오목 `Grass*Corner` / 4칸=L2 홀(L1 Soil 노출) / **대각 2칸=`SubGrass{LTRD|RTLD}` (T51, 2026-07-15 — 마스크 6=TL+BR→LTRD, 9=TR+BL→RTLD. 전 마스크 0~15 표현 가능, 구 FixDiagonalMask 승격/강등 보정 폐기)**. 접미사 방향 = 흙(길) 쪽. ※ 생성기(`build_maps.cjs`)는 대각을 산출하지 않음 — 대각은 런타임 편집 전용, 생성기 산출 검사의 "대각=에러"는 자기 산출물 한정으로 유효.
 - **문법 1 — 길 (밀착 에지 페어, L2 홀 0칸)**: 셀 경계 좌표 중심선 폴리라인에서 폭 2서브셀(시각 1셀) 흙 밴드를 파생. 수평 길 = `GrassT|GrassD` 밀착 페어, 수직 길 = `GrassR|GrassL` 페어. ㄱ자 꺾임(바깥 오목 캡+안쪽 볼록), 막다른 끝(오목 코너 페어 캡), 길↔광장 접속은 마스크 합집합으로 전부 자동.
 - **문법 2 — 광장/밭/보스 아레나 (홀 유지)**: 셀 사각형 + ½셀 마진. 내부 = L2 홀, 둘레 잔디 셀 = 프린지 에지, 모서리 = 오목 `Grass*Corner`. 광장 안 잔디 섬(정원)은 island 도려냄(같은 ½ 마진 규칙).
 - ⚠️ **잔디 스트립 최소 2칸**: 두 흙 영역 사이 잔디가 1칸이면 양쪽 ½마진이 겹쳐 흙으로 병합된다 (map01 밭 고랑이 이 규칙으로 2칸 확보됨 — 밭 A `[-23,-19]`).
-- `wall.tileset`은 2026-07-07 리네임으로 프린지가 `Soil{dir}` → **`Grass{dir}` 8종**으로 바뀌었고, `Soil*2`(구 내부 모서리) 폐기 + `Grass*Corner` 4종 추가. L2 잔디 패밀리 = `FullGrass` + `Grass{dir}` 8 + `Grass*Corner` 4 = 13종.
+- `wall.tileset`은 2026-07-07 리네임으로 프린지가 `Soil{dir}` → **`Grass{dir}` 8종**으로 바뀌었고, `Soil*2`(구 내부 모서리) 폐기 + `Grass*Corner` 4종 추가. 2026-07-15 제작자가 대각 `SubGrass{RTLD|LTRD}` 2종 추가(아트 `tileimg/`). **L2 잔디 패밀리 = `FullGrass` + `Grass{dir}` 8 + `Grass*Corner` 4 + `SubGrass` 2 = 15종** (`IsGrassTileName` 판정 = "FullGrass" | prefix "Grass" | prefix "SubGrass"; 방향 에지 길 판정 `IsGrassEdgeTileName`에 SubGrass 포함).
 - **기록/구현 위치**:
   - 블록아웃 생성기 `scripts/build_maps.cjs` (헤더 주석 = 스킴 명세. `makeDirt`(walk/plaza/island)+`cellTile`이 문법 단일 소스. `--force` 필수 — 손편집 전량 덮어씀. 산출 검사 내장: 무효 타일/길 셀 L2 홀 발견 시 즉시 실패)
   - 런타임 `RootDesk/MyDesk/MapObjects/Scripts/ResourceSpawner.mlua` — `IsGrassTileName`(잔디 패밀리) / **`IsGrassEdgeTileName`(방향 에지=길 판정)** / `IsSoilTileName`(정확히 `"Soil"`) / `ComputeGrassTileName` / 자원 스폰 `RequiredTile` 판정: `FullGrass`·`Grass*Corner` → `"FullGrass"`(스폰 가능), 방향 에지 → `"Soil"`(길 — 잔디 요구 자원 억제), L2 홀+L1 Soil → `"Soil"`(광장 바닥) / `AutotileGrassLayer`(⛔ 홀 문법 전용 — 밀착 페어 길을 FullGrass로 평탄화하므로 `AutotileGrassOnSetup` 기본 OFF 절대 유지)
@@ -129,6 +130,13 @@
 > - **(추기 7 — ⚖️ 노드 UI 방향 전환·T50 발행 2026-07-14)**: T48 ⑨ 검수 **실패**(pivot (0,1) 오설정 — 이름이 노드 중앙에서 우측 82px 돌출, 보스 "점점 이상해진다" 신고 일치). 노드 내 텍스트 배치 접근 2연속 실패로 폐기. **⚖️ 보스 확정: 노드=아이콘만(+Lv 뱃지), 상세=옆 팝업(팝업-인-팝업 승인)** → **T50 발행**(아이콘 칩 76×76 + 우측 고정 상세 패널 280×300 — Description 컬럼 첫 노출, 호버는 PC 부가·생략 가능). T48은 ⑥⑦ PASS로 부분 완료 종결. **잔여 순서: T50 → T49(아트) → 지휘자 재캡처 → 제작자 Play 통합 확인(T27·T47·T48·T19·T23+T50)**.
 > - **(추기 6 — ⑧ 검수 반려·⑨ 발행 + T19/T23 검수 통과 2026-07-14)**: ① T48 ⑧ 지휘자 캡처 검수 — **부분 실패**: BestFit이 축소 대신 122px 폭 2줄 래핑으로 '맞춤'(30px 높이에 12px×2줄 수용) → 이름이 LvText/SubText 침범(보스 재확인과 일치). **재작업 ⑨ 발행**: 노드 세로 스택(Icon 상단 중앙 배지 → 이름 전폭 164×22 1줄 — 높이 22로 2줄 물리 차단). ② **T19(목장)·T23(펫) 보고 검수 통과** — 보고 3종·refresh Error=0(472/490)·PlayerController 무수정·스펙 편차 0. 공통 잔여 = 슬라임 placeholder 아트 → **T49 발행**(⑨ 후 착수). 펫 마을 리스폰 재소환 엣지(T23 §5)는 제작자 Play 결과 보고 판단. **Play 대기 = T27 · T47 · T48(⑨ 후) · T19 · T23** — 체크리스트 각 보고서 §6.
 > - **(추기 5 — 재작업 ⑥⑦ 검수 PASS + 보스 피드백 2건 2026-07-14)**: ① 재작업 ⑥⑦ 지휘자 캡처 재검수 **PASS** — EquipBar 배경이 640×132 전폭 밴드로 렌더, 100×100 박스 소멸, 보고서 실좌표 정정 확인. ② **⚖️ 보스 피드백: 노드 스킬 이름 가림**("파워 스트라이크"→"워 스트라이크") — 원인 = Icon(top-left 28×28)과 중앙 정렬 NameText 겹침 → **T48 재작업 ⑧ 발행**(NameText top-left (42,-8)·122×30·MiddleLeft·BestFit). ③ **⚖️ 보스 지시: 전직/직업별 스킬 확장 선행 설계** → 지휘자가 [docs/design/skill-tree-plan.md §7](../design/skill-tree-plan.md) 작성 — 데이터 계약(`JobId` 컬럼/탭 로컬 좌표/`RewardJobId`)·UI 확장 경로(T42 칩 탭 재사용 → 팝업 확장 → 스크롤 순) 고정. **구현 티켓은 16-C 예약 유지(미발행)** — 현 T48 ⑧과 무관.
+
+> 🧭 **실행 계획 갱신 (지휘자 2026-07-15)**
+> - **⚖️ 보스 지시 3건 접수**: ① HUD 버튼들은 모바일 배려 목적 — QWER 스킬도 모바일에 맞는 위치로 ② HUD뿐 아니라 팝업 UI 전체 평가·수정 ③ QWER 스킬명이 슬롯에 우겨들어감 — 이름 숨기고 마우스 호버 시에만 상세 표시 ④ 대각 파임 타일 부재 → 제작자가 `SubGrass*` 2종 추가, **로직은 지휘자가 직접 개선**(위임 금지 지시).
+> - **✅ T51(대각 타일 로직) 지휘자 직접 수행 완료** — refresh Error=0 + Play 서버 재현 PASS(로그 근거). 보고서 `reports/T51-subgrass-diagonal-tiles.md`. §1.3 스킴 갱신(대각=SubGrass, 패밀리 15종). 잔여 = 제작자 손조작 육안(보고서 §6).
+> - **🔴 사고 처리: Maker 스테일 저장의 .ui 덮어쓰기** — 제작자 타일 추가 저장(01:59)이 구버전 에디터 상태로 `ui/HUDGroup.ui`·`ui/PopupGroup.ui`를 덮어 T47·T48·T50 산출물(BtnSkillTree·노드 아이콘 칩·SkillDetailPanel) 소실. 지휘자가 `git stash push`(stash@{0} `maker-stale-ui-rollback-backup 2026-07-15`) 백업 후 HEAD 복구 + refresh(Error=0)로 에디터 동기화. **§1.2 규칙 11 신설**. 제작자 확인 후 stash@{0}는 드롭 가능(구버전 백업 외 가치 없음).
+> - **📱 배치 H 발행 (T52 → T53 → T54 — 단일 에이전트 순차, 셋 다 UI 레인)**: 모바일 UX 정비. 지휘자 정적 실사(UIBuilder 읽기 API — 아래 실측 좌표) 기반. 소유: `ui/HUDGroup.ui`·`ui/PopupGroup.ui`(UIBuilder), `UI/Scripts/UISkillBarController.mlua`·`UIHUDController.mlua`(+T54에서 팝업 컨트롤러 확인만). ⚠️ `PlayerController.mlua` 수정 금지 — 시전은 기존 `TryCastSlot` 재사용(L1864 확인 완료), 부족하면 [보류]+질문.
+> - **지휘자 실사 메모 (2026-07-15, 복구 후 기준)**: HUD = BtnCollection(-74,-130)·BtnSkillTree(-74,-196) top-right 128×56 / Minimap top-right(-216,-15) 166×166 / QuickSlots bottom-center(0,55) 800×80 슬롯 72×72 / SkillBar bottom-center(0,142) 420×84 슬롯 72×72(Key 28×26·Name 70×22·Icon 40×40) — **슬롯에 ButtonComponent 없음(모바일 시전 불가)** / MobileUI(stretch, plat=All): BtnBag(-85,295)·BtnCraft(-175,295)·BtnInfo(-265,295) 75×75, BtnInteract(-261,164) 75×75, BtnJump(-248.5,66) 85×85, BtnMine(-130,130) 110×110, UIJoystick bottom-left(180,220) 200×200 — **UIHUDController에 플랫폼 분기 없음(전 플랫폼 노출·의도 유지)** / UIMyInfo bottom-center 앵커인데 pos(-746,984)=사실상 좌상단(앵커 관례 위반) + **ActivePlatform 필드 자체 누락(undefined)** / 팝업 루트 전부 middle-center ✓, BtnClose 48~50px(<88 터치 미달), ChestPopup·FurnacePopup·PermissionPopup·RequestPopup·ResearchPopup·ShopPopup·WarpPopup은 depth2에 BtnClose 미확인(전수 확인 필요), FurnacePopup만 루트 1920×1080 + en=true(타 팝업과 구조 불일치), InventoryPopup/Tooltip(240×270)=호버 툴팁 기존 패턴.
 
 ### T4. [대기] 경계 테라스/절벽 아트 정리
 - **배경**: `TerraceTop`/`CliffFace`/`Big Wall`은 이전 스킴의 임시 아트 그대로다. 신규 grass 기준 아트와 톤이 안 맞을 수 있고, 상위 레이어 테라스 타일이 깔린 뒤 플레이어 아바타 SortingLayer 최종 판정도 미완(`docs/design/skill-tree-plan.md` §5 4번).
@@ -495,6 +503,55 @@
 - **충돌 주의**: 단독 소유(`UISkillTreeController`+SkillTreePopup 서브트리). **T49(아트)는 T50 완료 후 착수.** 16-C 확장 설계(skill-tree-plan.md §7)와 정합 — 사이드 패널은 탭 도입 후에도 공용.
 - **구현 요약 (2026-07-14)**: 노드 76×76 칩(Icon 48+(0,4)/Lv bottom-right/FallbackText) · NameText·SubText 삭제 · 그리드 −230/−130/−30 × 190/90/−10 · SkillDetailPanel (170,90) 280×300 · DetailText 제거→RefreshDetailPanel · 호버=ButtonStateChangeEvent · 서버 무수정. §7 8/8 실측. 보고서: `docs/agents/reports/T50-skill-node-icon-detail-panel.md`.
 - **검증**: Maker refresh 빌드 **Error=0** (total 490 / Warning 17 / Info 473). **런타임 검증 보류(제작자 수행)**. T48 ⑨ 재시도 없음.
+
+### T51. [완료 — 지휘자 직접 수행 2026-07-15 | refresh Error=0 | Play 서버 재현 PASS(지휘자 로그 근거) | 손조작 육안 보류(제작자)] 지형 편집 대각 2칸 → SubGrass 전용 타일 (⚖️ 보스 직접 지시 — 위임 금지, 소급 정식화)
+
+- **배경**: 땅 파기에서 대각 양쪽이 파인 셀(마스크 6/9)을 표현할 타일이 없어 3칸 볼록 승격/1칸 오목 강등으로 "다른 타일 대체"되던 문제. 제작자가 `wall.tileset`에 `SubGrassLTRD`(6=TL+BR)·`SubGrassRTLD`(9=TR+BL) + `tileimg/` 아트 2장 추가, 로직은 보스 지시로 지휘자가 직접 수정.
+- **Target/Change/Acceptance 및 상세**: 보고서 `docs/agents/reports/T51-subgrass-diagonal-tiles.md` 참조 (§1.3 스킴 갱신 완료 — 대각=정식 표현, FixDiagonalMask 계열 폐기, 패밀리 15종).
+- **잔여**: 제작자 Play 손조작 육안(보고서 §6 체크리스트 — 특히 타일 아트 이음새 감성).
+
+### T52. [코드 완료 — 2026-07-15 | refresh Error=0 | 런타임 검증 보류(제작자 수행)] QWER 스킬바 모바일화 — 터치 시전 버튼 + 우하단 재배치 + 스킬명 호버 툴팁 (⚖️ 2026-07-15 보스 지시, 배치 H 선두)
+
+- **배경**: ① SkillBar가 bottom-center 표시 전용(슬롯에 ButtonComponent 없음) — 모바일에서 스킬 시전 수단이 없다. QWER은 키보드 전제. ② 슬롯 하단 `Name`(70×22)에 풀 스킬명("[잠김] 파워 스트라이크" 등)을 대입해 우겨들어감(`UISkillBarController.UpdateSlots` L86~/L135~). ⚖️ 보스: **이름은 숨기고 마우스 호버 시에만 상세정보**.
+- **Target**: `ui/HUDGroup.ui`의 `SkillBar` 서브트리(**UIBuilder 경유**), `UI/Scripts/UISkillBarController.mlua`. **`PlayerController.mlua` 수정 금지** — 시전은 클라 진입점 `TryCastSlot(slotIndex)`(L1864, 지휘자 정의 확인 완료) 재사용.
+- **Change** (좌표는 지휘자 실측 기반 초안 — 겹침 0 검증 후 ±16px 미세조정 허용, 실좌표를 보고서에 기재):
+  ① **슬롯 터치 시전**: SkillSlot1~4에 ButtonComponent 부착(UIBuilder) + 컨트롤러에서 `ButtonClickEvent` 연결 → `TryCastSlot(i)` 호출. 클릭 시전은 PC·모바일 공통(마우스 클릭도 유효 — 해가 없음). 핸들러는 OnEndPlay 해제(§1.2 이벤트 규약).
+  ② **스킬명 숨김**: `Name` 텍스트는 항상 빈 문자열 또는 엔티티 Enable=false — 슬롯 표시는 아이콘+Key+쿨다운만. 잠김 상태는 기존 lockedBg 톤+아이콘 회색조로 유지(텍스트 "[잠김]" 제거). 아이콘 공란 스킬(패시브 placeholder)은 스킬 이름 첫 2글자 폴백(T50 FallbackText 패턴 미러) — 이름 전체 노출 금지.
+  ③ **호버 툴팁 (PC 부가)**: HUD에 `SkillTooltip` 엔티티 신설(240×220 내외 — `InventoryPopup/Tooltip` 240×270 비주얼 아이덴티티 미러, 새 스타일 발명 금지). 슬롯 hover 진입 시 이름/타입·Lv/쿨다운/Description 표시, 이탈 시 숨김 — hover 이벤트는 T50 `UISkillTreeController`가 쓴 `ButtonStateChangeEvent` 경로 재사용(정의 확인 후, 규칙 8). 모바일은 hover 부재 — 툴팁 생략(상세는 스킬트리 팝업 담당), 터치 시전과 충돌 금지.
+  ④ **모바일 위치**: 세션 시작 시 플랫폼 감지해 모바일이면 SkillBar를 우하단 엄지권으로 재배치 — 초안: **bottom-right 앵커 전환 + 슬롯 88×88, pitch 100, Q(-385,395)·W(-285,395)·E(-185,395)·R(-85,395)** (BtnBag 행 y295 위 18px 이격, 기존 MobileUI 버튼·조이스틱과 겹침 0). 플랫폼 감지 API는 `.d.mlua`에서 확인(추정 호출 금지 — 감지 수단이 없으면 [보류]+질문). PC는 현행 bottom-center(0,142) 유지. 런타임 앵커 변경은 OnBeginPlay 시점 1회(리로드 시 재적용됨 — ui-fundamentals §6 주의 준수).
+- **Acceptance**: ① 슬롯 탭/클릭으로 시전(쿨다운·미해금·스태미나 거부는 기존 TryCastSlot 검증 그대로) ② 슬롯 어디에도 스킬명 상시 노출 0 ③ PC 호버 시 툴팁 표시·이탈 시 소멸 ④ 모바일 배치에서 기존 버튼과 겹침 0·전 슬롯 ≥88×88 ⑤ PC 레이아웃·QWER 키 시전 회귀 0 ⑥ 이름/수치 하드코딩 0 ⑦ refresh Error=0 + `preview_ui_layout.cjs` 결과 + §7 루브릭(실측 좌표) 보고서 첨부. Play는 제작자.
+- **충돌 주의**: **배치 H 선두** — T53과 같은 `ui/HUDGroup.ui` 순차. `PlayerController`/`PersistenceManager` 수정 금지.
+- **구현 요약 (2026-07-15)**: ButtonComponent+TryCastSlot · Name 숨김+FallbackText · SkillTooltip 호버 · 모바일 bar=(-235,395)/슬롯88 pitch100 · PlayerController 무수정. 보고서: `docs/agents/reports/T52-skillbar-mobile-touch.md`.
+- **검증**: Maker refresh 빌드 **Error=0** (total 492 / Warning 17 / Info 475). **런타임 검증 보류(제작자 수행)**.
+
+### T53. [코드 완료 — 2026-07-15 | refresh Error=0 | 런타임 검증 보류(제작자 수행)] HUD 모바일 정비 — 터치 타겟 88px·MobileUI 정렬·UIMyInfo 정합 (배치 H)
+
+- **배경**: 지휘자 실사(§3 상단 2026-07-15 메모) — MobileUI 버튼 75×75(88px 미달), UIMyInfo가 bottom-center 앵커에 pos(-746,984)로 좌상단에 떠 있음(앵커 관례 위반 — 해상도 변화에 취약) + `ActivePlatform` 필드 자체 누락, QuickSlots 슬롯 72×72.
+- **Target**: `ui/HUDGroup.ui`(**UIBuilder 경유**), (확인만) `UI/Scripts/UIHUDController.mlua`·`UIMyInfoSimple.mlua`. 컨트롤러 로직 수정은 원칙 0 — 엔티티 경로/이름 절대 불변(컨트롤러가 `GetEntityByPath`로 참조).
+- **Change**:
+  ① **MobileUI 버튼 88px 승격**: BtnBag/BtnCraft/BtnInfo/BtnInteract 75×75→**88×88**, BtnJump 85→88(BtnMine 110 유지), 상호 간격 ≥16px 유지 — 승격으로 겹치면 열 pitch를 90→104로 벌린다(BtnBag 열 x -85/-175/-265 → -85/-189/-293 초안). Icon/Label 자식 스케일 동반 조정.
+  ② **ActivePlatform 정책 유지**: MobileUI는 현행 All(255) 유지(⚖️ 보스 프레이밍 — HUD 버튼은 모바일 배려용이되 PC 숨김 지시는 없음). 단 **UIMyInfo 서브트리의 누락된 `ActivePlatform` 필드를 255로 명시 기입**(builder-protocol §3.9 — 누락은 양 플랫폼 비표시 리스크).
+  ③ **UIMyInfo 앵커 정합**: 현재 시각 위치(좌상단)를 유지한 채 **top-left 앵커(AO=4) + 등가 pos로 재작성** — bottom-center+(-746,984) 같은 대각 오프셋 제거. 등가 좌표는 빌더 읽기로 산출해 보고서에 기재. 자식 상대 좌표 불변.
+  ④ **QuickSlots**: 슬롯 72×72는 유지(10슬롯 폭 제약 — ⚖️ 지휘자 판단: 퀵슬롯은 드래그 타겟이 주라 88 강제 시 화면 폭 초과). 대신 슬롯 히트 영역만 88×88로(시각 72 유지 — RectSize 88 + 자식 시각 요소 72, ui-fundamentals §9.4 패턴). 슬롯 번호 선택 기능 회귀 0.
+- **Acceptance**: ① 모바일 인터랙티브 요소 전부 히트 영역 ≥88×88 ② UIMyInfo가 동일 시각 위치에 top-left 앵커로 렌더 + ActivePlatform=255 명시 ③ 기존 버튼 배선(UIHUDController ConnectEvent 경로) 전부 생존 — 경로/이름 변경 0 ④ refresh Error=0 + preview 결과 + §7 루브릭(실측). Play는 제작자.
+- **충돌 주의**: **T52 완료 후 착수**(같은 `ui/HUDGroup.ui`).
+- **구현 요약 (2026-07-15)**: MobileUI 88+pitch104 · UIMyInfo top-left(214,-96)+AP255 · QuickSlots hit88 · 컨트롤러 무수정. 보고서: `docs/agents/reports/T53-hud-mobile-touch-targets.md`.
+- **검증**: Maker refresh 빌드 **Error=0** (total 492 / W17 / I475). **런타임 검증 보류(제작자 수행)**.
+
+### T54. [코드 완료 — 2026-07-15 | refresh Error=0 | 런타임 검증 보류(제작자 수행)] 팝업 전수 정비 — 닫기 버튼 통일·모바일 터치 기준·구조 정합 (배치 H 마지막)
+
+- **배경**: 지휘자 실사 — BtnClose 48~50px(<88), 7개 팝업(Chest/Furnace/Permission/Request/Research/Shop/Warp)은 최상위 depth에서 BtnClose 미확인, FurnacePopup만 루트 1920×1080+en=true로 타 팝업과 구조 불일치. ⚖️ 보스: 팝업 UI 전체 평가·수정.
+- **Target**: `ui/PopupGroup.ui`(**UIBuilder 경유**), (확인만) 각 팝업 컨트롤러(`UIFurnaceController` 등 — 닫기 배선·open/close 경로 확인용, 로직 수정 최소화).
+- **Change**:
+  ① **전 팝업 실사표 작성**: 12개 팝업(Character/Chest/Collection/Crafting/Furnace/Inventory/Permission/Request/Research/Shop/SkillTree/Warp) × {BtnClose 존재/크기/배선, 루트 구조, 최소 폰트}를 보고서에 표로 — 이 표가 ②~④의 근거.
+  ② **닫기 버튼 통일**: 모든 팝업에 우상단 BtnClose — **히트 영역 88×88**(시각 X 아이콘은 48~50 유지 가능), 기존 팝업 비주얼 아이덴티티 미러. 부재 팝업은 신설 + 해당 컨트롤러의 기존 close 함수에 배선(정의 확인 후 — 규칙 8. close 경로가 없으면 [보류]+질문, 임의 발명 금지).
+  ③ **FurnacePopup 구조 정합**: 루트를 타 팝업과 같은 콘텐츠 크기+en=false 패턴으로 — 단 컨트롤러 open/close가 루트 en을 어떻게 다루는지 먼저 확인, 회귀 위험 크면 [보류]+보고.
+  ④ **모바일 가독 점검**: 각 팝업 본문 폰트 <20 항목을 ①의 표에 기재하고 24 이상으로 승격(레이아웃 파괴 없는 범위 — BestFit/Ellipsis 활용, ui-fundamentals §9.5).
+  ⑤ 인터랙티브 요소(탭/칩/리스트 행) 히트 영역 <88px 항목 표 기재 — 승격은 레이아웃 영향 큰 경우 후속 티켓 제안으로 분리 가능(임의 대규모 개편 금지).
+- **Acceptance**: ① 12개 팝업 전부 닫기 버튼 존재·탭 가능(≥88px)·정상 배선 ② FurnacePopup 구조 정합(또는 보류 사유 보고) ③ 실사표+수정 내역이 보고서에 1:1 대응 ④ 각 팝업 열기/닫기 회귀 0 ⑤ refresh Error=0 + §7 루브릭. Play는 제작자.
+- **충돌 주의**: **배치 H 마지막** — T42~T50이 만진 `ui/PopupGroup.ui` 소유. SkillTreePopup은 T50 산출물 유지(레이아웃 재편 금지 — 닫기 버튼 기준만 적용).
+- **구현 요약 (2026-07-15)**: 12팝업 BtnClose 전부 존재 확인·88 hit 통일 · Furnace 루트 600×500 en=false · 본문 폰트 부분 승격 · 칩/탭 hit 후속 · 컨트롤러 무수정. 보고서: `docs/agents/reports/T54-popup-mobile-close-audit.md`.
+- **검증**: Maker refresh 빌드 **Error=0** (total 492 / W17 / I475). **런타임 검증 보류(제작자 수행)**.
 
 ### (신규 작업 추가 템플릿)
 ```

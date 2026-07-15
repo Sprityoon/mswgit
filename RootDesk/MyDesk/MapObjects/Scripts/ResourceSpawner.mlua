@@ -108,51 +108,9 @@ script ResourceSpawner extends Logic
 
 	-- ── T11 서브셀 흙 마스크 유틸 (build_maps.cjs cellTile 미러) ──────────────────
 	-- 비트: BL=1, BR=2, TL=4, TR=8. 셀 (x,y) 서브셀 = sx∈{2x,2x+1}, sy∈{2y,2y+1}.
-	-- 접미사 방향 = 흙(길) 쪽. 0=FullGrass / 15=L2 홀 / 대각 2칸(6=TL+BR, 9=TR+BL)=무효→보정.
-
-	method integer FixDiagonalMask(integer mask, string axis)
-		-- 추가 연산용: 대각 2칸 무효 마스크를 3칸 볼록으로 승격 (결정론). axis "h"=같은 행, "v"=같은 열 우선.
-		-- ⚠️ plantGrass 감산 경로에서는 절대 호출하지 말 것 — FixDiagonalMaskSubtract 사용.
-		local n = 0
-		if (mask & 1) ~= 0 then n = n + 1 end
-		if (mask & 2) ~= 0 then n = n + 1 end
-		if (mask & 4) ~= 0 then n = n + 1 end
-		if (mask & 8) ~= 0 then n = n + 1 end
-		if n ~= 2 then return mask end
-		-- TL+BR=6, TR+BL=9 만 대각
-		if mask ~= 6 and mask ~= 9 then return mask end
-		if axis == "v" then
-			if mask == 6 then return mask | 1 end  -- TL+BR → +BL = GrassLD
-			return mask | 2                       -- TR+BL → +BR = GrassRD
-		end
-		if mask == 6 then return mask | 8 end      -- TL+BR → +TR = GrassRT
-		return mask | 4                           -- TR+BL → +TL = GrassLT
-	end
-
-	method integer FixDiagonalMaskSubtract(integer mask, integer dx, integer dy)
-		-- 감산 연산용: 대각 2칸(6=TL|BR, 9=TR|BL)을 1칸 오목 코너로 강등 (결정론).
-		-- 이웃 셀 기준 (dx,dy)=대상 대비 이웃 오프셋. 대상에서 먼 쪽 비트만 보존.
-		-- dx≠0이면 x축(열) 우선, dx=0이면 dy로 y축(행) 판정. 추가식 FixDiagonalMask와 분리.
-		if mask ~= 6 and mask ~= 9 then return mask end
-		if dx ~= 0 then
-			if dx > 0 then
-				-- 이웃이 대상 동쪽 → 대상은 서쪽 → 먼 쪽=오른열(BR,TR)
-				if mask == 6 then return 2 end  -- keep BR
-				return 8                        -- keep TR
-			end
-			-- 이웃이 대상 서쪽 → 먼 쪽=왼열(BL,TL)
-			if mask == 6 then return 4 end      -- keep TL
-			return 1                            -- keep BL
-		end
-		if dy > 0 then
-			-- 이웃이 대상 북쪽 → 먼 쪽=윗줄(TL,TR)
-			if mask == 6 then return 4 end      -- keep TL
-			return 8                            -- keep TR
-		end
-		-- 이웃이 대상 남쪽 → 먼 쪽=아랫줄(BL,BR)
-		if mask == 6 then return 2 end          -- keep BR
-		return 1                                -- keep BL
-	end
+	-- 접미사 방향 = 흙(길) 쪽. 0=FullGrass / 15=L2 홀.
+	-- 대각 2칸(6=TL+BR, 9=TR+BL)은 전용 타일 SubGrass{LTRD|RTLD}로 직접 표현 (2026-07-15 —
+	-- 제작자가 wall.tileset에 추가. 구 FixDiagonalMask 승격/강등 보정 폐기, 전 마스크 0~15 표현 가능).
 
 	method table GetTerrainFringeTable()
 		-- digHole ½셀 프린지 / plantGrass 대칭 감산 단일 소스.
@@ -185,11 +143,14 @@ script ResourceSpawner extends Logic
 		if name == "GrassRTCorner" then return 8 end -- TR
 		if name == "GrassLDCorner" then return 1 end -- BL
 		if name == "GrassRDCorner" then return 2 end -- BR
+		if name == "SubGrassLTRD" then return 6 end  -- TL|BR (대각 — 2026-07-15 신설)
+		if name == "SubGrassRTLD" then return 9 end  -- TR|BL (대각 — 2026-07-15 신설)
 		return -1
 	end
 
 	method string MaskToTileName(integer mask)
-		-- 마스크 → L2 타일명. 15(홀)은 "" (호출측 RemoveTile). cellTile()과 동일 매핑.
+		-- 마스크 → L2 타일명. 15(홀)은 "" (호출측 RemoveTile). cellTile()과 동일 매핑
+		-- (+ 대각 SubGrass 2종은 런타임 확장 — 생성기는 대각을 산출하지 않음).
 		if mask == 0 then return "FullGrass" end
 		if mask == 15 then return "" end
 		if mask == 12 then return "GrassT" end
@@ -204,6 +165,8 @@ script ResourceSpawner extends Logic
 		if mask == 8 then return "GrassRTCorner" end
 		if mask == 1 then return "GrassLDCorner" end
 		if mask == 2 then return "GrassRDCorner" end
+		if mask == 6 then return "SubGrassLTRD" end  -- TL|BR 대각
+		if mask == 9 then return "SubGrassRTLD" end  -- TR|BL 대각
 		return "FullGrass"
 	end
 
@@ -242,15 +205,9 @@ script ResourceSpawner extends Logic
 		return -1
 	end
 
-	method void SetCellMask(any tilemap2, integer x, integer y, integer mask, string axis)
-		-- 마스크 → 타일 재도장 (digPath/digHole 추가 경로). 대각 2칸은 FixDiagonalMask(추가)로 보정.
-		if not isvalid(tilemap2) then return end
-		local fixed = self:FixDiagonalMask(mask, axis)
-		self:SetCellMaskExact(tilemap2, x, y, fixed)
-	end
-
 	method void SetCellMaskExact(any tilemap2, integer x, integer y, integer mask)
-		-- 마스크를 보정 없이 그대로 도장. plantGrass 감산 경로 전용 (추가식 FixDiagonalMask 개입 금지).
+		-- 마스크를 보정 없이 그대로 도장 (digPath/digHole/plantGrass 공용 — 대각 포함 전 마스크가
+		-- 타일로 표현 가능해진 2026-07-15부터 유일한 도장 경로. 구 SetCellMask 보정 래퍼 폐기).
 		if not isvalid(tilemap2) then return end
 		if mask == 15 then
 			tilemap2:RemoveTile(x, y)
@@ -322,8 +279,8 @@ script ResourceSpawner extends Logic
 			local m1 = self:GetCellMask(tilemap2, tilemap1, x1, y1)
 			local m2 = self:GetCellMask(tilemap2, tilemap1, x2, y2)
 			if m1 < 0 or m2 < 0 then return false end
-			local n1 = self:FixDiagonalMask(m1 | add1, axis)
-			local n2 = self:FixDiagonalMask(m2 | add2, axis)
+			local n1 = m1 | add1
+			local n2 = m2 | add2
 
 			-- 캡 대상: 축 방향 양쪽 이웃 페어 총 4셀. {cx, cy, bits}
 			-- 수평: 동=아래TL·위BL, 서=아래TR·위BR / 수직: 북=좌BR·우BL, 남=좌TR·우TL
@@ -354,7 +311,7 @@ script ResourceSpawner extends Logic
 				if self:IsTerrainCellEditable(map, cx, cy) then
 					local cm = self:GetCellMask(tilemap2, tilemap1, cx, cy)
 					if cm >= 0 then
-						local cn = self:FixDiagonalMask(cm | cbits, axis)
+						local cn = cm | cbits
 						if cn ~= cm then
 							anyChange = true
 						end
@@ -365,10 +322,10 @@ script ResourceSpawner extends Logic
 
 			if not anyChange then return false end  -- 주 밴드+캡 전부 변화 없음
 
-			self:SetCellMask(tilemap2, x1, y1, n1, axis)
-			self:SetCellMask(tilemap2, x2, y2, n2, axis)
+			self:SetCellMaskExact(tilemap2, x1, y1, n1)
+			self:SetCellMaskExact(tilemap2, x2, y2, n2)
 			for _, c in ipairs(capApplied) do
-				self:SetCellMask(tilemap2, c[1], c[2], c[3], axis)
+				self:SetCellMaskExact(tilemap2, c[1], c[2], c[3])
 			end
 
 		elseif action == "digHole" then
@@ -379,7 +336,7 @@ script ResourceSpawner extends Logic
 			if m0 < 0 then return false end
 			if m0 == 15 then return false end  -- 이미 파여 있음
 
-			self:SetCellMask(tilemap2, x, y, 15, "h")
+			self:SetCellMaskExact(tilemap2, x, y, 15)
 			local fringes = self:GetTerrainFringeTable()
 			for _, f in ipairs(fringes) do
 				local nx = x + f[1]
@@ -387,14 +344,14 @@ script ResourceSpawner extends Logic
 				if self:IsTerrainCellEditable(map, nx, ny) then
 					local nm = self:GetCellMask(tilemap2, tilemap1, nx, ny)
 					if nm >= 0 then
-						self:SetCellMask(tilemap2, nx, ny, nm | f[3], "h")
+						self:SetCellMaskExact(tilemap2, nx, ny, nm | f[3])
 					end
 				end
 			end
 
 		elseif action == "plantGrass" then
 			-- digHole 대칭 역연산(T12): 대상 마스크=0 + 8이웃 대상쪽 비트 AND NOT.
-			-- fringe 테이블은 digHole과 단일 소스. 감산 후 대각은 FixDiagonalMaskSubtract로 1칸 강등.
+			-- fringe 테이블은 digHole과 단일 소스. 감산 결과 대각(6/9)도 SubGrass 타일로 그대로 표현 (2026-07-15).
 			if not self:IsTerrainCellEditable(map, x, y) then return false end
 			if self:IsGridOccupied(mapName, x, y) then return false end
 			local m = self:GetCellMask(tilemap2, tilemap1, x, y)
@@ -414,7 +371,6 @@ script ResourceSpawner extends Logic
 					if nm >= 0 then
 						-- AND NOT bits (unary ~ 의존 회피: nm에서 fbits 겹침만 제거)
 						local cleared = nm - (nm & fbits)
-						cleared = self:FixDiagonalMaskSubtract(cleared, fdx, fdy)
 						self:SetCellMaskExact(tilemap2, nx, ny, cleared)
 					end
 				end
@@ -629,16 +585,20 @@ script ResourceSpawner extends Logic
 		-- Layer 2 잔디 커버 패밀리 (2026-07-08 밀착 페어 스킴 / wall.tileset 2026-07-07 리네임):
 		-- FullGrass(중앙) + Grass{LT,T,RT,L,R,LD,D,RD}(방향 에지 — 밀착 길·프린지) + Grass{LT|RT|LD|RD}Corner(오목 모서리).
 		-- "패밀리 소속" 판정만 한다 — 길/잔디 구분은 IsGrassEdgeTileName을 함께 볼 것.
+		-- SubGrass{LTRD|RTLD}(대각 2칸 — 2026-07-15 추가)도 패밀리에 포함.
 		if name == nil then return false end
 		if name == "FullGrass" then return true end
 		if string.sub(name, 1, 5) == "Grass" then return true end
+		if string.sub(name, 1, 8) == "SubGrass" then return true end
 		return false
 	end
 
 	method boolean IsGrassEdgeTileName(string name)
-		-- 방향 에지 Grass{LT,T,RT,L,R,LD,D,RD} = 길 (밀착 페어의 절반 — 잔디→흙 전환 타일).
+		-- 방향 에지 Grass{LT,T,RT,L,R,LD,D,RD} + 대각 SubGrass{LTRD|RTLD} = 길
+		-- (잔디→흙 전환 타일 — 흙 2서브셀. 잔디 요구 자원 스폰 억제 대상).
 		-- FullGrass(중앙)와 Grass{..}Corner(오목 모서리 노치)는 잔디로 취급하므로 제외한다.
 		if name == nil or name == "FullGrass" then return false end
+		if string.sub(name, 1, 8) == "SubGrass" then return true end
 		if string.sub(name, 1, 5) ~= "Grass" then return false end
 		if string.sub(name, -6) == "Corner" then return false end
 		return true
