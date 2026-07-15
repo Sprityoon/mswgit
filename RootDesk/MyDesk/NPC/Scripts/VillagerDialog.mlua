@@ -1,0 +1,230 @@
+@Component
+script VillagerDialog extends Component
+	-- T56: 마을 주민 F 대화 + 선택 자동 혼잣말. ChatBalloonComponent 말풍선 미러.
+	-- dialog-package는 화면 UI 타이프라이터형이라 월드 말풍선 요구에 부적합 → 자작.
+
+	property string NpcId = "elder"
+	property number InteractRange = 3.0
+	property number BalloonDuration = 4.0
+	property number AutoTalkInterval = 15.0
+	property number AutoTalkRange = 6.0
+	property number AutoTalkAccum = 0
+	property any keyHandler = nil
+	property any balloonClearTimer = nil
+
+	method void OnBeginPlay()
+		-- 클라 입력 구독 + 서버 자동 혼잣말 타이머 준비.
+		if self:IsClient() then
+			self.Entity:ConnectEvent(TouchEvent, self.OnTouch)
+			self.keyHandler = _InputService:ConnectEvent(KeyDownEvent, self.OnKeyDown)
+			log("[T56][DIALOG] client ready npc=" .. tostring(self.NpcId))
+		end
+		if self:IsServer() then
+			self.AutoTalkAccum = 0
+			log("[T56][DIALOG] server ready npc=" .. tostring(self.NpcId))
+		end
+	end
+
+	method void OnEndPlay()
+		-- 핸들러·타이머 정리.
+		if self:IsClient() and self.keyHandler ~= nil then
+			_InputService:DisconnectEvent(KeyDownEvent, self.keyHandler)
+			self.keyHandler = nil
+		end
+		if self.balloonClearTimer ~= nil then
+			_TimerService:ClearTimer(self.balloonClearTimer)
+			self.balloonClearTimer = nil
+		end
+	end
+
+	method void OnUpdate(number delta)
+		-- 서버: 근처 플레이어 있을 때만 주기 자동 혼잣말.
+		if not self:IsServer() then return end
+		local interval = self.AutoTalkInterval
+		if interval <= 0 then return end
+		self.AutoTalkAccum = self.AutoTalkAccum + delta
+		if self.AutoTalkAccum < interval then return end
+		self.AutoTalkAccum = 0
+		if not self:HasNearbyPlayer(self.AutoTalkRange) then return end
+		local text = self:PickDialogText(true)
+		if text ~= "" then
+			self:ShowBalloon(text, "auto")
+		end
+	end
+
+	@ExecSpace("ClientOnly")
+	method void OnTouch(TouchEvent event)
+		-- 터치 상호작용.
+		local localPlayer = _UserService.LocalPlayer
+		if not isvalid(localPlayer) then return end
+		local dist = self:GetDistanceToPlayer(localPlayer)
+		if dist > self.InteractRange then return end
+		self:RequestTalk()
+	end
+
+	@ExecSpace("ClientOnly")
+	method void OnKeyDown(KeyDownEvent event)
+		-- F 키 상호작용 (MerchantInteract 패턴).
+		if event.key ~= KeyboardKey.F then return end
+		local localPlayer = _UserService.LocalPlayer
+		if not isvalid(localPlayer) then return end
+		local dist = self:GetDistanceToPlayer(localPlayer)
+		if dist > self.InteractRange then return end
+		self:RequestTalk()
+	end
+
+	@ExecSpace("ClientOnly")
+	method void RequestTalk()
+		-- 서버에 대화 요청.
+		self:ServerRequestTalk()
+	end
+
+	@ExecSpace("Server")
+	method void ServerRequestTalk()
+		-- F/터치 대화: 시간대·날씨 필터 후 Weight 추첨 → 말풍선.
+		local text = self:PickDialogText(false)
+		if text == "" then
+			log_warning("[T56][DIALOG] no dialog row npc=" .. tostring(self.NpcId))
+			return
+		end
+		self:ShowBalloon(text, "interact")
+	end
+
+	method boolean HasNearbyPlayer(number range)
+		-- 맵 내 플레이어가 range 이내인지.
+		local map = self.Entity.CurrentMap
+		if not isvalid(map) or map.MapComponent == nil then return false end
+		local players = _UserService:GetUsersByMapComponent(map.MapComponent)
+		if players == nil then return false end
+		for _, player in pairs(players) do
+			if isvalid(player) then
+				local d = self:GetDistanceToPlayer(player)
+				if d <= range then return true end
+			end
+		end
+		return false
+	end
+
+	method number GetDistanceToPlayer(Entity player)
+		-- 월드 거리.
+		if not isvalid(player) then return 9999 end
+		local myPos = self.Entity.TransformComponent.WorldPosition
+		local playerPos = player.TransformComponent.WorldPosition
+		return Vector2.Distance(Vector2(myPos.x, myPos.y), Vector2(playerPos.x, playerPos.y))
+	end
+
+	method string GetTimeBand()
+		-- PersistenceManager.IsNight 읽기 전용 → day|night.
+		local night = false
+		if _PersistenceManager ~= nil then
+			local ok, v = pcall(function() return _PersistenceManager:IsNight() end)
+			if ok and v == true then night = true end
+		end
+		if night then return "night" end
+		return "day"
+	end
+
+	method string GetWeatherId()
+		-- WeatherManager @Sync 읽기 전용.
+		if _WeatherManager == nil then return "clear" end
+		local ok, wid = pcall(function() return _WeatherManager:GetCurrentWeatherId() end)
+		if ok and wid ~= nil and tostring(wid) ~= "" then return tostring(wid) end
+		local ok2, syncId = pcall(function() return _WeatherManager.CurrentWeatherId end)
+		if ok2 and syncId ~= nil and tostring(syncId) ~= "" then return tostring(syncId) end
+		return "clear"
+	end
+
+	method string PickDialogText(boolean autoOnly)
+		-- DialogDataSet에서 NpcId+TimeBand+WeatherId 필터 후 Weight 추첨.
+		local ds = _DataService:GetTable("DialogDataSet")
+		if ds == nil then
+			log_warning("[T56][DIALOG] DialogDataSet missing")
+			return ""
+		end
+		local npcId = self.NpcId or ""
+		local band = self:GetTimeBand()
+		local weather = self:GetWeatherId()
+		local rows = ds:GetAllRow()
+		if rows == nil then return "" end
+
+		local pool = {}
+		local totalW = 0
+		for _, row in ipairs(rows) do
+			local id = row:GetItem("NpcId") or ""
+			if id == npcId then
+				local tb = row:GetItem("TimeBand") or "any"
+				if tb == "" then tb = "any" end
+				local okWeather = true
+				local wId = ""
+				local okW, rawW = pcall(function() return row:GetItem("WeatherId") end)
+				if okW and rawW ~= nil then wId = tostring(rawW) end
+				if wId ~= "" and wId ~= weather then okWeather = false end
+				local timeOk = (tb == "any" or tb == band)
+				if timeOk and okWeather then
+					local w = tonumber(row:GetItem("Weight")) or 0
+					if w > 0 then
+						local text = row:GetItem("Text") or ""
+						if text ~= "" then
+							table.insert(pool, { text = tostring(text), w = w })
+							totalW = totalW + w
+						end
+					end
+				end
+			end
+		end
+
+		if totalW <= 0 or #pool == 0 then
+			log("[T56][DIALOG] empty pool npc=" .. npcId
+				.. " band=" .. band
+				.. " weather=" .. weather
+				.. " auto=" .. tostring(autoOnly))
+			return ""
+		end
+
+		local rng = _UtilLogic:RandomDouble() * totalW
+		local acc = 0
+		local chosen = pool[1].text
+		for _, e in ipairs(pool) do
+			acc = acc + e.w
+			if rng <= acc then
+				chosen = e.text
+				break
+			end
+		end
+		log("[T56][DIALOG] pick npc=" .. npcId
+			.. " band=" .. band
+			.. " weather=" .. weather
+			.. " text=" .. chosen)
+		return chosen
+	end
+
+	method void ShowBalloon(string text, string reason)
+		-- ChatBalloonComponent.Message + ShowDuration (월드 말풍선).
+		local balloon = self.Entity.ChatBalloonComponent
+		if not isvalid(balloon) then
+			log_warning("[T56][DIALOG] ChatBalloonComponent missing on " .. tostring(self.Entity.Name))
+			return
+		end
+		local dur = self.BalloonDuration
+		if dur < 1 then dur = 3 end
+		if dur > 5 then dur = 5 end
+		balloon.ShowDuration = dur
+		balloon.Message = text
+		log("[T56][DIALOG] balloon npc=" .. tostring(self.NpcId)
+			.. " reason=" .. tostring(reason)
+			.. " dur=" .. tostring(dur)
+			.. " msg=" .. text)
+
+		if self.balloonClearTimer ~= nil then
+			_TimerService:ClearTimer(self.balloonClearTimer)
+			self.balloonClearTimer = nil
+		end
+		self.balloonClearTimer = _TimerService:SetTimerOnce(function()
+			if isvalid(self.Entity) and isvalid(self.Entity.ChatBalloonComponent) then
+				self.Entity.ChatBalloonComponent.Message = ""
+			end
+			self.balloonClearTimer = nil
+		end, dur + 0.1)
+	end
+
+end

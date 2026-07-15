@@ -1,0 +1,210 @@
+@Logic
+script BGMManager extends Logic
+	-- T55: 맵 kind별 BGM + 날씨 앰비언스 (클라 로컬 연출). WeatherManager/PlayerController 무수정.
+
+	property number PollIntervalSec = 0.5
+	property number AccumSec = 0
+	property string CurrentMapKind = ""
+	property string CurrentBgmRUID = ""
+	property number CurrentBgmVolume = 0.5
+	property string CurrentAmbienceRUID = ""
+	property number AmbienceVolume = 0.35
+	property boolean Started = false
+
+	method void OnBeginPlay()
+		-- 클라 전용 기동. 서버는 무동작.
+		if not self:IsClient() then return end
+		self.Started = true
+		self.AccumSec = 0
+		log("[T55][BGM] BGMManager client OnBeginPlay — poll=" .. tostring(self.PollIntervalSec))
+		self:TickAudio(true)
+	end
+
+	method void OnEndPlay()
+		-- 재생 중 BGM/앰비언스 정리.
+		if not self:IsClient() then return end
+		self:StopAmbience()
+		if _SoundService ~= nil then
+			_SoundService:StopBGM(true)
+		end
+		self.CurrentBgmRUID = ""
+		self.CurrentMapKind = ""
+		self.Started = false
+		log("[T55][BGM] BGMManager client OnEndPlay — stopped")
+	end
+
+	method void OnUpdate(number delta)
+		-- 주기 폴링: LocalPlayer.CurrentMap + WeatherManager @Sync 구독(읽기).
+		if not self:IsClient() then return end
+		if not self.Started then return end
+		self.AccumSec = self.AccumSec + delta
+		local interval = self.PollIntervalSec
+		if interval < 0.1 then interval = 0.1 end
+		if self.AccumSec < interval then return end
+		self.AccumSec = 0
+		self:TickAudio(false)
+	end
+
+	method void TickAudio(boolean force)
+		-- BGM + 앰비언스 1틱 갱신.
+		self:UpdateBGM(force)
+		self:UpdateAmbience(force)
+	end
+
+	method string ClassifyMapKind(string mapName)
+		-- T37 규약 확장: Home_=home / town=town / boss 템플릿 계열=boss / 그 외=field.
+		if mapName == nil or mapName == "" then return "home" end
+		if string.sub(mapName, 1, 5) == "Home_" then return "home" end
+		if mapName == "town" then return "town" end
+		if mapName == "template_boss" then return "boss" end
+		local lower = string.lower(mapName)
+		if string.find(lower, "boss", 1, true) ~= nil then return "boss" end
+		return "field"
+	end
+
+	method string GetLocalMapName()
+		-- 로컬 플레이어 현재 맵 이름.
+		local player = _UserService.LocalPlayer
+		if not isvalid(player) then return "" end
+		if not isvalid(player.CurrentMap) then return "" end
+		return player.CurrentMap.Name or ""
+	end
+
+	method void UpdateBGM(boolean force)
+		-- MapKind 변화 시에만 BGM 전환. 같은 kind면 재시작 없음.
+		local mapName = self:GetLocalMapName()
+		if mapName == "" then return end
+		local kind = self:ClassifyMapKind(mapName)
+		if (not force) and kind == self.CurrentMapKind then return end
+
+		local bgmRuid = ""
+		local volume = 0.5
+		local fadeSec = 0
+		local ds = _DataService:GetTable("BGMDataSet")
+		if ds ~= nil then
+			local rows = ds:GetAllRow()
+			if rows ~= nil then
+				for _, row in ipairs(rows) do
+					local mk = row:GetItem("MapKind") or ""
+					if mk == kind then
+						local okR, r = pcall(function() return row:GetItem("BgmRUID") end)
+						if okR and r ~= nil then bgmRuid = tostring(r) end
+						local okV, v = pcall(function() return row:GetItem("Volume") end)
+						if okV and v ~= nil and tostring(v) ~= "" then
+							volume = tonumber(v) or volume
+						end
+						local okF, f = pcall(function() return row:GetItem("FadeSec") end)
+						if okF and f ~= nil and tostring(f) ~= "" then
+							fadeSec = tonumber(f) or 0
+						end
+						break
+					end
+				end
+			end
+		else
+			log_warning("[T55][BGM] BGMDataSet missing")
+		end
+
+		if bgmRuid == "" then
+			if self.CurrentBgmRUID ~= "" and _SoundService ~= nil then
+				_SoundService:StopBGM(true)
+			end
+			log("[T55][BGM] kind=" .. kind .. " map=" .. mapName .. " — empty BgmRUID, silent"
+				.. " (FadeSec ignored, no fade API; fadeSecCsv=" .. tostring(fadeSec) .. ")")
+			self.CurrentMapKind = kind
+			self.CurrentBgmRUID = ""
+			self.CurrentBgmVolume = volume
+			return
+		end
+
+		-- 같은 RUID면 kind만 갱신(재시작 금지). force여도 동일 곡이면 스킵.
+		if (not force) and bgmRuid == self.CurrentBgmRUID and kind == self.CurrentMapKind then
+			return
+		end
+		if force and bgmRuid == self.CurrentBgmRUID and _SoundService ~= nil and _SoundService:IsPlayBGM() then
+			self.CurrentMapKind = kind
+			return
+		end
+
+		if _SoundService == nil then
+			log_warning("[T55][BGM] _SoundService nil")
+			return
+		end
+
+		-- SoundService에 페이드 전환 API 없음 → 즉시 Stop+Play (FadeSec은 데이터 예약, 런타임 미사용).
+		_SoundService:StopBGM(true)
+		_SoundService:PlayBGM(bgmRuid, volume)
+		log("[T55][BGM] play kind=" .. kind
+			.. " map=" .. mapName
+			.. " ruid=" .. bgmRuid
+			.. " vol=" .. tostring(volume)
+			.. " fadeSecCsv=" .. tostring(fadeSec)
+			.. " (immediate switch, no fade API)")
+
+		self.CurrentMapKind = kind
+		self.CurrentBgmRUID = bgmRuid
+		self.CurrentBgmVolume = volume
+	end
+
+	method void UpdateAmbience(boolean force)
+		-- WeatherManager @Sync 읽기 전용 → WeatherDataSet.AmbienceSoundRUID 루프 재생.
+		local weatherId = "clear"
+		if _WeatherManager ~= nil then
+			local ok, wid = pcall(function() return _WeatherManager:GetCurrentWeatherId() end)
+			if ok and wid ~= nil and tostring(wid) ~= "" then
+				weatherId = tostring(wid)
+			else
+				local ok2, syncId = pcall(function() return _WeatherManager.CurrentWeatherId end)
+				if ok2 and syncId ~= nil and tostring(syncId) ~= "" then
+					weatherId = tostring(syncId)
+				end
+			end
+		end
+
+		local ambRuid = ""
+		local ds = _DataService:GetTable("WeatherDataSet")
+		if ds ~= nil then
+			local rows = ds:GetAllRow()
+			if rows ~= nil then
+				for _, row in ipairs(rows) do
+					local id = row:GetItem("WeatherId") or ""
+					if id == weatherId then
+						local okA, a = pcall(function() return row:GetItem("AmbienceSoundRUID") end)
+						if okA and a ~= nil then ambRuid = tostring(a) end
+						break
+					end
+				end
+			end
+		end
+
+		if ambRuid == "" then
+			if self.CurrentAmbienceRUID ~= "" then
+				self:StopAmbience()
+				log("[T55][AMB] weather=" .. weatherId .. " ambience off")
+			end
+			return
+		end
+
+		if (not force) and ambRuid == self.CurrentAmbienceRUID then return end
+
+		if self.CurrentAmbienceRUID ~= "" and self.CurrentAmbienceRUID ~= ambRuid then
+			self:StopAmbience()
+		end
+
+		if _SoundService == nil then return end
+		_SoundService:PlayLoopSound(ambRuid, self.AmbienceVolume)
+		self.CurrentAmbienceRUID = ambRuid
+		log("[T55][AMB] weather=" .. weatherId
+			.. " ambience on ruid=" .. ambRuid
+			.. " vol=" .. tostring(self.AmbienceVolume))
+	end
+
+	method void StopAmbience()
+		-- 현재 앰비언스 루프 정지.
+		if self.CurrentAmbienceRUID ~= "" and _SoundService ~= nil then
+			_SoundService:StopSound(self.CurrentAmbienceRUID)
+		end
+		self.CurrentAmbienceRUID = ""
+	end
+
+end

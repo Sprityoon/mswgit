@@ -657,14 +657,23 @@ graph TD
 - [x] **16-B 원작 스킬 리소스 & 기초 세트** (T46 — 코드 완료·Play 확인 2026-07-14): 원작 스킬 팩 4종 매핑(파워 스트라이크/매직 클로/플래시 점프/슬래시 블러스트) + IconRUID/SoundRUID 컬럼 + 시전 이펙트/사운드. **내부 SkillId 유지(세이브 호환)**. 패시브 2종 placeholder. ⚖️ 공식 소스 조사(2026-07-14): MSWPackages 29종 전수 — **스킬 시스템 패키지 없음**, 원작 리소스+`_EffectService` 재생이 곧 공식 방식(=T46 채택 방식). 자작 트리 인프라 유지.
 - [x] **16-A′ 스킬트리 UX 보강** (T47+T48+T50 — **제작자 Play 점검 완료 2026-07-14**, 일부 스킬 수정 사항은 후속. 최종 형태 = 노드 아이콘 칩+Lv 뱃지 / 상세는 우측 사이드 패널(T50 ⚖️) / HUD 버튼·EquipBar 정리(T48)): ① 노드 클릭=SP 즉시 투자 결함 분리 — 클릭은 선택/상세만, 투자는 [레벨업] 버튼으로 ② 스킬트리 여는 HUD 버튼 신설(⚖️ 보스 확정 — 온스크린 시전 버튼/모바일은 범위 밖, 후속 후보 key-binding-package). **코드 완료·지휘자 검수 통과 2026-07-14(refresh Error=0 · §7 루브릭 8/8) — Play 대기(제작자, 체크리스트 `reports/T47-skill-tree-ux.md` §6).** 제작자 Play 피드백(HUD 버튼이 미니맵과 겹침 · EquipBar [레벨업] 저대비 박스가 Q 칩 밀착) → 비주얼 후속 **T48**(배치 C 선두 편입 ⚖️ 2026-07-14). T48 결과: HUD·EquipBar 정리 완료(캡처 검수 PASS), 노드 내 텍스트 배치는 2연속 실패 → **⚖️ 2026-07-14 보스 확정: 노드=아이콘만(+Lv 뱃지), 상세=우측 사이드 패널(Description 첫 노출) = T50**.
 - ⏳ **16-C 직업/전직 (예약 — 티켓 미발행)**: `JobId` 컬럼 예약(공란=초보자 공용) / 직업 선택·전직 퀘스트(quest-achievement 패키지 재사용)·직업별 트리 탭·상위 스킬군. 16-A/B 안착 후 기획 확정. **선행 구조 설계 확정(⚖️ 2026-07-14 보스 지시): [skill-tree-plan.md §7](./docs/design/skill-tree-plan.md)** — 데이터 계약(`JobId`/탭 로컬 좌표/`RewardJobId` 훅)·UI 확장 경로(T42 칩 탭 재사용 → 팝업 확장 → 스크롤 순) 고정, 기존 세이브·6스킬 무마이그레이션 원칙.
+- [x] **16-D 트리 위상 시각화 & 연계 강화** (T58 — **Play PASS 2026-07-15**, 피드백: 연결선 흐릿 → T60 선명화. ⚖️ 2026-07-15 보스 지시, 레퍼런스 = 핀터레스트 D&D식 계보 트리. 설계: [skill-tree-plan.md §8](./docs/design/skill-tree-plan.md)): 계보·게이트는 S2부터 존재 — 간극만 해소: ① `ParentRequiredLevel` 컬럼 신설(부모 Lv N 도달 시 자식 해금 — "연계 강화") ② 노드 사이 연결선 렌더(상태별 색: dim/해금 가능 금색/보유 실선 — `ParentSkillId` 파생, 하드코딩 금지) ③ 상세 패널 선행 조건 표시. **단순성 가드라인 §8.3**(단일 부모·같은 열 인접 행만·3행×3열 상한 — ⚖️ "복잡한 구조 거부"). 위상 재편·스킬 추가 없음(세이브 호환). 착수 게이트: T54 Play 확인 후(`PopupGroup.ui` 공유).
 
 ### Phase 17: 모바일 UX 정비 (⚖️ 2026-07-15 보스 지시 — 배치 H, handoff §3 T52→T53→T54)
 > HUD 버튼들은 모바일 배려 목적(⚖️ 보스 프레이밍). 축 = **QWER 스킬바의 모바일화**(터치 시전 + 우하단 재배치 + 스킬명 숨김·호버 툴팁) + HUD 터치 타겟 88px 정비 + 팝업 전수 정비(닫기 버튼 통일·가독). 지휘자 정적 실사 좌표는 handoff §3 상단 2026-07-15 메모.
 
-- [x] **17-A QWER 스킬바 모바일화** (T52 — 코드 완료 2026-07-15): 슬롯 `ButtonComponent`+`TryCastSlot` 터치 시전 / 스킬명 상시 노출 제거(공란 시 2글자 FallbackText) + PC 호버 `SkillTooltip`(Inventory Tooltip 아이덴티티 미러) / 모바일 `IsMobilePlatform()` 감지 시 bottom-right 88×88 재배치. `PlayerController` 무수정.
+- [x] **17-A QWER 스킬바 모바일화** (T52 — 코드 완료 2026-07-15): 슬롯 `ButtonComponent`+`TryCastSlot` 터치 시전 / 스킬명 상시 노출 제거(공란 시 2글자 FallbackText) + PC 호버 `SkillTooltip`(Inventory Tooltip 아이덴티티 미러) / 모바일 `IsMobilePlatform()` 감지 시 bottom-right 88×88 재배치. `PlayerController` 무수정. **→ ⚖️ 2026-07-15 보스 확정(정책 전환): PC/모바일 레이아웃 분기 폐기 — 전 플랫폼 공통 고정 우하단 배치(T62)로 대체. 클릭 시전·이름 숨김·툴팁은 존치.**
 - [x] **17-B HUD 터치 타겟·정합** (T53 — 코드 완료 2026-07-15): MobileUI 버튼 75→88px 승격(pitch 104) / UIMyInfo bottom-center 대각 오프셋 → top-left 앵커 등가 정합 + `ActivePlatform=255` 명시 / QuickSlots 시각 72 유지·hit만 88. 컨트롤러 경로 무변경.
 - [x] **17-C 팝업 전수 정비** (T54 — 코드 완료 2026-07-15): 12개 팝업 전수 실사 — BtnClose는 전부 기존 존재(주로 `Bg/` 하위), 히트 88×88로 통일 / FurnacePopup 루트를 1920×1080→600×500(콘텐츠 정합) / 본문 폰트 다수 20→24 승격, 밀도 UI(탭·칩·그리드)는 후속 티켓 후보로 표기만. SkillTree 레이아웃 재편 없음(닫기만).
-- 배치 H 3건 공통: refresh 빌드 **Error=0**(total 492 / Warning 17 / Info 475), ui-aesthetics §7 루브릭 8/8, **Play 런타임 검증 보류(제작자 수행)** — 체크리스트는 각 보고서 §6.
+- [ ] **17-D 클릭 상호작용 전면 제거 + 경로 일원화** (T59 — ⚖️ 2026-07-15 보스 지시: "클릭 상호작용 모두 제거 — UI 창과 클릭이 겹쳐 불편"): 월드 `TouchEvent` 7곳(침대/보물상자/게시판/연구소/상점NPC/주민NPC/낚시 리더보드) 제거 — 상호작용 = **F 키(PC) / BtnInteract(모바일)만**. 🔴 동반 필수: 모바일 `OnInteractButton()`이 포탈+화로만 커버하던 것을 F 브랜치와 동일 커버리지로 통일(`TryInteract()` 추출) + 분산 F 핸들러 5종은 클라 커스텀 이벤트(`InteractRequestEvent`) 브리지 — 월드 터치가 모바일의 사실상 유일 수단이던 대상들의 파손 방지.
+- 배치 H 3건 공통: refresh 빌드 **Error=0**(total 492 / Warning 17 / Info 475), ui-aesthetics §7 루브릭 8/8, **Play 런타임 검증 보류(제작자 수행)** — 체크리스트는 각 보고서 §6. **지휘자 검수 통과 2026-07-15**(보고 3종·커밋 f392075 정합·스팟 코드 대조 — handoff §3 실행 계획 2026-07-15 2차).
 - (인프라) **T51 지형 대각 타일** — 완료 2026-07-15(§3.5 지형 불릿 참조). **.ui 스테일 저장 사고 규칙** — handoff §1.2 규칙 11.
+
+### Phase 18: 소리와 사람 — 사운드 · 마을 생활감 · 주간 경쟁 (🧭 2026-07-15 지휘자 발행, ⚖️ 보스 자유 위임 — 배치 I, handoff §3 T55→T56→T57)
+> 지휘자 실사: 게임 전체에 BGM/앰비언스 **전무**(`_SoundService` 참조가 PlayerController 1곳뿐) — 최대 미개척 몰입 축. 축 = ① 맵 종류별 BGM + 날씨 앰비언스(데이터 주도) ② 마을 주민 NPC 대화 말풍선(시간대·날씨 반응 — 공동 마을=커뮤니티 허브 컨셉 강화) ③ 주간 낚시왕 리더보드(15-D "오늘의 의뢰" 철학의 주간판 — 전 서버 공통 경쟁). 셋 다 Play 대기 레인(배치 H UI 파일·T19/T23 인벤 축·PlayerController) **무접촉 설계** — 재작업 충돌 없이 즉시 착수 가능.
+
+- [ ] **18-A 사운드 파운데이션** (T55): 신규 `BGMDataSet`(MapKind별 BGM — home/town/field/boss) + 클라 `BGMManager`(맵 전환 감지, kind 판정=T37 규약 재사용) + `WeatherDataSet.AmbienceSoundRUID`(비 루프 — T21 @Sync 읽기 구독). 음원=msw-search 공식 리소스. 볼륨 설정 UI는 후속.
+- [ ] **18-B 마을 NPC 생활감** (T56): 주민 2인(촌장/낚시꾼) + `DialogDataSet`(TimeBand/WeatherId/Weight 필터 — 대사 추가=CSV 행) + F 대화 머리 위 말풍선(+선택: 자동 혼잣말). R1: dialog 패키지 확인 우선. 기존 `MerchantInteract` 상호작용 선례 미러.
+- [ ] **18-C 주간 낚시왕** (T57): `FishDataSet.RankPoints` + 어획 시 주간 점수 적립(week index=15-D day index 패턴 미러) + ranking/leaderboard 패키지 리더보드 + 주간 리셋. **v1 보상 없음**(보상 지급은 PlayerInventory Play 대기 해소 후 후속 티켓).
 
 

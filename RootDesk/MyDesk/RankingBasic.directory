@@ -1,0 +1,23 @@
+{
+  "Id": "",
+  "GameId": "",
+  "EntryKey": "directory://ce22be0eec984f30ba72be5039df8337",
+  "ContentType": "x-mod/directory",
+  "Content": "",
+  "Usage": 0,
+  "UsePublish": 1,
+  "UseService": 0,
+  "CoreVersion": "26.5.0.0",
+  "StudioVersion": "",
+  "DynamicLoading": 0,
+  "ContentProto": {
+    "Use": "Json",
+    "Json": {
+      "entry_id": "directory://ce22be0eec984f30ba72be5039df8337",
+      "name": "RankingBasic",
+      "lock": false,
+      "folding": false,
+      "nameEditable": true
+    }
+  }
+}

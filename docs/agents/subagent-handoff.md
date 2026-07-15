@@ -138,6 +138,34 @@
 > - **📱 배치 H 발행 (T52 → T53 → T54 — 단일 에이전트 순차, 셋 다 UI 레인)**: 모바일 UX 정비. 지휘자 정적 실사(UIBuilder 읽기 API — 아래 실측 좌표) 기반. 소유: `ui/HUDGroup.ui`·`ui/PopupGroup.ui`(UIBuilder), `UI/Scripts/UISkillBarController.mlua`·`UIHUDController.mlua`(+T54에서 팝업 컨트롤러 확인만). ⚠️ `PlayerController.mlua` 수정 금지 — 시전은 기존 `TryCastSlot` 재사용(L1864 확인 완료), 부족하면 [보류]+질문.
 > - **지휘자 실사 메모 (2026-07-15, 복구 후 기준)**: HUD = BtnCollection(-74,-130)·BtnSkillTree(-74,-196) top-right 128×56 / Minimap top-right(-216,-15) 166×166 / QuickSlots bottom-center(0,55) 800×80 슬롯 72×72 / SkillBar bottom-center(0,142) 420×84 슬롯 72×72(Key 28×26·Name 70×22·Icon 40×40) — **슬롯에 ButtonComponent 없음(모바일 시전 불가)** / MobileUI(stretch, plat=All): BtnBag(-85,295)·BtnCraft(-175,295)·BtnInfo(-265,295) 75×75, BtnInteract(-261,164) 75×75, BtnJump(-248.5,66) 85×85, BtnMine(-130,130) 110×110, UIJoystick bottom-left(180,220) 200×200 — **UIHUDController에 플랫폼 분기 없음(전 플랫폼 노출·의도 유지)** / UIMyInfo bottom-center 앵커인데 pos(-746,984)=사실상 좌상단(앵커 관례 위반) + **ActivePlatform 필드 자체 누락(undefined)** / 팝업 루트 전부 middle-center ✓, BtnClose 48~50px(<88 터치 미달), ChestPopup·FurnacePopup·PermissionPopup·RequestPopup·ResearchPopup·ShopPopup·WarpPopup은 depth2에 BtnClose 미확인(전수 확인 필요), FurnacePopup만 루트 1920×1080 + en=true(타 팝업과 구조 불일치), InventoryPopup/Tooltip(240×270)=호버 툴팁 기존 패턴.
 
+> 🧭 **실행 계획 갱신 (지휘자 2026-07-15 — 2차: 배치 H 검수 통과 · 배치 I 발행)**
+> - **✅ 배치 H(T52·T53·T54) 지휘자 검수 통과** — 보고 3종 완비 · refresh **Error=0**(total 492/W17/I475) · §7 루브릭 · 커밋 f392075 파일 목록과 보고 내용 1:1 정합(T53·T54 "컨트롤러 무수정" 주장 = diff에 해당 .mlua 부재로 실증). 스팟 코드 대조: `_Environment:IsMobilePlatform()` 정의 실존(`Environment/NativeScripts/Misc/Environment.d.mlua` L25 — 규칙 8 이행) · `UISkillBarController`의 `TryCastSlot` 재사용+nil 가드+OnEndPlay Disconnect 확인 · `UIFurnaceController`는 원래 `self.Entity.Enable` 토글 패턴(L28/L64/L104)이라 T54 루트 정합 회귀 위험 낮음. 상태 유지 = [코드 완료 | Play 대기].
+> - **잔여 Play 대기 = 8건: T27 · T19 · T23 · T49(아트 육안) · T51(손조작 육안) · T52 · T53 · T54** — 체크리스트는 각 보고서 §6. T27은 퀘스트 107 미완료 캐릭터로 확인.
+> - 스테일 저장 백업 stash(`maker-stale-ui-rollback-backup`)는 stash 목록에 부재 — 드롭 완료로 확인. 잔여 stash 2건(구형 WIP, 169df35·60fe9c2 기반)은 가치 확인 후 정리 후보(제작자 판단).
+> - **🔊 배치 I 발행 (🧭 2026-07-15 지휘자 — ⚖️ 보스 "자유 상상" 위임 접수. 테마: 소리와 사람, 단일 에이전트 순차)**: **T55(사운드 파운데이션) → T56(마을 NPC 대화) → T57(주간 낚시왕)**. 발행 근거 실사: `_SoundService` 참조가 `PlayerController.mlua` 1곳뿐 — **게임 전체에 BGM/앰비언스 전무**(최대 미개척 몰입 축). NPC 레인은 기존 존재(`NPC/Models/Merchant.model`+`MerchantInteract.mlua` — 재사용 출발점). 소유: 신규 `Sound/` 레인 · `NPC/`(신규 파일 추가) · `Weather/DataSets/WeatherDataSet.csv`(컬럼 추가) · `item/DataSets/FishDataSet.csv`(컬럼 추가) · `Furniture/Scripts/FishingSpot.mlua`(훅 최소) · `map/town.map` — 전부 Play PASS 산출물 또는 신규. ⚠️ **Play 대기 레인 수정 절대 금지**: `ui/HUDGroup.ui`·`ui/PopupGroup.ui`·`UISkillBarController.mlua`(배치 H) / `PersistenceManager`·`PlayerInventory`·`itemreact`·`item_dataset.csv`(T19·T23) / `PlayerController.mlua`. 필요해 보이면 [보류]+질문.
+> - **대기 중인 보스 지시**: 스킬트리 Play 점검(2026-07-14)에서 예고된 "일부 스킬 수정 희망 사항" — 상세 접수 시 티켓화. Phase 16-C(전직)는 예약 유지.
+>
+> 🧭 **실행 계획 갱신 (지휘자 2026-07-15 — 3차: 스킬트리 트리 위상화 T58 발행)**
+> - **⚖️ 보스 지시 접수(2026-07-15)**: 스킬트리를 핀터레스트 레퍼런스(pin 15410823722566608 "Dnd Mysticism Build 35" — D&D식 계보 트리)처럼 **말 그대로 트리 형식**으로 — **연계 스킬 강화 과정** 필수, **복잡한 구조는 거부**. (2026-07-14 예고분 "일부 스킬 수정 희망 사항"의 상세로 접수.)
+> - **지휘자 실사 결론**: 계보 데이터(`ParentSkillId` — 3계열: 전투 3연쇄/이동/채집 2연쇄)와 서버 게이트(PlayerController L2110~)는 **이미 존재**. 간극 = ① 게이트가 "부모 Lv≥1"뿐(강화 연계 깊이 없음) ② UI에 연결선이 없어 트리로 안 보임. 노드는 `.ui` 정적 슬롯(`Node_<r>_<c>`) 바인딩 방식 — 커넥터도 프리플레이스가 최단·최저위험. **위상 재편·스킬 추가 불필요**(세이브·밸런스 무변경). 설계 확정 = [skill-tree-plan.md §8](../design/skill-tree-plan.md).
+> - **T58 발행(단일 에이전트·단일 티켓)**. 소유: `Player/DataSets/SkillDataSet.csv`(+userdataset), `Player/Scripts/PlayerController.mlua`(게이트 ① 확장 ~5줄), `UI/Scripts/UISkillTreeController.mlua`, `ui/PopupGroup.ui` SkillTreePopup 서브트리(UIBuilder). **착수 게이트: T54 Play 확인 후**(`ui/PopupGroup.ui` 재작업 충돌 방지 — 보스가 리스크 수용을 명시하면 즉시 가능). 배치 I(T55~T57)와 파일 무겹침 — **병렬 레인 가능**. *(→ 4차 갱신: T59와 PlayerController 공유로 게이트에 "T59 완료 후" 추가.)*
+>
+> 🧭 **실행 계획 갱신 (지휘자 2026-07-15 — 4차: 클릭 상호작용 전면 제거 T59 발행)**
+> - **⚖️ 보스 지시 접수(2026-07-15)**: "마을의 여러 요소들이 클릭으로 상호작용되어버림 — **클릭 상호작용 모두 제거**. UI 창과 클릭이 겹쳐 불편." → 상호작용 = F 키(PC) / BtnInteract(모바일)로 일원화.
+> - **지휘자 전량 실사**: 월드 `TouchEvent` 상호작용 = **7곳** — `Furniture_Bed`·`TreasureChest`·`BulletinBoard`·`ResearchLab`·`MerchantInteract`·`VillagerDialog`(T56 산출물)·`FishingLeaderboardInteract`(T57 산출물). `PlayerController.OnScreenTouch`(L1193)는 이미 빈 스텁(IsPointerOverUI 가드 포함) — 무해, 제거 불요. **🔴 함정 발견: 모바일 `BtnInteract`→`OnInteractButton()`(L1168)이 포탈+화로만 커버** — 침대/보물상자/보관함/상점/게시판/연구소 등은 월드 터치가 사실상 유일한 모바일 수단이었음. 단순 제거 시 모바일 상호작용 파손 → **모바일 패리티 보강을 T59에 통합**(OnInteractButton을 F 브랜치와 동일 커버리지로 + 분산 F 핸들러 5종은 클라 커스텀 이벤트 브리지).
+> - **순서 조정 (⚠️ 정정 — 4차 작성 직후 실사)**: 병렬 워커가 배치 I(T55~T57)를 완료하고 **T58까지 착수 게이트(T54 Play 확인)를 어기고 이미 완료**함. 지휘자 스팟 검수: 서버 게이트 diff(pcall 가드·기본 1 클램프·CSV Name 피드백)·CSV 컬럼(3/3/3) 스펙 정합 — **절차 위반 기록(게이트 무단 해제, §5 조항 위반은 아니나 티켓 게이트 불이행), 산출물은 수용**(반려 실익 없음 — 회귀는 제작자 통합 Play에서 판정). 이에 따라 **T59 착수 = 즉시 가능**(전 소유 파일 프리), 직전 "T58 순연" 문구는 무효. **잔여 Play 대기 = 12건: T27 · T19 · T23 · T49 · T51 · T52~T54 · T55~T58** — T59 완료 후 일괄 통합 Play 권장(클릭 제거가 T56/T57 체크리스트의 터치 항목을 무효화하므로).
+>
+> 🧭 **실행 계획 갱신 (지휘자 2026-07-15 — 5차: 제작자 1차 Play 결과 접수 · T52/T53 재실사 · T60/T61 발행)**
+> - **⚖️ 제작자 1차 Play 결과(2026-07-15)**: **T50 완료 ✓** / **T51 작동 확인 ✓**(피드백: 반응 약간 느림 → T61) / **T58 확인 ✓**(피드백: 연결선 흐릿 → T60) / **T52·T53 "아예 진행 안 된 것 같다"** / 나머지(T27·T19·T23·T49·T54·T55~T57) 미검증.
+> - **T52·T53 지휘자 재실사(UIBuilder 읽기 — `scratch/inspect_t52_t53_audit.cjs`)**: 산출물 **전부 실존·정합** — SkillTooltip 240×220(en=false 대기 상태)·SkillSlot1 ButtonComponent·Name en=false / MobileUI 4버튼 88×88·UIMyInfo AO=4(top-left)+AP=255·QuickSlots hit 88×88. 컨트롤러 코드(T52 마커·Name 숨김 L359·TryCastSlot 배선)도 온전. **가설**: 두 티켓 모두 **PC 화면에서는 의도적으로 변화가 거의 없음** — 모바일 재배치는 `IsMobilePlatform()=true`에서만 발동, UIMyInfo는 "시각 위치 유지"가 스펙, QuickSlots는 히트 영역만 확대. T52의 PC 가시 변화(스킬명 숨김·클릭 시전·호버 툴팁)까지 안 보였다면 세션 스테일(규칙 11 — refresh 전 Play) 가능성. **판정 보류 — 제작자 관찰 상세 대기.** Maker PC Play에서는 `IsMobilePlatform()`이 false일 가능성이 높아 **모바일 배치 검증 수단 부재**가 구조적 문제 — 해결 옵션(디버그 강제 토글 vs 실기기)은 보스 선택 후 티켓화.
+> - **T60 발행(즉시 착수 가능)**: 스킬트리 연결선 선명화 — T58 제작자 피드백.
+> - **T61 발행(지휘자 직접 — ⚖️ "지형 로직 위임 금지" 지시 연장)**: 지형 편집 반응 지연 진단. T51 변경 자체는 로직 순감(보정 2종 삭제)이라 신규 비용 없음 — 지연은 선재 파이프라인(도구 스윙 판정→서버 RPC→SetTile→클라 반영) 소행 가능성. execute_script+로그 타임스탬프 계측으로 구간 분해 후 개선안 보고.
+>
+> 🧭 **실행 계획 갱신 (지휘자 2026-07-15 — 6차: 보스 회신 접수 · ⚖️ 단일 레이아웃 확정 · T62 발행)**
+> - **⚖️ 보스 회신(2026-07-15)**: ① T52/T53 "미적용" 관찰의 정체 = **스킬바 위치·크기가 그대로** — 모바일 재배치를 기대한 것. 구현은 정상(PC 유지가 T52 스펙)이었으나 기대와 불일치로 판명. ② **⚖️ 정책 확정: PC/모바일 UI 레이아웃을 분기하지 않는다 — 단일 고정 레이아웃으로 통일.** 위치는 지휘자 제시안(우하단 엄지권 88px) 채택.
+> - **판정**: **T52 = 구현 정합 확인** — 단 런타임 플랫폼 분기부는 정책 전환으로 폐기 대상 → **T62가 대체**(클릭 시전·이름 숨김·툴팁은 존치). **T53 = 구현 정합 확인**(시각 무변화가 스펙 — UIMyInfo 위치 유지·hit만 확대, 제작자 안내 완료) — 통합 Play에서 최종.
+> - **T62 발행 + 병렬 2레인 편성**: **레인 1 = T59**(클릭 상호작용 제거 — PlayerController·월드 스크립트) / **레인 2 = T60 → T62**(UI 폴리시 — PopupGroup 링크 선명화 → HUDGroup 스킬바 고정 배치+UISkillBarController). 두 레인 파일 무겹침 — 동시 킥오프 가능.
+
 ### T4. [대기] 경계 테라스/절벽 아트 정리
 - **배경**: `TerraceTop`/`CliffFace`/`Big Wall`은 이전 스킴의 임시 아트 그대로다. 신규 grass 기준 아트와 톤이 안 맞을 수 있고, 상위 레이어 테라스 타일이 깔린 뒤 플레이어 아바타 SortingLayer 최종 판정도 미완(`docs/design/skill-tree-plan.md` §5 4번).
 - **Target**: `RootDesk/MyDesk/wall.tileset`(Maker에서 아트 교체) + 필요 시 `scripts/build_maps.cjs` 밴드/데코 페인팅
@@ -504,13 +532,13 @@
 - **구현 요약 (2026-07-14)**: 노드 76×76 칩(Icon 48+(0,4)/Lv bottom-right/FallbackText) · NameText·SubText 삭제 · 그리드 −230/−130/−30 × 190/90/−10 · SkillDetailPanel (170,90) 280×300 · DetailText 제거→RefreshDetailPanel · 호버=ButtonStateChangeEvent · 서버 무수정. §7 8/8 실측. 보고서: `docs/agents/reports/T50-skill-node-icon-detail-panel.md`.
 - **검증**: Maker refresh 빌드 **Error=0** (total 490 / Warning 17 / Info 473). **런타임 검증 보류(제작자 수행)**. T48 ⑨ 재시도 없음.
 
-### T51. [완료 — 지휘자 직접 수행 2026-07-15 | refresh Error=0 | Play 서버 재현 PASS(지휘자 로그 근거) | 손조작 육안 보류(제작자)] 지형 편집 대각 2칸 → SubGrass 전용 타일 (⚖️ 보스 직접 지시 — 위임 금지, 소급 정식화)
+### T51. [완료 — Play PASS(제작자 2026-07-15, 손조작 확인) | ⚠️ 피드백: 반응 약간 느림 → T61(지휘자 직접 진단) | 지휘자 직접 수행 | refresh Error=0] 지형 편집 대각 2칸 → SubGrass 전용 타일 (⚖️ 보스 직접 지시 — 위임 금지, 소급 정식화)
 
 - **배경**: 땅 파기에서 대각 양쪽이 파인 셀(마스크 6/9)을 표현할 타일이 없어 3칸 볼록 승격/1칸 오목 강등으로 "다른 타일 대체"되던 문제. 제작자가 `wall.tileset`에 `SubGrassLTRD`(6=TL+BR)·`SubGrassRTLD`(9=TR+BL) + `tileimg/` 아트 2장 추가, 로직은 보스 지시로 지휘자가 직접 수정.
 - **Target/Change/Acceptance 및 상세**: 보고서 `docs/agents/reports/T51-subgrass-diagonal-tiles.md` 참조 (§1.3 스킴 갱신 완료 — 대각=정식 표현, FixDiagonalMask 계열 폐기, 패밀리 15종).
 - **잔여**: 제작자 Play 손조작 육안(보고서 §6 체크리스트 — 특히 타일 아트 이음새 감성).
 
-### T52. [코드 완료 — 2026-07-15 | refresh Error=0 | 런타임 검증 보류(제작자 수행)] QWER 스킬바 모바일화 — 터치 시전 버튼 + 우하단 재배치 + 스킬명 호버 툴팁 (⚖️ 2026-07-15 보스 지시, 배치 H 선두)
+### T52. [코드 완료 | 판정 확정(6차): 구현 정합 — 제작자 관찰은 "PC에서 스킬바 그대로"(=스펙대로)였음. ⚖️ 정책 전환(단일 레이아웃)으로 런타임 플랫폼 분기부는 **T62가 대체**, 클릭 시전·이름 숨김·툴팁은 존치] QWER 스킬바 모바일화 — 터치 시전 버튼 + 우하단 재배치 + 스킬명 호버 툴팁 (⚖️ 2026-07-15 보스 지시, 배치 H 선두)
 
 - **배경**: ① SkillBar가 bottom-center 표시 전용(슬롯에 ButtonComponent 없음) — 모바일에서 스킬 시전 수단이 없다. QWER은 키보드 전제. ② 슬롯 하단 `Name`(70×22)에 풀 스킬명("[잠김] 파워 스트라이크" 등)을 대입해 우겨들어감(`UISkillBarController.UpdateSlots` L86~/L135~). ⚖️ 보스: **이름은 숨기고 마우스 호버 시에만 상세정보**.
 - **Target**: `ui/HUDGroup.ui`의 `SkillBar` 서브트리(**UIBuilder 경유**), `UI/Scripts/UISkillBarController.mlua`. **`PlayerController.mlua` 수정 금지** — 시전은 클라 진입점 `TryCastSlot(slotIndex)`(L1864, 지휘자 정의 확인 완료) 재사용.
@@ -524,7 +552,7 @@
 - **구현 요약 (2026-07-15)**: ButtonComponent+TryCastSlot · Name 숨김+FallbackText · SkillTooltip 호버 · 모바일 bar=(-235,395)/슬롯88 pitch100 · PlayerController 무수정. 보고서: `docs/agents/reports/T52-skillbar-mobile-touch.md`.
 - **검증**: Maker refresh 빌드 **Error=0** (total 492 / Warning 17 / Info 475). **런타임 검증 보류(제작자 수행)**.
 
-### T53. [코드 완료 — 2026-07-15 | refresh Error=0 | 런타임 검증 보류(제작자 수행)] HUD 모바일 정비 — 터치 타겟 88px·MobileUI 정렬·UIMyInfo 정합 (배치 H)
+### T53. [코드 완료 | 판정 확정(6차): 구현 정합 — 시각 무변화가 스펙(UIMyInfo 위치 유지·hit만 확대), 제작자 안내 완료. 통합 Play에서 최종] HUD 모바일 정비 — 터치 타겟 88px·MobileUI 정렬·UIMyInfo 정합 (배치 H)
 
 - **배경**: 지휘자 실사(§3 상단 2026-07-15 메모) — MobileUI 버튼 75×75(88px 미달), UIMyInfo가 bottom-center 앵커에 pos(-746,984)로 좌상단에 떠 있음(앵커 관례 위반 — 해상도 변화에 취약) + `ActivePlatform` 필드 자체 누락, QuickSlots 슬롯 72×72.
 - **Target**: `ui/HUDGroup.ui`(**UIBuilder 경유**), (확인만) `UI/Scripts/UIHUDController.mlua`·`UIMyInfoSimple.mlua`. 컨트롤러 로직 수정은 원칙 0 — 엔티티 경로/이름 절대 불변(컨트롤러가 `GetEntityByPath`로 참조).
@@ -552,6 +580,108 @@
 - **충돌 주의**: **배치 H 마지막** — T42~T50이 만진 `ui/PopupGroup.ui` 소유. SkillTreePopup은 T50 산출물 유지(레이아웃 재편 금지 — 닫기 버튼 기준만 적용).
 - **구현 요약 (2026-07-15)**: 12팝업 BtnClose 전부 존재 확인·88 hit 통일 · Furnace 루트 600×500 en=false · 본문 폰트 부분 승격 · 칩/탭 hit 후속 · 컨트롤러 무수정. 보고서: `docs/agents/reports/T54-popup-mobile-close-audit.md`.
 - **검증**: Maker refresh 빌드 **Error=0** (total 492 / W17 / I475). **런타임 검증 보류(제작자 수행)**.
+
+### T55. [코드 완료 — 2026-07-15 | refresh Error=0 | 런타임 검증 보류(제작자 수행)] 사운드 파운데이션 — 맵별 BGM + 날씨 앰비언스 (Phase 18-A, 배치 I 선두) — 🧭 2026-07-15 지휘자 발행(⚖️ 보스 자유 위임)
+
+- **배경**: 게임 전체에 배경음악·환경음이 전무 — `_SoundService` 참조는 `PlayerController.mlua` 1곳뿐(지휘자 실사 2026-07-15). 아늑한 생활 톤(Phase 15 기조)에서 소리는 최대 미개척 몰입 축.
+- **Target**: 신규 `RootDesk/MyDesk/Sound/Scripts/BGMManager.mlua`, 신규 `RootDesk/MyDesk/Sound/DataSets/BGMDataSet.csv`(+`.userdataset`), `RootDesk/MyDesk/Weather/DataSets/WeatherDataSet.csv`(`AmbienceSoundRUID` 컬럼 추가 — T21 산출물, Play PASS라 안전). 디렉터리 신설은 [directory-structure.md](./directory-structure.md) 준수(기존 `Weather/` 레인 구조 미러).
+- **Change**:
+  ① **BGMDataSet**: `MapKind(home|town|field|boss)` / `BgmRUID` / `Volume` / `FadeSec`(페이드 API 없으면 즉시 전환+보고). 음원은 msw-search 공식 리소스 1순위 — 톤 가이드: 잔잔한 목가(home·town) / 가벼운 모험(field) / 긴장(boss). 적합 음원이 없는 kind는 **무음 유지+보고**(임의 대체 금지).
+  ② **BGMManager**: BGM은 클라 로컬 연출 — ExecSpace 정합(R2) 필수. 사운드 API는 **`.d.mlua`에서 시그니처 확인 후 사용**(재생/정지/볼륨/루프 — 추정 호출 금지, 규칙 8). 맵 전환 감지: 기존 워프/입장 파이프라인에 클라 훅이 있으면 재사용, 없으면 주기 폴링(주기=프로퍼티)으로 로컬 플레이어 `CurrentMap` 이름 변화 감지. MapKind 판정은 **T37 규약 재사용**(`Home_` 접두=home / `town`=town / boss 템플릿 계열=boss / 그 외=field) — 이 규약 외 이름 분기 금지.
+  ③ **날씨 앰비언스**: `WeatherManager`의 @Sync 날씨 상태(T21 — **읽기 구독만, 수정 금지**)로 `AmbienceSoundRUID` 보유 날씨(초기값: rain만) 동안 루프 재생, 종료 시 정지. BGM과 독립 채널(동시 재생).
+  ④ 볼륨/음소거 설정 UI는 범위 밖(후속 후보 — 설정 팝업과 묶음).
+- **Acceptance**: ① 영지↔마을↔사냥터↔보스 이동 시 BGM 전환 + 같은 kind 간 이동은 곡 재시작 없음 ② 비 시작→앰비언스 온 / 종료→오프(로그 근거) ③ 곡 교체·추가=CSV만, 코드 리터럴 RUID 0 ④ Play 대기 레인 파일 무수정 ⑤ refresh Error=0 + 보고 3종. 소리 체감·음량 밸런스는 제작자 Play.
+- **충돌 주의**: **배치 I 선두**. `WeatherManager.mlua`·`PlayerController.mlua` 수정 금지 — 훅이 필요해 보이면 [보류]+질문.
+- **구현 요약 (2026-07-15)**: `BGMManager` @Logic 클라 폴링 + `BGMDataSet` 4 kind + rain `AmbienceSoundRUID`. FadeSec=즉시 전환(API 부재). 보고서 `reports/T55-sound-foundation-bgm-ambience.md`.
+- **검증**: Maker refresh **Error=0** (total 492 / W17 / I475). **런타임 검증 보류(제작자 수행)**.
+
+### T56. [코드 완료 — 2026-07-15 | refresh Error=0 | 런타임 검증 보류(제작자 수행)] 마을 NPC 생활감 — 주민 대화 말풍선 (Phase 18-B, 배치 I) — 🧭 2026-07-15 지휘자 발행
+
+- **배경**: 마을이 기능 시설(연구소/상점/게시판)만 있어 정적. 시간대·날씨에 반응하는 주민 대사로 "살아있는 마을" 체감 — 3대 공간 컨셉(공동 마을=커뮤니티 허브) 강화. 기존 NPC 레인 존재: `NPC/Models/Merchant.model`+`NPC/Scripts/MerchantInteract.mlua`(F 상호작용 선례 — 재사용 출발점).
+- **선결(R1)**: msw-packages 카탈로그에서 **dialog/NPC conversation 패키지** 확인 — 적합하면 통합 우선, 부적합(월드 말풍선 미지원 등) 시 사유를 보고서에 기재하고 자작.
+- **Target**: 신규 주민 NPC 모델 2종(기존 `Merchant.model` 복제 또는 msw-general NPC 템플릿 — ModelBuilder, Model Work Preflight 필수), 신규 `RootDesk/MyDesk/NPC/Scripts/VillagerNpc.mlua`, 신규 `RootDesk/MyDesk/NPC/DataSets/DialogDataSet.csv`(+userdataset), `map/town.map`(MapBuilder 배치 — 기존 점유·포탈과 비겹침 셀).
+- **Change**:
+  ① **DialogDataSet**: `NpcId` / `Text` / `TimeBand(day|night|any)` / `WeatherId(공란=무관)` / `Weight`. 초기 대사 12행± — 컨셉: **촌장**(마을 안내·계절 감상·날씨 코멘트) / **낚시꾼**(낚시 팁·비 오면 신남 — T57 리더보드와 연계 예정). 순한 생활 톤, 페널티·재촉성 문구 금지.
+  ② **VillagerNpc**: F 상호작용(`MerchantInteract` 패턴 미러 — 정의 확인, 규칙 8) → 현재 시간대(낮/밤 매니저 상태 — 읽기만)·날씨(`WeatherManager` @Sync — 읽기만) 필터 후 Weight 추첨 → **머리 위 말풍선** 3~5초 표시. 말풍선은 기존 월드 스페이스 텍스트 선례(몬스터 HP바/데미지 표기/닉네임 등) 실사 후 미러 — **`ui/HUDGroup.ui`·`ui/PopupGroup.ui` 수정 절대 금지**(배치 H Play 대기). 월드 텍스트 수단이 확인 안 되면 [보류]+질문.
+  ③ (선택) 상시 연출: 15초± 간격 자동 혼잣말 1줄(같은 데이터셋 `TimeBand` 필터, 주기 프로퍼티화) — 근처 플레이어 있을 때만.
+- **Acceptance**: ① 마을 주민 2명에게 F → 조건에 맞는 대사 말풍선 표시·자동 소멸 ② 밤/비에 대사가 실제로 달라짐(로그 또는 재현 근거) ③ 대사·NPC 추가=CSV 행+모델 복제만 ④ 이름 분기 0 ⑤ refresh Error=0 + 보고 3종. 감성 확인은 제작자 Play.
+- **충돌 주의**: **T55 완료 후 착수**. `town.map`은 T57과 공유 — 배치 내 순차라 안전. 팝업/HUD `.ui`·`WeatherManager`·`PlayerController` 수정 금지.
+- **구현 요약 (2026-07-15)**: dialog-package 부적합(UI 타이프라이터) → `ChatBalloonComponent` 자작. 주민 2 + DialogDataSet 12행 + town 배치. 보고서 `reports/T56-villager-dialog-balloon.md`.
+- **검증**: Maker refresh **Error=0** (total 492 / W17 / I475). **런타임 검증 보류(제작자 수행)**.
+
+### T57. [코드 완료 — 2026-07-15 | refresh Error=0 | 런타임 검증 보류(제작자 수행)] 주간 낚시왕 콘테스트 — 전 서버 리더보드 (Phase 18-C, 배치 I 마지막) — 🧭 2026-07-15 지휘자 발행
+
+- **배경**: 낚시(T18)·의뢰(T20)가 개인 루프에 머묾 — T20 "오늘의 의뢰"(전 서버 공통·결정론)와 같은 설계 철학의 **주간 경쟁 메타**로 커뮤니티 대화거리 확장.
+- **선결(R1)**: msw-packages **ranking/leaderboard 패키지** 확인 — 있으면 통합(자체 UI 포함 여부까지 확인). 점수 저장은 패키지/플랫폼 랭킹 서비스로 — **`PersistenceManager` 무수정**.
+- **Target**: `RootDesk/MyDesk/item/DataSets/FishDataSet.csv`(`RankPoints` 컬럼 추가 — 희소 어종 가중), `RootDesk/MyDesk/Furniture/Scripts/FishingSpot.mlua`(어획 확정 지점에 점수 적립 훅 — T18/T21 Play PASS 산출물, **훅 1~2줄 최소 수정**), 랭킹 패키지 통합분, `map/town.map`(리더보드 픽스처 1 — 낚시꾼 NPC 옆 제안).
+- **Change**:
+  ① 어획 성공(어종 확정·지급 지점)에서 해당 어종 `RankPoints`만큼 **주간 점수 적립** — 주간 키 = 서버 시간 기반 week index(T20 day index 패턴 미러 — 결정론, 리터럴 금지).
+  ② 리더보드 열람: 픽스처 F → 이번 주 상위 N 표시(패키지 UI 사용). 패키지 UI가 없으면 [보류]+질문 — **`ui/PopupGroup.ui`에 신규 팝업 제작 금지**(배치 H Play 대기).
+  ③ 주 변경 시 자동 리셋(새 주간 키). 지난 주 기록 열람은 랭킹 서비스가 지원할 때만(선택).
+  ④ **v1은 순위 표시만 — 보상 지급 없음**(🧭 의도적 배제: 보상 지급은 `PlayerInventory`가 Play 대기 레인이라 후속 티켓로 분리. 보상안은 보고서 §5에 제안만).
+- **Acceptance**: ① 물고기를 잡으면 어종별 점수 적립(로그 근거) ② 리더보드에 유저·점수 표시 ③ 주간 키 전환이 결정론적(로그/시뮬 근거) ④ 점수 조정=CSV만 ⑤ `PlayerInventory`/`PersistenceManager`/`PlayerController` 무수정 ⑥ refresh Error=0 + 보고 3종. Play는 제작자.
+- **충돌 주의**: **배치 I 마지막** — T56 완료 후(town.map 공유). `FishingSpot` 미니게임 로직 리팩터링 금지 — 어획 확정 지점 훅만.
+- **구현 요약 (2026-07-15)**: ranking-basic-package 통합(`FishingWeekly` 주간 키) + `FishingContestLogic` 누적 적립 + `FishingSpot` 훅 + `FishDataSet.RankPoints` + 마을 FishingRankBoard F 오픈. UI 부모=`/ui/PopupGroup`(파일 무수정). 보고서 `reports/T57-weekly-fishing-leaderboard.md`.
+- **검증**: Maker refresh **Error=0** (total 495 / W17 / I478). **런타임 검증 보류(제작자 수행)**.
+
+### T58. [완료 — Play PASS(제작자 2026-07-15) | 피드백: 연결선 흐릿 → T60 | refresh Error=0 | ⚠️ 착수 게이트(T54 Play) 무단 해제 — 절차 위반 기록, 산출물 수용] 스킬트리 트리 위상화 — 연결선 + 연계 강화 게이트 (Phase 16-D) — ⚖️ 2026-07-15 보스 지시
+
+- **배경**: ⚖️ 보스 지시 — 핀터레스트 레퍼런스(pin 15410823722566608 "Dnd Mysticism Build 35")처럼 **말 그대로 트리 형식으로 나아가는** 디자인 + **연계 스킬 강화 과정** 필수 + **복잡한 구조 거부**. 지휘자 실사: 계보(`ParentSkillId`)·서버 게이트는 이미 존재 — 간극은 ① 게이트가 "부모 Lv≥1"뿐 ② UI 연결선 부재. **설계 확정 원본 = [docs/design/skill-tree-plan.md §8](../design/skill-tree-plan.md) — 착수 전 §8 전문 필독.** 위상 재편·스킬 추가 금지(세이브·밸런스 무변경).
+- **Target**: `Player/DataSets/SkillDataSet.csv`(+`.userdataset` — `ParentRequiredLevel` 컬럼 신설), `Player/Scripts/PlayerController.mlua`(`ServerRequestSkillLevelUp` 게이트 ① 확장 — L2110~ 약 5줄, **그 외 로직 수정 금지**), `UI/Scripts/UISkillTreeController.mlua`(링크 파생 렌더·클라 게이트 미러·상세 패널 선행 줄), `ui/PopupGroup.ui`의 SkillTreePopup 서브트리(**UIBuilder 경유** — Link 커넥터 프리플레이스).
+- **Change**:
+  ① **`ParentRequiredLevel` 컬럼**: 자식 해금(0→1)에 필요한 부모 레벨. 공란/누락=1(현행 폴백 — `GetItem`은 pcall 가드, 규칙 7). 시범값(🧭 CSV 튜닝 자유): 매직 클로←파워 스트라이크 Lv3 / 슬래시 블러스트←매직 클로 Lv3 / 강력 채집←신속 채집 Lv3.
+  ② **서버 게이트 확장**: L2113의 `< 1` 판정을 `< ParentRequiredLevel`로 — 거부 피드백에 필요 레벨 포함("선행 스킬 '매직 클로' Lv 3 필요"). 스킬명은 CSV `Name`에서 조회(리터럴 금지).
+  ③ **클라 미러 동기**: `UISkillTreeController`의 게이트 미러(L266 주석 지점)에 동일 조건 반영 — 서버/클라 판정 불일치 0.
+  ④ **연결선 렌더**: 노드 슬롯(`Node_<r>_<c>`) 사이 수직 커넥터 `Link_<r>_<c>`(=(r,c)↔(r−1,c)) 스프라이트를 UIBuilder로 프리플레이스 — **규칙 10: 명시 anchor+RectSize**(stretch 금지). 표시·색은 컨트롤러가 `ParentSkillId`에서 **파생**(링크 목록 하드코딩 금지): 부모 미충족=dim / 해금 가능=금색 하이라이트 / 자식 보유=금색 실선. 기존 팝업 비주얼 아이덴티티(금색 계열) 미러 — 새 팔레트 발명 금지.
+  ⑤ **위상 가드라인 강제(skill-tree-plan §8.3)**: 부모는 같은 열·바로 위 행만 지원 — 위반 행(교차 열/행 건너뜀/다중 깊이)은 링크 미표시 + `[SKILL-TREE]` 경고 로그(저작 실수 검출). v1 지원 범위 밖 렌더 시도 금지.
+  ⑥ **SkillDetailPanel 선행 조건 줄**: Description 아래 "선행: 매직 클로 Lv 3 (현재 1)" — 충족=금색/미충족=적색. 선행 없는 스킬은 줄 숨김. T50 레이아웃(280×300) 안에서 — 패널 크기 변경 금지.
+  ⑦ 해금 가능 노드 강조(선택 — 시간 남으면): 잠김→해금 가능 전환 시 노드 테두리 하이라이트. 애니메이션 발명 금지, 기존 톤 변화만.
+- **Acceptance**: ① 트리 팝업에서 부모-자식이 선으로 연결되어 보이고 상태별 색 구분(전투 2링크+채집 1링크 = 총 3링크) ② 부모 Lv 미달 시 서버가 해금 거부+필요 레벨 안내, 도달 시 해금 가능 전환 ③ 서버/클라 게이트 판정 동일 ④ 조건 변경=CSV만·세이브 호환(SkillId 불변, 기존 투자 유지)·이름 분기 0 ⑤ QWER 장착·시전·레벨업·T50 상세 패널 회귀 0 ⑥ refresh Error=0 + `preview_ui_layout.cjs` 결과 + §7 루브릭(실측 좌표) + 보고 3종. Play는 제작자(레벨업→링크 색 전환 체감).
+- **충돌 주의**: **착수 게이트 = T54 Play 확인 후**(`ui/PopupGroup.ui` 공유 — 재작업 충돌 방지). 배치 I(T55~T57)와 파일 무겹침 — 병렬 가능. `PersistenceManager`·`UISkillBarController`·SkillTreePopup 레이아웃(T50 산출물 노드/패널 배치) 수정 금지 — 링크 추가·상세 줄 추가만.
+- **구현 요약 (2026-07-15)**: ParentRequiredLevel CSV + 서버/클라 게이트 동기 + Link_2/3_* 6개 프리플레이스 + DParent + 해금 금색. 보고서 `reports/T58-skill-tree-links-parent-gate.md`.
+- **검증**: Maker refresh **Error=0** (total 497 / W17 / I480). preview_ui_layout 실행. **런타임 검증 보류(제작자 수행)**.
+
+### T59. [대기 — 즉시 착수 가능] 클릭 상호작용 전면 제거 + 상호작용 경로 일원화(F/BtnInteract) (Phase 17-D) — ⚖️ 2026-07-15 보스 지시
+
+- **배경**: ⚖️ 보스 — "마을 여러 요소가 클릭으로 상호작용되어버림 — **클릭 상호작용 모두 제거**. UI 창과 클릭이 겹쳐 불편." 지휘자 전량 실사(§3 상단 4차 계획): 월드 `TouchEvent` 상호작용 = 정확히 7곳. **🔴 함정**: 모바일 `BtnInteract`→`OnInteractButton()`(PlayerController L1168)이 **포탈+화로만** 커버 — 침대/보물상자/보관함/상점/게시판/연구소 등은 월드 터치가 사실상 유일한 모바일 수단이었음 → 단순 제거 시 모바일 파손. **모바일 패리티 보강을 본 티켓에 통합**한다. `PlayerController.OnScreenTouch`(L1193)는 이미 빈 스텁 — 유지(제거 불요).
+- **Target**:
+  - (터치 제거 7곳) `Furniture/Scripts/Furniture_Bed.mlua` · `MapObjects/Scripts/TreasureChest.mlua` · `MapObjects/Scripts/BulletinBoard.mlua` · `MapObjects/Scripts/ResearchLab.mlua` · `NPC/Scripts/MerchantInteract.mlua` · `NPC/Scripts/VillagerDialog.mlua`(T56 산출물) · `NPC/Scripts/FishingLeaderboardInteract.mlua`(T57 산출물) — `ConnectEvent(TouchEvent, …)`+`OnTouch` 메서드+전용 부속(거리 피드백 등) 삭제. **F(OnKeyDown) 경로는 그대로.**
+  - (통일) `Player/Scripts/PlayerController.mlua` — KeyDown **F 브랜치(L702~) 본문 전체를 클라 메서드 `TryInteract()`로 추출**, KeyDown F와 `OnInteractButton()` 양쪽에서 호출. **로직 이동만 — 변경 금지.** T58이 방금 만진 스킬 게이트(L2110~)·시전/TryCastSlot 코드 무접촉.
+  - (브리지) 신규 클라 커스텀 이벤트 **`InteractRequestEvent`**(@Event — msw-scripting에서 @Event 문법·발신/구독 API 확인 후 사용, 규칙 8. 파일 위치는 directory-structure.md 준수 — `Util/` 유력).
+- **Change**:
+  ① TouchEvent 7곳 제거 — 클릭/터치로 열리는 월드 상호작용 0으로.
+  ② `TryInteract()` 추출·통일 — `OnInteractButton()` 커버리지가 F 키와 동일해짐(낚시 진행/보물상자/포탈/침대/화로/보관함 등 브랜치 전체. 기존 OnInteractButton의 포탈/화로 중복 코드는 TryInteract 호출로 대체).
+  ③ **분산 핸들러 브리지**: Merchant/BulletinBoard/ResearchLab/Villager/Leaderboard 5종의 `OnKeyDown` 본문을 각자 `TryInteract` 메서드로 추출하고 `KeyDownEvent`(F)와 `InteractRequestEvent` **양쪽에 연결**(핸들러 OnEndPlay 해제 유지 — 기존 패턴). PlayerController `TryInteract()`가 **자기 대상을 하나도 처리하지 못했을 때만** `InteractRequestEvent`를 발신(모바일 이중 오픈 방지). F 키 경로의 기존 동시 리슨 구조는 무변경(회귀 0 원칙 — F 동작은 지금과 동일해야 함).
+  ④ 본 티켓으로 T56/T57 보고서 §6 체크리스트의 "클릭/터치" 항목이 무효화되면 해당 보고서에 각주 1줄 추가(제작자 Play 혼선 방지).
+- **Acceptance**: ① 월드 엔티티 클릭/터치로 열리는 상호작용 0건(7종 전부 — UI 창 위 클릭이 월드로 새는 불편 소멸) ② PC: F 상호작용 전 대상 회귀 0 ③ 모바일: `BtnInteract`로 F와 동일한 전 대상 상호작용 가능(침대/보물상자/보관함/상점/게시판/연구소/주민/리더보드 신규 커버 포함) ④ 모바일 경로 이중 오픈 0 · 대상 타입명 열거 하드코딩 0(이벤트 구독 구조 — 신규 인터랙터블은 구독만 추가) ⑤ T58 스킬 게이트·T56 말풍선·T57 리더보드 회귀 0 ⑥ refresh Error=0 + 보고 3종. Play는 제작자(PC: 각 요소 클릭 무반응+F 정상 / 모바일: BtnInteract 순회).
+- **충돌 주의**: PlayerController는 T58 직후 상태 — 스킬 게이트·시전 로직 무접촉(F 브랜치 추출·OnInteractButton만). T56/T57 Play 대기 산출물과 파일 겹침은 **⚖️ 보스 본 지시로 리스크 수용**. `UIHUDController` 무수정(BtnInteract→OnInteractButton 배선 그대로). `ui/*.ui` 무접촉.
+
+### T60. [대기 — 즉시 착수 가능] 스킬트리 연결선 선명화 (T58 제작자 피드백 2026-07-15)
+
+- **배경**: 제작자 Play — T58 트리 연결선(`Link_*`)이 흐릿해 식별이 약함. T58 산출물의 시각 폴리시(기능 정상 확인됨).
+- **Target**: `ui/PopupGroup.ui`의 SkillTreePopup `Link_*` 커넥터(**UIBuilder 경유**), `UI/Scripts/UISkillTreeController.mlua`(상태별 색·알파 상수부만 — 로직 무변경).
+- **Change**: ① 링크 두께 상향 — 현행 실측 후 8~10px 제안(전/후 실측 보고) ② 상태별 알파/명도 재조정: 잠김(dim)도 식별 가능한 최소 명도, 해금 가능=금색 강조, 보유=고명도 금색 실선 ③ 필요 시 1px 외곽선/명암 — 기존 팝업 비주얼 아이덴티티(금색 계열) 안에서. **노드/패널 레이아웃·위상 무변경.**
+- **Acceptance**: ① 3링크가 팝업 배경 위에서 명확히 식별(전/후 두께·색상 실측 표) ② 상태 3색 구분 유지 ③ T58 기능(게이트·상세 패널) 회귀 0 ④ refresh Error=0 + §7 루브릭 + 보고 3종. 최종 감성은 제작자 Play.
+- **충돌 주의**: SkillTreePopup 서브트리만. T54는 Play 미확인이나 T58 Play 확인으로 서브트리 생존이 실증됨 — 리스크 낮음(⚖️ 보스 피드백 지시).
+
+### T61. [대기 — 지휘자 직접 수행(⚖️ 지형 로직 위임 금지 지시 연장)] 지형 편집 반응 지연 진단·개선 (T51 제작자 피드백 2026-07-15)
+
+- **배경**: 제작자 — 지형 편집(대각 포함)이 "잘 작동하나 약간 느린 반응". T51 변경은 로직 순감(보정 함수 2종 삭제·매핑 테이블 추가뿐)이라 신규 비용 없음 — 지연은 선재 파이프라인(도구 스윙 판정 → 서버 RPC → SetTile → 클라 반영) 또는 스윙 쿨다운 체감일 가능성.
+- **Change**: ① Maker 기동 상태에서 `maker_execute_script`+로그 타임스탬프로 구간 계측(클라 입력 → 서버 도장 → 클라 타일 반영, 각 ms) ② 병목 특정 → 개선안 보고(후보: 클라 예측 도장, SetTile 호출 묶음, 스윙 판정 선행화) — **수정 적용은 진단 보고 후 보스 승인 경유**(지형 스킴 회귀 리스크 관리).
+- **Acceptance**: 구간별 계측 근거 + 원인 특정 보고서. 개선 적용 시 전/후 계측 비교 + 지형 편집 회귀 0(T51 §6 체크리스트 재통과).
+- **담당**: 지휘자 직접(위임 금지). Maker 기동 필요 — 제작자와 타이밍 조율.
+
+### T62. [대기 — 즉시 착수 가능, 레인 2(T60 후 순차)] QWER 스킬바 고정 우하단 단일 배치 — 플랫폼 분기 제거 (⚖️ 2026-07-15 보스 확정: PC/모바일 단일 레이아웃)
+
+- **배경**: ⚖️ 보스 — "모바일과 PC의 UI를 다르게 배치하고 싶지 않다. 고정된 위치를 지휘자 제시안대로 정리하자." T52의 런타임 `IsMobilePlatform()` 분기(모바일에서만 우하단 재배치)를 폐기하고 **정적 `.ui` 단일 배치**로 통일. PC Play에서도 바로 보이므로 T52의 검증 수단 문제가 자동 해소된다.
+- **Target**: `ui/HUDGroup.ui`의 SkillBar 서브트리+SkillTooltip(**UIBuilder 경유**), `UI/Scripts/UISkillBarController.mlua`(플랫폼 감지·런타임 재배치 코드 삭제 — 클릭 시전·호버 툴팁·이름 숨김·FallbackText·쿨다운 표시는 **유지**).
+- **Change**:
+  ① **정적 배치 전환**: SkillBar = **bottom-right (-235, 395) 400×100**, 슬롯 4개 **88×88**, 로컬 x **-150/-50/50/150** (T52 모바일 초안 좌표 = 지휘자 제시안. 절대 환산 Q(-385,395)~R(-85,395)) — 규칙 10: 명시 anchor+RectSize.
+  ② **겹침 실측**: MobileUI BtnBag 행(y295 — 설계상 세로 18px 이격)·BtnInteract(-261,164)·BtnJump·미니맵(top-right)·QuickSlots(bottom-center)와 겹침 0 확인 — 실측 좌표를 보고서에 표로. 겹침 발견 시 ±16px 조정 허용(조정값 기재).
+  ③ **컨트롤러 정리**: `IsMobilePlatform` pcall·모바일/PC 레이아웃 재적용 로직(OnBeginPlay 앵커 변경 계열) 삭제 — 정적 `.ui`가 단일 소스. Key 라벨(QWER)은 유지(PC 키 시전 병존).
+  ④ **SkillTooltip 이동**: 스킬바 신위치 기준으로 재배치(우하단 바 위쪽, 화면 밖 돌출 0 — 실측 기재).
+- **Acceptance**: ① PC Play에서 스킬바가 우하단 88px 슬롯으로 렌더(제작자 육안 즉시 확인 가능) ② QWER 키+슬롯 클릭 시전·쿨다운·툴팁·잠김 표시 회귀 0 ③ 기존 HUD 요소와 겹침 0(실측 표) ④ 플랫폼 분기 코드 0 ⑤ refresh Error=0 + §7 루브릭(실측 좌표) + 보고 3종.
+- **충돌 주의**: **레인 2** — T60(`ui/PopupGroup.ui`) 완료 후 착수(같은 에이전트 순차). 레인 1 T59와 파일 무겹침(T59는 `.ui`·`UISkillBarController` 무접촉). `PlayerController` 수정 금지 — 시전은 기존 `TryCastSlot` 그대로.
 
 ### (신규 작업 추가 템플릿)
 ```

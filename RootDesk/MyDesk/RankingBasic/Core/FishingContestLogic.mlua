@@ -1,0 +1,98 @@
+@Logic
+script FishingContestLogic extends Logic
+	-- T57: 어획 점수 적립 훅. PersistenceManager/PlayerInventory 무수정.
+	-- ranking-basic-package SortableDataStorage + Week cycleIndex 사용.
+
+	@ExecSpace("ServerOnly")
+	method void AddCatchPoints(Entity player, string fishItem)
+		-- 어종 RankPoints만큼 주간 점수 누적 적립.
+		if not isvalid(player) then return end
+		if fishItem == nil or fishItem == "" then return end
+		if _RankingDataStorageLogic == nil or not _RankingDataStorageLogic.IsInit then
+			log_warning("[T57][FISHRANK] RankingDataStorageLogic not ready")
+			return
+		end
+
+		local points = self:GetFishRankPoints(fishItem)
+		if points <= 0 then
+			log("[T57][FISHRANK] fish=" .. tostring(fishItem) .. " RankPoints=0 skip")
+			return
+		end
+
+		local playerComp = player.PlayerComponent
+		if playerComp == nil then return end
+		local profileCode = playerComp.ProfileCode
+		if profileCode == nil or profileCode == "" then
+			-- ProfileCode 부재 시 UserId 폴백 (패키지 Key 계약 유지).
+			profileCode = tostring(playerComp.UserId or "")
+		end
+		if profileCode == "" then
+			log_warning("[T57][FISHRANK] empty profileCode")
+			return
+		end
+
+		local tag = playerComp.Nickname or ""
+		local curElapsed = 0
+		if _DateTimeLogic ~= nil then
+			curElapsed = _DateTimeLogic:GetTimeElapsed()
+		end
+
+		local config = _RankingDataStorageLogic.ConfigData
+		if config == nil then
+			log_warning("[T57][FISHRANK] ConfigData nil")
+			return
+		end
+		local cycleIndex = config:GetCycleIndex(curElapsed)
+
+		local prev = 0
+		local myData = _RankingDataStorageLogic:GetMyRankingDataAndWait(profileCode, cycleIndex)
+		if myData ~= nil then
+			prev = math.floor(tonumber(myData.Score) or 0)
+		end
+		local newScore = prev + points
+
+		-- force=true: 패키지 기본은 '더 높은 점수만' — 누적은 강제 갱신 필요.
+		local ok = _RankingDataStorageLogic:SetScoreAndWait(cycleIndex, profileCode, newScore, tag, true)
+		log("[T57][FISHRANK] catch fish=" .. tostring(fishItem)
+			.. " pts=" .. tostring(points)
+			.. " week=" .. tostring(cycleIndex)
+			.. " prev=" .. tostring(prev)
+			.. " new=" .. tostring(newScore)
+			.. " ok=" .. tostring(ok)
+			.. " profile=" .. tostring(profileCode))
+	end
+
+	method integer GetFishRankPoints(string fishItem)
+		-- FishDataSet.RankPoints 조회. 없으면 0.
+		local ds = _DataService:GetTable("FishDataSet")
+		if ds == nil then return 0 end
+		local rows = ds:GetAllRow()
+		if rows == nil then return 0 end
+		for _, row in ipairs(rows) do
+			local name = row:GetItem("FishItem") or ""
+			if name == fishItem then
+				local ok, raw = pcall(function() return row:GetItem("RankPoints") end)
+				if ok and raw ~= nil and tostring(raw) ~= "" then
+					local n = math.floor(tonumber(raw) or 0)
+					if n < 0 then n = 0 end
+					return n
+				end
+				return 0
+			end
+		end
+		return 0
+	end
+
+	method integer GetCurrentWeekIndex()
+		-- 결정론 주간 키 (패키지 Config GetCycleIndex 위임 — 시뮬/로그용).
+		if _RankingDataStorageLogic == nil or _RankingDataStorageLogic.ConfigData == nil then
+			return 0
+		end
+		local curElapsed = 0
+		if _DateTimeLogic ~= nil then
+			curElapsed = _DateTimeLogic:GetTimeElapsed()
+		end
+		return _RankingDataStorageLogic.ConfigData:GetCycleIndex(curElapsed)
+	end
+
+end

@@ -33,12 +33,12 @@
               "@type": "MOD.Core.MapComponent",
               "IsInstanceMap": false,
               "LeftBottom": {
-                "x": -50.0,
-                "y": -50.0
+                "x": -50,
+                "y": -50
               },
               "RightTop": {
-                "x": 50.0,
-                "y": 50.0
+                "x": 50,
+                "y": 50
               },
               "TileMapMode": 1,
               "Enable": true
@@ -71,27 +71,27 @@
             {
               "@type": "MOD.Core.TransformComponent",
               "Rotation": {
-                "x": 0.0,
-                "y": 0.0,
-                "z": 0.0
+                "x": 0,
+                "y": 0,
+                "z": 0
               },
               "Position": {
-                "x": 0.0,
-                "y": 0.0,
-                "z": 0.0
+                "x": 0,
+                "y": 0,
+                "z": 0
               },
               "QuaternionRotation": {
-                "x": 0.0,
-                "y": 0.0,
-                "z": 0.0,
-                "w": 1.0
+                "x": 0,
+                "y": 0,
+                "z": 0,
+                "w": 1
               },
               "Scale": {
-                "x": 1.0,
-                "y": 1.0,
-                "z": 1.0
+                "x": 1,
+                "y": 1,
+                "z": 1
               },
-              "ZRotation": 0.0,
+              "ZRotation": 0,
               "Enable": true
             },
             {
@@ -103,7 +103,7 @@
               "SpriteRUID": "ecb83722d7fa4a3ab425302401032701",
               "Color": {
                 "r": 0.2,
-                "g": 1.0,
+                "g": 1,
                 "b": 0.2,
                 "a": 0.6
               },
@@ -135,7 +135,7 @@
                 "r": 0.549019635,
                 "g": 0.34117648,
                 "b": 0.164705887,
-                "a": 1.0
+                "a": 1
               },
               "TemplateRUID": "794ad8421e2543d8a6d2c70307637450",
               "Type": 3,
@@ -208,15 +208,15 @@
             {
               "@type": "MOD.Core.TransformComponent",
               "Position": {
-                "x": 0.0,
-                "y": 0.0,
-                "z": 1000.0
+                "x": 0,
+                "y": 0,
+                "z": 1000
               },
               "QuaternionRotation": {
-                "x": 0.0,
-                "y": 0.0,
-                "z": 0.0,
-                "w": 1.0
+                "x": 0,
+                "y": 0,
+                "z": 0,
+                "w": 1
               },
               "Enable": true
             },
@@ -40622,15 +40622,15 @@
             {
               "@type": "MOD.Core.TransformComponent",
               "Position": {
-                "x": 0.0,
-                "y": 0.0,
-                "z": 1000.0
+                "x": 0,
+                "y": 0,
+                "z": 1000
               },
               "QuaternionRotation": {
-                "x": 0.0,
-                "y": 0.0,
-                "z": 0.0,
-                "w": 1.0
+                "x": 0,
+                "y": 0,
+                "z": 0,
+                "w": 1
               },
               "Enable": true
             },
@@ -73988,15 +73988,15 @@
             {
               "@type": "MOD.Core.TransformComponent",
               "Position": {
-                "x": 0.0,
-                "y": 0.0,
-                "z": 1000.0
+                "x": 0,
+                "y": 0,
+                "z": 1000
               },
               "QuaternionRotation": {
-                "x": 0.0,
-                "y": 0.0,
-                "z": 0.0,
-                "w": 1.0
+                "x": 0,
+                "y": 0,
+                "z": 0,
+                "w": 1
               },
               "Enable": true
             },
@@ -74042,15 +74042,15 @@
                 "z": 999.999
               },
               "QuaternionRotation": {
-                "x": 0.0,
-                "y": 0.0,
-                "z": 0.0,
-                "w": 1.0
+                "x": 0,
+                "y": 0,
+                "z": 0,
+                "w": 1
               },
               "Scale": {
-                "x": 1.0,
-                "y": 1.0,
-                "z": 1.0
+                "x": 1,
+                "y": 1,
+                "z": 1
               },
               "Enable": true
             },
@@ -74100,18 +74100,18 @@
               "Position": {
                 "x": -0.03784752,
                 "y": -0.3699417,
-                "z": 0.0
+                "z": 0
               },
               "QuaternionRotation": {
-                "x": 0.0,
-                "y": 0.0,
-                "z": 0.0,
-                "w": 1.0
+                "x": 0,
+                "y": 0,
+                "z": 0,
+                "w": 1
               },
               "Scale": {
-                "x": 1.0,
-                "y": 1.0,
-                "z": 1.0
+                "x": 1,
+                "y": 1,
+                "z": 1
               },
               "Enable": true
             },
@@ -74124,16 +74124,16 @@
               "FlipY": false,
               "IgnoreMapLayerCheck": true,
               "OrderInLayer": 7500,
-              "PlayRate": 1.0,
+              "PlayRate": 1,
               "RenderSetting": 0,
               "SortingLayer": "MapLayer2",
               "SpriteRUID": "aba58d2139ca4736bab39f6b4c39aa37",
               "StartFrameIndex": 0,
               "Color": {
-                "r": 1.0,
-                "g": 1.0,
-                "b": 1.0,
-                "a": 1.0
+                "r": 1,
+                "g": 1,
+                "b": 1,
+                "a": 1
               },
               "Enable": true
             },
@@ -74155,8 +74155,8 @@
               "Enable": true,
               "TargetMapName": "Home",
               "TargetPosition": {
-                "x": -3.0,
-                "y": 0.0
+                "x": -3,
+                "y": 0
               }
             },
             {
@@ -74195,18 +74195,18 @@
               "Position": {
                 "x": 6.252434,
                 "y": 4.527457,
-                "z": 0.0
+                "z": 0
               },
               "QuaternionRotation": {
-                "x": 0.0,
-                "y": 0.0,
-                "z": 0.0,
-                "w": 1.0
+                "x": 0,
+                "y": 0,
+                "z": 0,
+                "w": 1
               },
               "Scale": {
                 "x": 1.51819909,
                 "y": 1.51819909,
-                "z": 1.0
+                "z": 1
               },
               "Enable": true
             },
@@ -74218,16 +74218,16 @@
               "FlipX": false,
               "FlipY": false,
               "OrderInLayer": 10,
-              "PlayRate": 1.0,
+              "PlayRate": 1,
               "RenderSetting": 0,
               "SortingLayer": "MapLayer2",
               "SpriteRUID": "7b4b2408585b49e89d2ee61dc9c87e43",
               "StartFrameIndex": 0,
               "Color": {
-                "r": 1.0,
-                "g": 1.0,
-                "b": 1.0,
-                "a": 1.0
+                "r": 1,
+                "g": 1,
+                "b": 1,
+                "a": 1
               },
               "Enable": true
             },
@@ -74305,15 +74305,15 @@
             {
               "@type": "MOD.Core.TransformComponent",
               "Position": {
-                "x": 0.0,
-                "y": 0.0,
-                "z": 0.0
+                "x": 0,
+                "y": 0,
+                "z": 0
               },
               "QuaternionRotation": {
-                "x": 0.0,
-                "y": 0.0,
-                "z": 0.0,
-                "w": 1.0
+                "x": 0,
+                "y": 0,
+                "z": 0,
+                "w": 1
               },
               "Enable": true
             },
@@ -80919,15 +80919,15 @@
             {
               "@type": "MOD.Core.TransformComponent",
               "Position": {
-                "x": 0.0,
-                "y": 0.0,
-                "z": 0.0
+                "x": 0,
+                "y": 0,
+                "z": 0
               },
               "QuaternionRotation": {
-                "x": 0.0,
-                "y": 0.0,
-                "z": 0.0,
-                "w": 1.0
+                "x": 0,
+                "y": 0,
+                "z": 0,
+                "w": 1
               },
               "Enable": true
             },
@@ -87499,18 +87499,18 @@
               "Position": {
                 "x": -4.252427,
                 "y": 2.648713,
-                "z": 0.0
+                "z": 0
               },
               "QuaternionRotation": {
-                "x": 0.0,
-                "y": 0.0,
-                "z": 0.0,
-                "w": 1.0
+                "x": 0,
+                "y": 0,
+                "z": 0,
+                "w": 1
               },
               "Scale": {
-                "x": 1.0,
-                "y": 1.0,
-                "z": 1.0
+                "x": 1,
+                "y": 1,
+                "z": 1
               },
               "Enable": true
             },
@@ -87522,28 +87522,28 @@
               "FlipX": false,
               "FlipY": false,
               "OrderInLayer": 12,
-              "PlayRate": 1.0,
+              "PlayRate": 1,
               "RenderSetting": 0,
               "SortingLayer": "MapLayer5",
               "SpriteRUID": "61839a48f0144bbdb039f312ee7339bb",
               "StartFrameIndex": 0,
               "Color": {
-                "r": 1.0,
-                "g": 1.0,
-                "b": 1.0,
-                "a": 1.0
+                "r": 1,
+                "g": 1,
+                "b": 1,
+                "a": 1
               },
               "Enable": true
             },
             {
               "@type": "MOD.Core.RigidbodyComponent",
               "MoveVelocity": {
-                "x": 0.0,
-                "y": 0.0
+                "x": 0,
+                "y": 0
               },
               "RealMoveVelocity": {
-                "x": 0.0,
-                "y": 0.0
+                "x": 0,
+                "y": 0
               },
               "Enable": true
             },
@@ -87618,10 +87618,10 @@
                 "z": 999.999
               },
               "QuaternionRotation": {
-                "x": 0.0,
-                "y": 0.0,
-                "z": 0.0,
-                "w": 1.0
+                "x": 0,
+                "y": 0,
+                "z": 0,
+                "w": 1
               },
               "Enable": true
             },
@@ -87664,18 +87664,18 @@
               "Position": {
                 "x": 2.5,
                 "y": 1.5,
-                "z": 0.0
+                "z": 0
               },
               "QuaternionRotation": {
-                "x": 0.0,
-                "y": 0.0,
-                "z": 0.0,
-                "w": 1.0
+                "x": 0,
+                "y": 0,
+                "z": 0,
+                "w": 1
               },
               "Scale": {
-                "x": 1.0,
-                "y": 1.0,
-                "z": 1.0
+                "x": 1,
+                "y": 1,
+                "z": 1
               },
               "Enable": true
             },
@@ -87687,16 +87687,16 @@
               "FlipX": false,
               "FlipY": false,
               "OrderInLayer": 10,
-              "PlayRate": 1.0,
+              "PlayRate": 1,
               "RenderSetting": 0,
               "SortingLayer": "MapLayer5",
               "SpriteRUID": "7b4b2408585b49e89d2ee61dc9c87e43",
               "StartFrameIndex": 0,
               "Color": {
-                "r": 1.0,
-                "g": 1.0,
-                "b": 1.0,
-                "a": 1.0
+                "r": 1,
+                "g": 1,
+                "b": 1,
+                "a": 1
               },
               "Enable": true
             },
@@ -87745,18 +87745,18 @@
               "Position": {
                 "x": -2.15881062,
                 "y": -3.71734715,
-                "z": 0.0
+                "z": 0
               },
               "QuaternionRotation": {
-                "x": 0.0,
-                "y": 0.0,
-                "z": 0.0,
-                "w": 1.0
+                "x": 0,
+                "y": 0,
+                "z": 0,
+                "w": 1
               },
               "Scale": {
-                "x": 1.0,
-                "y": 1.0,
-                "z": 1.0
+                "x": 1,
+                "y": 1,
+                "z": 1
               },
               "Enable": true
             },
@@ -87768,26 +87768,26 @@
               "FlipX": false,
               "FlipY": false,
               "OrderInLayer": 2,
-              "PlayRate": 1.0,
+              "PlayRate": 1,
               "RenderSetting": 0,
               "SpriteRUID": "6796165eeb2944a380321e3f1b9cdf68",
               "StartFrameIndex": 0,
               "Color": {
-                "r": 1.0,
-                "g": 1.0,
-                "b": 1.0,
-                "a": 1.0
+                "r": 1,
+                "g": 1,
+                "b": 1,
+                "a": 1
               },
               "Enable": true
             },
             {
               "@type": "MOD.Core.TriggerComponent",
               "BoxSize": {
-                "x": 2.0,
+                "x": 2,
                 "y": 0.8311377
               },
               "ColliderOffset": {
-                "x": 9.536743E-07,
+                "x": 9.536743e-7,
                 "y": 0.718562841
               },
               "IsLegacy": false,
@@ -87800,6 +87800,327 @@
             }
           ],
           "@version": 1
+        }
+      },
+      {
+        "id": "3da9c0e9-4fff-417a-bbcb-20be8967a354",
+        "path": "/maps/town/Villager_Elder",
+        "componentNames": "MOD.Core.TransformComponent,MOD.Core.SpriteRendererComponent,MOD.Core.RigidbodyComponent,MOD.Core.StateComponent,MOD.Core.ChatBalloonComponent,MOD.Core.StateAnimationComponent,MOD.Core.NameTagComponent,MOD.Core.TouchReceiveComponent,script.VillagerDialog",
+        "jsonString": {
+          "name": "Villager_Elder",
+          "path": "/maps/town/Villager_Elder",
+          "nameEditable": true,
+          "enable": true,
+          "visible": true,
+          "localize": false,
+          "displayOrder": 19,
+          "pathConstraints": "///",
+          "revision": 1,
+          "modelId": "villager_elder",
+          "@components": [
+            {
+              "@type": "MOD.Core.TransformComponent",
+              "Position": {
+                "x": 4,
+                "y": 0.5,
+                "z": 0
+              },
+              "QuaternionRotation": {
+                "x": 0,
+                "y": 0,
+                "z": 0,
+                "w": 1
+              },
+              "Scale": {
+                "x": 1,
+                "y": 1,
+                "z": 1
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.SpriteRendererComponent",
+              "SpriteRUID": "2d61d5aa45cf481684caa36e99ac215b",
+              "Color": {
+                "r": 1,
+                "g": 1,
+                "b": 1,
+                "a": 1
+              },
+              "DrawMode": 0,
+              "FlipX": false,
+              "FlipY": false,
+              "PlayRate": 1,
+              "OrderInLayer": 12,
+              "StartFrameIndex": 0,
+              "EndFrameIndex": 2147483647,
+              "Enable": true,
+              "SortingLayer": "MapLayer5"
+            },
+            {
+              "@type": "MOD.Core.RigidbodyComponent",
+              "MoveVelocity": {
+                "x": 0,
+                "y": 0
+              },
+              "RealMoveVelocity": {
+                "x": 0,
+                "y": 0
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.StateComponent",
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.ChatBalloonComponent",
+              "Enable": true,
+              "ChatModeEnabled": false,
+              "ShowDuration": 4,
+              "AutoShowEnabled": false,
+              "Message": ""
+            },
+            {
+              "@type": "MOD.Core.StateAnimationComponent",
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.NameTagComponent",
+              "Enable": true,
+              "Name": "촌장"
+            },
+            {
+              "@type": "MOD.Core.TouchReceiveComponent",
+              "Enable": true,
+              "AutoFitToSize": true,
+              "TouchArea": {
+                "$type": "MOD.Core.MODVector2, MOD.Core",
+                "x": 1.5,
+                "y": 2.5
+              }
+            },
+            {
+              "@type": "script.VillagerDialog",
+              "Enable": true,
+              "NpcId": "elder",
+              "InteractRange": 3,
+              "BalloonDuration": 4,
+              "AutoTalkInterval": 15,
+              "AutoTalkRange": 6
+            }
+          ],
+          "@version": 1,
+          "origin": {
+            "type": "Model",
+            "entry_id": "villager_elder",
+            "sub_entity_id": null,
+            "root_entity_id": "3da9c0e9-4fff-417a-bbcb-20be8967a354",
+            "replaced_model_id": null
+          }
+        }
+      },
+      {
+        "id": "3d8597a0-834e-47ae-8b95-8c345db6c043",
+        "path": "/maps/town/Villager_Fisher",
+        "componentNames": "MOD.Core.TransformComponent,MOD.Core.SpriteRendererComponent,MOD.Core.RigidbodyComponent,MOD.Core.StateComponent,MOD.Core.ChatBalloonComponent,MOD.Core.StateAnimationComponent,MOD.Core.NameTagComponent,MOD.Core.TouchReceiveComponent,script.VillagerDialog",
+        "jsonString": {
+          "name": "Villager_Fisher",
+          "path": "/maps/town/Villager_Fisher",
+          "nameEditable": true,
+          "enable": true,
+          "visible": true,
+          "localize": false,
+          "displayOrder": 20,
+          "pathConstraints": "///",
+          "revision": 1,
+          "modelId": "villager_fisher",
+          "@components": [
+            {
+              "@type": "MOD.Core.TransformComponent",
+              "Position": {
+                "x": -3.5,
+                "y": -3.4,
+                "z": 0
+              },
+              "QuaternionRotation": {
+                "x": 0,
+                "y": 0,
+                "z": 0,
+                "w": 1
+              },
+              "Scale": {
+                "x": 1,
+                "y": 1,
+                "z": 1
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.SpriteRendererComponent",
+              "SpriteRUID": "914e24afa37a4a65b6026b7595cd080f",
+              "Color": {
+                "r": 1,
+                "g": 1,
+                "b": 1,
+                "a": 1
+              },
+              "DrawMode": 0,
+              "FlipX": false,
+              "FlipY": false,
+              "PlayRate": 1,
+              "OrderInLayer": 12,
+              "StartFrameIndex": 0,
+              "EndFrameIndex": 2147483647,
+              "Enable": true,
+              "SortingLayer": "MapLayer5"
+            },
+            {
+              "@type": "MOD.Core.RigidbodyComponent",
+              "MoveVelocity": {
+                "x": 0,
+                "y": 0
+              },
+              "RealMoveVelocity": {
+                "x": 0,
+                "y": 0
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.StateComponent",
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.ChatBalloonComponent",
+              "Enable": true,
+              "ChatModeEnabled": false,
+              "ShowDuration": 4,
+              "AutoShowEnabled": false,
+              "Message": ""
+            },
+            {
+              "@type": "MOD.Core.StateAnimationComponent",
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.NameTagComponent",
+              "Enable": true,
+              "Name": "낚시꾼"
+            },
+            {
+              "@type": "MOD.Core.TouchReceiveComponent",
+              "Enable": true,
+              "AutoFitToSize": true,
+              "TouchArea": {
+                "$type": "MOD.Core.MODVector2, MOD.Core",
+                "x": 1.5,
+                "y": 2.5
+              }
+            },
+            {
+              "@type": "script.VillagerDialog",
+              "Enable": true,
+              "NpcId": "fisher",
+              "InteractRange": 3,
+              "BalloonDuration": 4,
+              "AutoTalkInterval": 15,
+              "AutoTalkRange": 6
+            }
+          ],
+          "@version": 1,
+          "origin": {
+            "type": "Model",
+            "entry_id": "villager_fisher",
+            "sub_entity_id": null,
+            "root_entity_id": "3d8597a0-834e-47ae-8b95-8c345db6c043",
+            "replaced_model_id": null
+          }
+        }
+      },
+      {
+        "id": "82767035-d3c3-443d-be5d-5364df17c07c",
+        "path": "/maps/town/FishingRankBoard",
+        "componentNames": "MOD.Core.TransformComponent,MOD.Core.SpriteRendererComponent,MOD.Core.TouchReceiveComponent,script.FishingLeaderboardInteract",
+        "jsonString": {
+          "name": "FishingRankBoard",
+          "path": "/maps/town/FishingRankBoard",
+          "nameEditable": true,
+          "enable": true,
+          "visible": true,
+          "localize": false,
+          "displayOrder": 21,
+          "pathConstraints": "///",
+          "revision": 1,
+          "modelId": "fishingrankboard",
+          "@components": [
+            {
+              "@type": "MOD.Core.TransformComponent",
+              "Position": {
+                "x": -2,
+                "y": -2.6,
+                "z": 0
+              },
+              "QuaternionRotation": {
+                "$type": "MOD.Core.MODQuaternion, MOD.Core",
+                "x": 0,
+                "y": 0,
+                "z": 0,
+                "w": 1
+              },
+              "Scale": {
+                "x": 1,
+                "y": 1,
+                "z": 1
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.SpriteRendererComponent",
+              "SpriteRUID": "7b4b2408585b49e89d2ee61dc9c87e43",
+              "Color": {
+                "r": 1,
+                "g": 1,
+                "b": 1,
+                "a": 1
+              },
+              "DrawMode": 0,
+              "FlipX": false,
+              "FlipY": false,
+              "PlayRate": 1,
+              "OrderInLayer": 10,
+              "StartFrameIndex": 0,
+              "EndFrameIndex": 2147483647,
+              "Enable": true,
+              "SortingLayer": "MapLayer5",
+              "ActionSheet": {
+                "$type": "System.Collections.Generic.Dictionary`2[[System.String, mscorlib],[System.String, mscorlib]], mscorlib"
+              },
+              "RenderSetting": 0
+            },
+            {
+              "@type": "MOD.Core.TouchReceiveComponent",
+              "Enable": true,
+              "AutoFitToSize": true,
+              "TouchArea": {
+                "$type": "MOD.Core.MODVector2, MOD.Core",
+                "x": 1.8,
+                "y": 2.2
+              }
+            },
+            {
+              "@type": "script.FishingLeaderboardInteract",
+              "Enable": true
+            }
+          ],
+          "@version": 1,
+          "origin": {
+            "type": "Model",
+            "entry_id": "fishingrankboard",
+            "sub_entity_id": null,
+            "root_entity_id": "82767035-d3c3-443d-be5d-5364df17c07c",
+            "replaced_model_id": null
+          }
         }
       }
     ]

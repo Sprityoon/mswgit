@@ -70,14 +70,35 @@ script UISkillTreeController extends Component
 
 	@ExecSpace("ClientOnly")
 	method void ResolveDetailRefs()
-		-- T50: SkillDetailPanel 자식 (경로 해석).
+		-- T50: SkillDetailPanel 자식 (경로 해석). T58: DParent 선행 줄.
 		self._T.detailPanel = self.Entity:GetChildByName("SkillDetailPanel", true)
 		self._T.dIcon = self.Entity:GetChildByName("DIcon", true)
 		self._T.dName = self.Entity:GetChildByName("DName", true)
 		self._T.dTypeLv = self.Entity:GetChildByName("DTypeLv", true)
 		self._T.dDesc = self.Entity:GetChildByName("DDesc", true)
+		self._T.dParent = self.Entity:GetChildByName("DParent", true)
 		self._T.dGate = self.Entity:GetChildByName("DGate", true)
 		self._T.dCost = self.Entity:GetChildByName("DCost", true)
+	end
+
+	method integer GetParentRequiredLevelFromRow(any row)
+		-- ParentRequiredLevel 컬럼 (공란/누락=1). pcall 가드 — 규칙 7.
+		if row == nil then return 1 end
+		local ok, raw = pcall(function() return row:GetItem("ParentRequiredLevel") end)
+		if not ok or raw == nil or tostring(raw) == "" then return 1 end
+		local n = math.floor(tonumber(raw) or 1)
+		if n < 1 then n = 1 end
+		return n
+	end
+
+	method integer GetParentRequiredLevelFromDs(any ds, integer rowIndex)
+		-- GetCell 경로 폴백 (공란/누락=1).
+		if ds == nil then return 1 end
+		local ok, raw = pcall(function() return ds:GetCell(rowIndex, "ParentRequiredLevel") end)
+		if not ok or raw == nil or tostring(raw) == "" then return 1 end
+		local n = math.floor(tonumber(raw) or 1)
+		if n < 1 then n = 1 end
+		return n
 	end
 
 	@ExecSpace("ClientOnly")
@@ -290,6 +311,7 @@ script UISkillTreeController extends Component
 		local maxLevel = tonumber(row:GetItem("MaxLevel")) or 1
 		local spCost = tonumber(row:GetItem("SPCost")) or 1
 		local parentId = row:GetItem("ParentSkillId")
+		local parentNeed = self:GetParentRequiredLevelFromRow(row)
 		local reqLevel = tonumber(row:GetItem("RequiredLevel")) or 1
 		local achId = tonumber(row:GetItem("UnlockAchievementId"))
 		local level = controller:GetSkillLevel(skillId)
@@ -301,10 +323,20 @@ script UISkillTreeController extends Component
 			return result
 		end
 		if level < 1 then
-			if parentId ~= nil and parentId ~= "" and controller:GetSkillLevel(parentId) < 1 then
-				result.label = label
-				result.reason = "선행 스킬 필요"
-				return result
+			-- T58: 서버와 동일 — 부모 Lv ≥ ParentRequiredLevel
+			if parentId ~= nil and parentId ~= "" then
+				local parentLv = controller:GetSkillLevel(parentId)
+				if parentLv < parentNeed then
+					local parentName = parentId
+					local pRow = ds:FindRow("SkillId", parentId)
+					if pRow ~= nil then
+						local pn = pRow:GetItem("Name")
+						if pn ~= nil and pn ~= "" then parentName = tostring(pn) end
+					end
+					result.label = label
+					result.reason = "선행 스킬 '" .. parentName .. "' Lv " .. tostring(parentNeed) .. " 필요"
+					return result
+				end
 			end
 			if controller.Level < reqLevel then
 				result.label = label
@@ -385,6 +417,7 @@ script UISkillTreeController extends Component
 			self:SetTextSafe(self._T.dName, "노드를 선택하세요", true)
 			self:SetTextSafe(self._T.dTypeLv, "", false)
 			self:SetTextSafe(self._T.dDesc, "", false)
+			self:SetTextSafe(self._T.dParent, "", false)
 			self:SetTextSafe(self._T.dGate, "", false)
 			self:SetTextSafe(self._T.dCost, "", false)
 			return
@@ -431,6 +464,34 @@ script UISkillTreeController extends Component
 		local typeLv = self:TypeDisplayLabel(typeStr) .. " · Lv " .. tostring(level) .. "/" .. tostring(maxLevel)
 		self:SetTextSafe(self._T.dTypeLv, typeLv, true)
 		self:SetTextSafe(self._T.dDesc, desc, true)
+
+		-- T58: 선행 조건 줄 (Description 아래). 선행 없으면 숨김.
+		local parentId = row:GetItem("ParentSkillId")
+		if parentId ~= nil and parentId ~= "" then
+			local parentNeed = self:GetParentRequiredLevelFromRow(row)
+			local parentName = parentId
+			local parentLv = 0
+			local pRow = ds:FindRow("SkillId", parentId)
+			if pRow ~= nil then
+				local pn = pRow:GetItem("Name")
+				if pn ~= nil and pn ~= "" then parentName = tostring(pn) end
+			end
+			if pc ~= nil then
+				parentLv = pc:GetSkillLevel(parentId)
+			end
+			local parentLine = "선행: " .. parentName .. " Lv " .. tostring(parentNeed)
+				.. " (현재 " .. tostring(parentLv) .. ")"
+			self:SetTextSafe(self._T.dParent, parentLine, true)
+			if isvalid(self._T.dParent) and isvalid(self._T.dParent.TextComponent) then
+				if parentLv >= parentNeed then
+					self._T.dParent.TextComponent.FontColor = Color(0.94, 0.66, 0.19, 1.0)
+				else
+					self._T.dParent.TextComponent.FontColor = Color(0.85, 0.33, 0.31, 1.0)
+				end
+			end
+		else
+			self:SetTextSafe(self._T.dParent, "", false)
+		end
 
 		local gate = ""
 		local st = { can = false, reason = "" }
@@ -634,6 +695,15 @@ script UISkillTreeController extends Component
 				end
 			end
 		end
+		-- T58: 링크도 기본 숨김
+		for r = 2, self.MaxRows do
+			for c = 1, self.MaxCols do
+				local link = self.Entity:GetChildByName("Link_" .. r .. "_" .. c, true)
+				if isvalid(link) then
+					link.Enable = false
+				end
+			end
+		end
 
 		local ds = _DataService:GetTable("SkillDataSet")
 		if ds == nil then return end
@@ -655,7 +725,62 @@ script UISkillTreeController extends Component
 			end
 		end
 
+		self:RefreshLinks(ds, controller)
 		self:RefreshEquipDetail()
+	end
+
+	@ExecSpace("ClientOnly")
+	method void RefreshLinks(any ds, any pc)
+		-- T58: ParentSkillId에서 링크 파생. 같은 열·바로 위 행만 표시(§8.3).
+		if ds == nil or pc == nil then return end
+		local rowCount = ds:GetRowCount()
+		for i = 1, rowCount do
+			local skillId = ds:GetCell(i, "SkillId") or ""
+			local parentId = ds:GetCell(i, "ParentSkillId") or ""
+			if skillId == "" or parentId == "" then continue end
+
+			local treeRow = tonumber(ds:GetCell(i, "TreeRow")) or 0
+			local treeCol = tonumber(ds:GetCell(i, "TreeCol")) or 0
+			local pRow = ds:FindRow("SkillId", parentId)
+			if pRow == nil then
+				log_warning("[SKILL-TREE] link parent missing skillId=" .. skillId .. " parent=" .. parentId)
+				continue
+			end
+			local parentRow = tonumber(pRow:GetItem("TreeRow")) or 0
+			local parentCol = tonumber(pRow:GetItem("TreeCol")) or 0
+			-- 위상 가드: 같은 열 + 바로 위 행
+			if parentCol ~= treeCol or parentRow ~= (treeRow - 1) then
+				log_warning("[SKILL-TREE] link topology skip skill=" .. skillId
+					.. " child=(" .. tostring(treeRow) .. "," .. tostring(treeCol) .. ")"
+					.. " parent=(" .. tostring(parentRow) .. "," .. tostring(parentCol) .. ")")
+				continue
+			end
+			if treeRow < 2 or treeRow > self.MaxRows or treeCol < 1 or treeCol > self.MaxCols then
+				continue
+			end
+
+			local link = self.Entity:GetChildByName("Link_" .. treeRow .. "_" .. treeCol, true)
+			if not isvalid(link) then
+				log_warning("[SKILL-TREE] Link_" .. treeRow .. "_" .. treeCol .. " missing")
+				continue
+			end
+			link.Enable = true
+
+			local parentNeed = self:GetParentRequiredLevelFromDs(ds, i)
+			local parentLv = pc:GetSkillLevel(parentId)
+			local childLv = pc:GetSkillLevel(skillId)
+			local spr = link.SpriteGUIRendererComponent
+			if isvalid(spr) then
+				-- 자식 보유=금색 실선 / 해금 가능(부모 충족)=금색 하이라이트 / 미충족=dim
+				if childLv >= 1 then
+					spr.Color = Color(0.94, 0.66, 0.19, 1.0)
+				elseif parentLv >= parentNeed then
+					spr.Color = Color(1.0, 0.82, 0.28, 1.0)
+				else
+					spr.Color = Color(0.34, 0.30, 0.26, 0.85)
+				end
+			end
+		end
 	end
 
 	@ExecSpace("ClientOnly")
@@ -666,6 +791,7 @@ script UISkillTreeController extends Component
 		local skillName = ds:GetCell(rowIndex, "Name") or skillId
 		local maxLevel = tonumber(ds:GetCell(rowIndex, "MaxLevel")) or 1
 		local parentId = ds:GetCell(rowIndex, "ParentSkillId")
+		local parentNeed = self:GetParentRequiredLevelFromDs(ds, rowIndex)
 		local reqLevel = tonumber(ds:GetCell(rowIndex, "RequiredLevel")) or 1
 		local achId = tonumber(ds:GetCell(rowIndex, "UnlockAchievementId"))
 		local iconRuid = ds:GetCell(rowIndex, "IconRUID") or ""
@@ -681,13 +807,18 @@ script UISkillTreeController extends Component
 			return
 		end
 
-		local parentOk = (parentId == nil or parentId == "" or controller:GetSkillLevel(parentId) >= 1)
+		-- T58: 부모 Lv ≥ ParentRequiredLevel (서버 게이트 미러)
+		local parentOk = true
+		if parentId ~= nil and parentId ~= "" then
+			parentOk = (controller:GetSkillLevel(parentId) >= parentNeed)
+		end
 		local levelOk = (controller.Level >= reqLevel)
 		local achOk = (achId == nil or achId <= 0 or self:IsAchievementDoneClient(achId))
 
 		if parentOk and levelOk and achOk then
-			local bg = Color(0.15, 0.45, 0.22, 1.0)
-			if selected then bg = Color(0.22, 0.55, 0.32, 1.0) end
+			-- 해금 가능: 금색 하이라이트 (트리 진행감, §8.4)
+			local bg = Color(0.72, 0.52, 0.14, 1.0)
+			if selected then bg = Color(0.94, 0.66, 0.19, 1.0) end
 			self:SetNodeVisual(node, bg, lvBadge, iconRuid, skillName, false)
 		elseif parentOk and levelOk and not achOk then
 			local bg = Color(0.55, 0.38, 0.12, 1.0)

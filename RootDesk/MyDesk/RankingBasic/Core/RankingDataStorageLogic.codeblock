@@ -1,0 +1,33 @@
+{
+  "Id": "",
+  "GameId": "",
+  "EntryKey": "codeblock://5da5807f-5a1c-4815-a1be-c7e0812ed732",
+  "ContentType": "x-mod/codeblock",
+  "Content": "",
+  "Usage": 0,
+  "UsePublish": 1,
+  "UseService": 0,
+  "CoreVersion": "26.5.0.0",
+  "StudioVersion": "",
+  "DynamicLoading": 0,
+  "ContentProto": {
+    "Use": "Json",
+    "Json": {
+      "CoreVersion": {
+        "Major": 0,
+        "Minor": 2
+      },
+      "ScriptVersion": {
+        "Major": 1,
+        "Minor": 1
+      },
+      "Description": "",
+      "Id": "5da5807f-5a1c-4815-a1be-c7e0812ed732",
+      "Language": 1,
+      "Name": "RankingDataStorageLogic",
+      "Type": 5,
+      "Source": 0,
+      "Target": null
+    }
+  }
+}

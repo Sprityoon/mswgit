@@ -150,6 +150,10 @@ script FishingSpot extends Component
 				local inv = playerEntity:GetComponent("script.PlayerInventory")
 				if isvalid(inv) then
 					inv:AddItem(selectedFish, 1)
+					-- T57: 주간 낚시왕 점수 적립 (훅 최소 — 미니게임 로직 무변경)
+					if _FishingContestLogic ~= nil then
+						_FishingContestLogic:AddCatchPoints(playerEntity, selectedFish)
+					end
 					if isvalid(pc) then
 						pc:ClientShowMineFeedback("[성공] " .. selectedFish .. "을(를) 낚았습니다!")
 						log("[FISHING] Success! Caught " .. selectedFish .. " by User: " .. userId .. " at " .. self.SpotType)

@@ -2108,11 +2108,28 @@ script PlayerController extends Component
 		
 		-- 해금(0→1) 시에만 검사하는 게이트
 		if curLevel == 0 then
-			-- ① 선행 스킬 보유
+			-- ① 선행 스킬: 부모 Lv ≥ ParentRequiredLevel (공란/누락=1, T58)
 			local parentId = row:GetItem("ParentSkillId")
-			if parentId ~= nil and parentId ~= "" and (tonumber(levels[parentId]) or 0) < 1 then
-				self:ClientShowMineFeedback("선행 스킬을 먼저 해금해야 합니다.", playerComp.UserId)
-				return
+			if parentId ~= nil and parentId ~= "" then
+				local parentNeed = 1
+				local okPrl, rawPrl = pcall(function() return row:GetItem("ParentRequiredLevel") end)
+				if okPrl and rawPrl ~= nil and tostring(rawPrl) ~= "" then
+					parentNeed = math.floor(tonumber(rawPrl) or 1)
+				end
+				if parentNeed < 1 then parentNeed = 1 end
+				local parentLv = tonumber(levels[parentId]) or 0
+				if parentLv < parentNeed then
+					local parentName = parentId
+					local parentRow = ds:FindRow("SkillId", parentId)
+					if parentRow ~= nil then
+						local pn = parentRow:GetItem("Name")
+						if pn ~= nil and pn ~= "" then parentName = tostring(pn) end
+					end
+					self:ClientShowMineFeedback(
+						"선행 스킬 '" .. parentName .. "' Lv " .. tostring(parentNeed) .. " 필요",
+						playerComp.UserId)
+					return
+				end
 			end
 			-- ② 캐릭터 레벨
 			local reqLevel = tonumber(row:GetItem("RequiredLevel")) or 1
