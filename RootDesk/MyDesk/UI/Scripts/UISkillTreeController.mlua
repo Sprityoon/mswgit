@@ -773,11 +773,11 @@ script UISkillTreeController extends Component
 			if isvalid(spr) then
 				-- 자식 보유=금색 실선 / 해금 가능(부모 충족)=금색 하이라이트 / 미충족=dim
 				if childLv >= 1 then
-					spr.Color = Color(0.94, 0.66, 0.19, 1.0)
+					spr.Color = Color(1.0, 0.8, 0.1, 1.0)
 				elseif parentLv >= parentNeed then
-					spr.Color = Color(1.0, 0.82, 0.28, 1.0)
+					spr.Color = Color(0.85, 0.70, 0.25, 0.95)
 				else
-					spr.Color = Color(0.34, 0.30, 0.26, 0.85)
+					spr.Color = Color(0.48, 0.44, 0.40, 0.9)
 				end
 			end
 		end

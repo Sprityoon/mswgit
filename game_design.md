@@ -642,7 +642,7 @@ graph TD
 
 - [x] **15-A 공통 버프 시스템** (T16 — 선행 인프라 / **Play 검증 PASS 2026-07-11**): `BuffDataSet` + `PlayerBuffs` 세션 버프(StatKey: MoveSpeed/GatherSpeed/AttackPower/StaminaRegen 훅) + `Category=consumable`+`UseBuffId` 퀵슬롯 Ctrl 사용 경로(진입점 `ServerRequestUseItem` — 14-E와 공유) + HUD BuffBar. ⚖️ 세션 한정(영속화 없음), 재적용=시간 갱신. 실증템 Roasted Grass. 계획: handoff §3 T16.
 - [x] **15-B 요리** (T17 — **Play 검증 PASS 2026-07-11**): 조리 냄비 — `Furnace`를 레시피 테이블/제목/기간 컬럼 **프로퍼티로 일반화**(기존 제련 무회귀), `CookingRecipeDataSet` + 음식 3종(consumable+`UseBuffId`). 농사/사냥/낚시 산출물의 소비처. 잔여: 다재료(2-input) 요리·냄비 전용 아이콘. 계획: handoff §3 T17.
-- [x] **15-C 낚시** (T18 — **Play 검증 PASS 2026-07-13**): 낚싯대(`ToolType=rod`) + 낚시터 픽스처(영지 연못/마을/사냥터 물가 — 타일 지형 불가침) + `FishDataSet`(SpotType별 어종) + 원버튼 타이밍 미니게임(캐스팅→랜덤 대기→`!`→0.8초 윈도우).
+- [x] **15-C 낚시** (T18 — **Play 검증 PASS 2026-07-13**): 낚싯대(`ToolType=rod`) + 낚시터 픽스처(영지 연못/마을/사냥터 물가 — 타일 지형 불가침) + `FishDataSet`(SpotType별 어종) + 원버튼 타이밍 미니게임(캐스팅→랜덤 대기→`!`→0.8초 윈도우). **→ v2 개편 예정(⚖️ 2026-07-16 보스 지시, T64 — 지휘자 직접)**: 입질 후 랜덤 미스 폐지, 홀드-릴리즈 릴링(위험 표시 시 릴리즈, 텐션 초과=줄 끊김) + 낚시 숙련 레벨(어종 풀 개방·난이도 완화, `Difficulty`/`MinFishingLevel`/`FishingXp` 컬럼).
 - [x] **15-D 마을 의뢰 게시판** (T20 — **Play 검증 PASS 2026-07-14**): 서버 일 번호 시드로 "오늘의 의뢰 3건" — 전 서버 공통(결정론), 납품→보상, 의뢰당 하루 1회, 일 변경 리셋. 일일 접속 훅이자 잉여 자원 소비처.
 - [ ] **15-E 목장/가축** (T19 — 배치 C 발행 2026-07-14): 우리 가구 + 닭(씨앗→달걀)/양(풀→양털), 급여→생산 타이머(타임스탬프 환산, 오프라인 포함), 우리 반경 배회(전투 없음 — 영지 평화 원칙 유지).
 - [x] **15-F 날씨** (T21 — **Play 검증 PASS 2026-07-13**): 맑음/비/안개 — 비=영지 작물 성장 가속+낚시 입질↑. ⚖️ **보너스만, 페널티 없음**. 낮/밤 오버레이 연출 파이프라인 재사용. `WeatherDataSet`으로 행 확장.
@@ -665,7 +665,7 @@ graph TD
 - [x] **17-A QWER 스킬바 모바일화** (T52 — 코드 완료 2026-07-15): 슬롯 `ButtonComponent`+`TryCastSlot` 터치 시전 / 스킬명 상시 노출 제거(공란 시 2글자 FallbackText) + PC 호버 `SkillTooltip`(Inventory Tooltip 아이덴티티 미러) / 모바일 `IsMobilePlatform()` 감지 시 bottom-right 88×88 재배치. `PlayerController` 무수정. **→ ⚖️ 2026-07-15 보스 확정(정책 전환): PC/모바일 레이아웃 분기 폐기 — 전 플랫폼 공통 고정 우하단 배치(T62)로 대체. 클릭 시전·이름 숨김·툴팁은 존치.**
 - [x] **17-B HUD 터치 타겟·정합** (T53 — 코드 완료 2026-07-15): MobileUI 버튼 75→88px 승격(pitch 104) / UIMyInfo bottom-center 대각 오프셋 → top-left 앵커 등가 정합 + `ActivePlatform=255` 명시 / QuickSlots 시각 72 유지·hit만 88. 컨트롤러 경로 무변경.
 - [x] **17-C 팝업 전수 정비** (T54 — 코드 완료 2026-07-15): 12개 팝업 전수 실사 — BtnClose는 전부 기존 존재(주로 `Bg/` 하위), 히트 88×88로 통일 / FurnacePopup 루트를 1920×1080→600×500(콘텐츠 정합) / 본문 폰트 다수 20→24 승격, 밀도 UI(탭·칩·그리드)는 후속 티켓 후보로 표기만. SkillTree 레이아웃 재편 없음(닫기만).
-- [ ] **17-D 클릭 상호작용 전면 제거 + 경로 일원화** (T59 — ⚖️ 2026-07-15 보스 지시: "클릭 상호작용 모두 제거 — UI 창과 클릭이 겹쳐 불편"): 월드 `TouchEvent` 7곳(침대/보물상자/게시판/연구소/상점NPC/주민NPC/낚시 리더보드) 제거 — 상호작용 = **F 키(PC) / BtnInteract(모바일)만**. 🔴 동반 필수: 모바일 `OnInteractButton()`이 포탈+화로만 커버하던 것을 F 브랜치와 동일 커버리지로 통일(`TryInteract()` 추출) + 분산 F 핸들러 5종은 클라 커스텀 이벤트(`InteractRequestEvent`) 브리지 — 월드 터치가 모바일의 사실상 유일 수단이던 대상들의 파손 방지.
+- [x] **17-D 클릭 상호작용 전면 제거 + 경로 일원화** (T59 — **Play PASS 2026-07-16**. ⚖️ 2026-07-15 보스 지시: "클릭 상호작용 모두 제거 — UI 창과 클릭이 겹쳐 불편"): 월드 `TouchEvent` 7곳(침대/보물상자/게시판/연구소/상점NPC/주민NPC/낚시 리더보드) 제거 — 상호작용 = **F 키(PC) / BtnInteract(모바일)만**. 🔴 동반 필수: 모바일 `OnInteractButton()`이 포탈+화로만 커버하던 것을 F 브랜치와 동일 커버리지로 통일(`TryInteract()` 추출) + 분산 F 핸들러 5종은 클라 커스텀 이벤트(`InteractRequestEvent`) 브리지 — 월드 터치가 모바일의 사실상 유일 수단이던 대상들의 파손 방지.
 - 배치 H 3건 공통: refresh 빌드 **Error=0**(total 492 / Warning 17 / Info 475), ui-aesthetics §7 루브릭 8/8, **Play 런타임 검증 보류(제작자 수행)** — 체크리스트는 각 보고서 §6. **지휘자 검수 통과 2026-07-15**(보고 3종·커밋 f392075 정합·스팟 코드 대조 — handoff §3 실행 계획 2026-07-15 2차).
 - (인프라) **T51 지형 대각 타일** — 완료 2026-07-15(§3.5 지형 불릿 참조). **.ui 스테일 저장 사고 규칙** — handoff §1.2 규칙 11.
 
@@ -674,6 +674,6 @@ graph TD
 
 - [ ] **18-A 사운드 파운데이션** (T55): 신규 `BGMDataSet`(MapKind별 BGM — home/town/field/boss) + 클라 `BGMManager`(맵 전환 감지, kind 판정=T37 규약 재사용) + `WeatherDataSet.AmbienceSoundRUID`(비 루프 — T21 @Sync 읽기 구독). 음원=msw-search 공식 리소스. 볼륨 설정 UI는 후속.
 - [ ] **18-B 마을 NPC 생활감** (T56): 주민 2인(촌장/낚시꾼) + `DialogDataSet`(TimeBand/WeatherId/Weight 필터 — 대사 추가=CSV 행) + F 대화 머리 위 말풍선(+선택: 자동 혼잣말). R1: dialog 패키지 확인 우선. 기존 `MerchantInteract` 상호작용 선례 미러.
-- [ ] **18-C 주간 낚시왕** (T57): `FishDataSet.RankPoints` + 어획 시 주간 점수 적립(week index=15-D day index 패턴 미러) + ranking/leaderboard 패키지 리더보드 + 주간 리셋. **v1 보상 없음**(보상 지급은 PlayerInventory Play 대기 해소 후 후속 티켓).
+- [x] **18-C 주간 낚시왕** (T57 → **T63 수정 완료·제작자 확인 2026-07-16** — 적립 직후/열람 시 스냅샷 강제 갱신+캐시 우회, 주기 300/60s, LEA-3036 핫픽스): `FishDataSet.RankPoints` + 어획 시 주간 점수 적립(week index=15-D day index 패턴 미러) + ranking-basic-package 리더보드 + 주간 리셋. **v1 보상 없음**(후속 티켓). 실패 원인(지휘자 진단): 적립은 정상 경로이나 리더보드 화면이 서버 30분 스냅샷+클라 10분 캐시를 읽어 즉시 반영 불가 — T63이 적립 직후/열람 시 갱신으로 수정.
 
 

@@ -2,6 +2,10 @@
 script FishingContestLogic extends Logic
 	-- T57: 어획 점수 적립 훅. PersistenceManager/PlayerInventory 무수정.
 	-- ranking-basic-package SortableDataStorage + Week cycleIndex 사용.
+	-- T63: 적립 성공 후 스냅샷 디바운스 갱신(연속 어획 GetSorted 스팸 방지).
+
+	property integer LastSnapshotRefreshElapsed = 0
+	property integer SnapshotRefreshDebounceSeconds = 10
 
 	@ExecSpace("ServerOnly")
 	method void AddCatchPoints(Entity player, string fishItem)
@@ -60,6 +64,28 @@ script FishingContestLogic extends Logic
 			.. " new=" .. tostring(newScore)
 			.. " ok=" .. tostring(ok)
 			.. " profile=" .. tostring(profileCode))
+		if ok then
+			self:MaybeRefreshSnapshotAfterCatch()
+		end
+	end
+
+	@ExecSpace("ServerOnly")
+	method void MaybeRefreshSnapshotAfterCatch()
+		-- T63: 적립 직후 스냅샷 갱신. SnapshotRefreshDebounceSeconds 이내면 스킵.
+		local now = 0
+		if _DateTimeLogic ~= nil then
+			now = _DateTimeLogic:GetTimeElapsed()
+		end
+		local debounce = self.SnapshotRefreshDebounceSeconds
+		if debounce < 1 then debounce = 10 end
+		local elapsed = now - self.LastSnapshotRefreshElapsed
+		if self.LastSnapshotRefreshElapsed > 0 and elapsed < debounce then
+			log("[T63][FISHRANK] snapshot refresh debounced elapsed=" .. tostring(elapsed)
+				.. " debounce=" .. tostring(debounce))
+			return
+		end
+		self.LastSnapshotRefreshElapsed = now
+		_RankingDataStorageLogic:ForceRefreshSnapshot()
 	end
 
 	method integer GetFishRankPoints(string fishItem)

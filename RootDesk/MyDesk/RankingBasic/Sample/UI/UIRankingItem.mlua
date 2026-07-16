@@ -35,7 +35,12 @@ script UIRankingItem extends Component
 	end
 
 	@ExecSpace("ClientOnly")
-	method void SetMyData(any myData)
+	method void SetMyData(RankingData myData)
+		-- 내 순위 행 표시.
+		if myData == nil then
+			self:Clear()
+			return
+		end
 		self.Text_Rank.Text = myData.Rank ~= 0 and tostring(myData.Rank) or "-"
 		self.Text_Score.Text = tostring(myData.Score)
 		
@@ -43,7 +48,7 @@ script UIRankingItem extends Component
 		local profileCode = playerComp.ProfileCode
 		local nickName = playerComp.Nickname
 		
-		self.Text_Name.Text = profileCode .. "," .. nickName
+		self.Text_Name.Text = tostring(profileCode) .. "," .. tostring(nickName)
 	end
 
 	@ExecSpace("ClientOnly")

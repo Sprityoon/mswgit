@@ -143,9 +143,9 @@ script UIRanking extends Component
 
 	@ExecSpace("ClientOnly")
 	method void BeforeOpen()
+		-- T63: Open 시 서버 스냅샷·캐시 강제 갱신 후 목록 표시.
 		self:Clear()
-		
-		_RankingViewLogic:RequestDataListWithSenderData(1, self.PageSize)
+		_RankingViewLogic:RequestFreshDataListWithSenderData(1, self.PageSize)
 	end
 
 	@ExecSpace("ClientOnly")
@@ -216,7 +216,8 @@ script UIRanking extends Component
 	end
 
 	@ExecSpace("ClientOnly")
-	method void SetRankingAndMyData(integer cycleIndex, integer pageNo, integer pageSize, table dataList, any myData)
+	method void SetRankingAndMyData(integer cycleIndex, integer pageNo, integer pageSize, table dataList, RankingData myData)
+		-- 목록+내 점수 반영 (클라 로컬 — RankingData 재조립본).
 		if self.PageSize ~= pageSize then return end
 		
 		self:SetCycleIndex(cycleIndex)

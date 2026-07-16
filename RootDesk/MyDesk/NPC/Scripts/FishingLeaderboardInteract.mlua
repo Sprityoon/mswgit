@@ -1,41 +1,56 @@
 @Component
 script FishingLeaderboardInteract extends Component
-	-- T57: 낚시왕 리더보드 픽스처 F 상호작용 → ranking-basic UI 오픈.
-	-- PopupGroup.ui / HUDGroup.ui 파일 무수정(런타임 스폰 경로).
+	-- T57: 낚시왕 리더보드 픽스처 F/BtnInteract → ranking-basic UI 오픈.
+	-- T59: TouchEvent 제거. KeyDown F + InteractRequestEvent 브리지.
 
 	property number InteractRange = 3.0
 	property any keyHandler = nil
+	property any interactRequestHandler = nil
 
 	method void OnBeginPlay()
-		-- 클라 입력 구독.
+		-- 클라: F KeyDown + InteractRequestEvent 구독.
 		if self:IsClient() then
-			self.Entity:ConnectEvent(TouchEvent, self.OnTouch)
 			self.keyHandler = _InputService:ConnectEvent(KeyDownEvent, self.OnKeyDown)
+			local lp = _UserService.LocalPlayer
+			if isvalid(lp) then
+				-- LEA-4002: ClientOnly 메서드에 커스텀 Event 타입 파라미터 불가 → 클로저 구독.
+				self.interactRequestHandler = lp:ConnectEvent(InteractRequestEvent, function()
+					self:TryInteract()
+				end)
+			else
+				log_warning("[T57][FISHRANK] LocalPlayer nil — InteractRequestEvent not connected")
+			end
 			log("[T57][FISHRANK] leaderboard fixture ready")
 		end
 	end
 
 	method void OnEndPlay()
 		-- 핸들러 해제.
-		if self:IsClient() and self.keyHandler ~= nil then
-			_InputService:DisconnectEvent(KeyDownEvent, self.keyHandler)
-			self.keyHandler = nil
+		if self:IsClient() then
+			if self.keyHandler ~= nil then
+				_InputService:DisconnectEvent(KeyDownEvent, self.keyHandler)
+				self.keyHandler = nil
+			end
+			if self.interactRequestHandler ~= nil then
+				local lp = _UserService.LocalPlayer
+				if isvalid(lp) then
+					lp:DisconnectEvent(InteractRequestEvent, self.interactRequestHandler)
+				end
+				self.interactRequestHandler = nil
+			end
 		end
 	end
 
 	@ExecSpace("ClientOnly")
-	method void OnTouch(TouchEvent event)
-		-- 터치로 리더보드 오픈.
-		local localPlayer = _UserService.LocalPlayer
-		if not isvalid(localPlayer) then return end
-		if self:GetDistanceToPlayer(localPlayer) > self.InteractRange then return end
-		self:OpenLeaderboard()
+	method void OnKeyDown(KeyDownEvent event)
+		-- F 키 → TryInteract.
+		if event.key ~= KeyboardKey.F then return end
+		self:TryInteract()
 	end
 
 	@ExecSpace("ClientOnly")
-	method void OnKeyDown(KeyDownEvent event)
-		-- F 키로 리더보드 오픈.
-		if event.key ~= KeyboardKey.F then return end
+	method void TryInteract()
+		-- 근처면 리더보드 오픈 (OnKeyDown 본문 이동).
 		local localPlayer = _UserService.LocalPlayer
 		if not isvalid(localPlayer) then return end
 		if self:GetDistanceToPlayer(localPlayer) > self.InteractRange then return end

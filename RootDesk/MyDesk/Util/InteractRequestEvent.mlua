@@ -1,0 +1,5 @@
+@Event
+script InteractRequestEvent extends EventType
+	-- T59: PlayerController TryInteract가 자체 대상을 못 찾았을 때(모바일 BtnInteract)
+	-- 분산 인터랙터블(Merchant/Bulletin/Lab/Villager/Leaderboard)로 브리지하는 클라 신호.
+end

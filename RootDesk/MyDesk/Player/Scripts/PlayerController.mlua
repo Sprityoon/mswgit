@@ -559,10 +559,6 @@ script PlayerController extends Component
 		end
 
 		local now = _UtilLogic.ElapsedSeconds
-		if now - self.LastMineTime < self:GetEffectiveMineCooldown() then
-			return
-		end
-		self.LastMineTime = now
 
 		local currentMap = self.Entity.CurrentMap
 		if not isvalid(currentMap) then return end
@@ -571,9 +567,11 @@ script PlayerController extends Component
 		local playerCell = tilemap:ToCellPosition(self.Entity.TransformComponent.WorldPosition)
 		if playerCell == nil then return end
 		local targetCell = Vector2Int(playerCell.x + self.LastDirectionX, playerCell.y + self.LastDirectionY)
-		
+
 		local isPlaceable = false
 		local terrainAction = ""
+		local isTerrainTool = false
+		local terrainCooldown = 0
 		if isvalid(inv) and activeItem ~= "" then
 			local baseName = inv:GetBaseItemName(activeItem)
 			local ds = _DataService:GetTable("item_dataset")
@@ -585,17 +583,34 @@ script PlayerController extends Component
 					if row:GetItem("Category") == "furniture" then
 						isPlaceable = true
 					end
-					if terrainAction ~= nil and terrainAction ~= "" and row:GetItem("Category") == "tool" then
-						local state = self.Entity.StateComponent
-						if isvalid(state) then
-							state:ChangeState("MINE")
+					if terrainAction ~= nil and terrainAction ~= "" then
+						isTerrainTool = row:GetItem("Category") == "tool"
+						-- T61: 지형 편집 전용 쿨다운(TerrainEditCooldown 컬럼) — 공란이면 채집 쿨다운 폴백
+						local okCd, rawCd = pcall(function() return row:GetItem("TerrainEditCooldown") end)
+						if okCd and rawCd ~= nil and tostring(rawCd) ~= "" then
+							terrainCooldown = tonumber(rawCd) or 0
 						end
 					end
 				end
 			end
 		end
 
+		local cooldown = self:GetEffectiveMineCooldown()
+		if terrainAction ~= nil and terrainAction ~= "" and terrainCooldown > 0 then
+			cooldown = terrainCooldown
+		end
+		if now - self.LastMineTime < cooldown then
+			return
+		end
+		self.LastMineTime = now
+
 		if terrainAction ~= nil and terrainAction ~= "" then
+			if isTerrainTool then
+				local state = self.Entity.StateComponent
+				if isvalid(state) then
+					state:ChangeState("MINE")
+				end
+			end
 			inv:ServerRequestTerrainEdit(activeItem, targetCell.x, targetCell.y, self.LastDirectionX, self.LastDirectionY)
 			return
 		end
@@ -700,74 +715,8 @@ script PlayerController extends Component
 				log_warning("[DEX] J key: UICollectionController missing")
 			end
 		elseif key == KeyboardKey.F then
-			if self.FishingState ~= "None" and isvalid(self.ActiveFishingSpot) then
-				self:ServerRequestFishingInteract(self.ActiveFishingSpot.Id)
-				return
-			end
-			-- 보물 상자: 포탈보다 우선 (홈 포탈 옆 스폰 시 F가 워프로만 먹히던 문제)
-			local nearbyTreasure = self:FindNearbyTreasureChest()
-			if isvalid(nearbyTreasure) then
-				local tc = nearbyTreasure:GetComponent("script.TreasureChest")
-				if not isvalid(tc) then tc = nearbyTreasure:GetComponent("TreasureChest") end
-				if isvalid(tc) then
-					if tc.IsOpened then
-						self:ShowMineFeedback("이미 열어본 상자입니다.")
-					else
-						tc:ServerRequestOpen()
-					end
-					return
-				end
-			end
-			if isvalid(self.ActivePortal) then
-				-- Estate portals open the destination list (town / hunting grounds); fixed portals in
-				-- other maps warp straight to their single target. See TryUsePortal.
-				self:TryUsePortal()
-				return
-			end
-			local nearbyBed = self:FindNearbyBed()
-			if isvalid(nearbyBed) then
-				self:ServerRequestSleep(nearbyBed.Id)
-				return
-			end
-			local nearbyFurnace = self:FindNearbyFurnace()
-			if isvalid(nearbyFurnace) then
-				local popup = _EntityService:GetEntityByPath("/ui/PopupGroup/FurnacePopup")
-				if isvalid(popup) then
-					local controller = popup:GetComponent("script.UIFurnaceController")
-					if isvalid(controller) then
-						local c = controller
-						if popup.Enable then
-							c:Close()
-						else
-							c:Open(nearbyFurnace)
-						end
-					end
-				end
-				return
-			end
-			
-			local nearbyChest = self:FindNearbyChest()
-			if isvalid(nearbyChest) then
-				local popup = _EntityService:GetEntityByPath("/ui/PopupGroup/ChestPopup")
-				if isvalid(popup) then
-					local controller = popup:GetComponent("script.UIChestController")
-					if isvalid(controller) then
-						local c = controller
-						if popup.Enable then
-							c:Close()
-						else
-							c:Open(nearbyChest)
-						end
-					end
-				end
-				return
-			end
-			
-			local nearbyFishingSpot = self:FindNearbyFishingSpot()
-			if isvalid(nearbyFishingSpot) then
-				self:ServerRequestFishingInteract(nearbyFishingSpot.Id)
-				return
-			end
+			-- T59: F 본문은 TryInteract로 추출(로직 변경 없음). 분산 핸들러는 기존 KeyDown 동시 리슨 유지.
+			self:TryInteract()
 		else
 			-- Numeric Keys (1 to 0)
 			local slotIndex = 0
@@ -1165,12 +1114,36 @@ script PlayerController extends Component
 	end
 
 	@ExecSpace("ClientOnly")
-	method void OnInteractButton()
-		-- description: Handles interaction button press (mobile/UI).
+	method boolean TryInteract()
+		-- T59: F/BtnInteract 공통 상호작용 본문 (KeyDown F에서 이동 — 로직 변경 금지).
+		if self.FishingState ~= "None" and isvalid(self.ActiveFishingSpot) then
+			self:ServerRequestFishingInteract(self.ActiveFishingSpot.Id)
+			return true
+		end
+		-- 보물 상자: 포탈보다 우선 (홈 포탈 옆 스폰 시 F가 워프로만 먹히던 문제)
+		local nearbyTreasure = self:FindNearbyTreasureChest()
+		if isvalid(nearbyTreasure) then
+			local tc = nearbyTreasure:GetComponent("script.TreasureChest")
+			if not isvalid(tc) then tc = nearbyTreasure:GetComponent("TreasureChest") end
+			if isvalid(tc) then
+				if tc.IsOpened then
+					self:ShowMineFeedback("이미 열어본 상자입니다.")
+				else
+					tc:ServerRequestOpen()
+				end
+				return true
+			end
+		end
 		if isvalid(self.ActivePortal) then
-			-- Estate portals open the destination list; fixed portals warp straight. See TryUsePortal.
+			-- Estate portals open the destination list (town / hunting grounds); fixed portals in
+			-- other maps warp straight to their single target. See TryUsePortal.
 			self:TryUsePortal()
-			return
+			return true
+		end
+		local nearbyBed = self:FindNearbyBed()
+		if isvalid(nearbyBed) then
+			self:ServerRequestSleep(nearbyBed.Id)
+			return true
 		end
 		local nearbyFurnace = self:FindNearbyFurnace()
 		if isvalid(nearbyFurnace) then
@@ -1186,7 +1159,43 @@ script PlayerController extends Component
 					end
 				end
 			end
+			return true
 		end
+
+		local nearbyChest = self:FindNearbyChest()
+		if isvalid(nearbyChest) then
+			local popup = _EntityService:GetEntityByPath("/ui/PopupGroup/ChestPopup")
+			if isvalid(popup) then
+				local controller = popup:GetComponent("script.UIChestController")
+				if isvalid(controller) then
+					local c = controller
+					if popup.Enable then
+						c:Close()
+					else
+						c:Open(nearbyChest)
+					end
+				end
+			end
+			return true
+		end
+
+		local nearbyFishingSpot = self:FindNearbyFishingSpot()
+		if isvalid(nearbyFishingSpot) then
+			self:ServerRequestFishingInteract(nearbyFishingSpot.Id)
+			return true
+		end
+		return false
+	end
+
+	@ExecSpace("ClientOnly")
+	method void OnInteractButton()
+		-- T59: BtnInteract = TryInteract + 미처리 시 InteractRequestEvent(분산 핸들러 브리지).
+		if self:TryInteract() then
+			return
+		end
+		local evt = InteractRequestEvent()
+		self.Entity:SendEvent(evt)
+		log("[T59] InteractRequestEvent sent (no PC-owned target)")
 	end
 
 	@ExecSpace("ClientOnly")

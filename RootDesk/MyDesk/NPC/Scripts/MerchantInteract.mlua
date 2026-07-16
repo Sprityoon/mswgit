@@ -2,73 +2,76 @@
 script MerchantInteract extends Component
 
 	-- Client-only interaction logic for the NPC Merchant.
-	-- Opens the ShopPopup UI when clicked/touched or when F key is pressed nearby.
+	-- Opens the ShopPopup UI when F key / BtnInteract (InteractRequestEvent) nearby.
+	-- T59: TouchEvent 제거. KeyDown F + InteractRequestEvent 브리지.
 
 	property any keyHandler = nil
+	property any interactRequestHandler = nil
 
 	method void OnBeginPlay()
+		-- 클라: F KeyDown + InteractRequestEvent 구독.
 		if self:IsClient() then
-			self.Entity:ConnectEvent(TouchEvent, self.OnTouch)
 			self.keyHandler = _InputService:ConnectEvent(KeyDownEvent, self.OnKeyDown)
+			local lp = _UserService.LocalPlayer
+			if isvalid(lp) then
+				-- LEA-4002: ClientOnly 메서드에 커스텀 Event 타입 파라미터 불가 → 클로저 구독.
+				self.interactRequestHandler = lp:ConnectEvent(InteractRequestEvent, function()
+					self:TryInteract()
+				end)
+			else
+				log_warning("[MerchantInteract] LocalPlayer nil — InteractRequestEvent not connected")
+			end
 		end
 	end
 
 	method void OnEndPlay()
-		if self:IsClient() and self.keyHandler ~= nil then
-			_InputService:DisconnectEvent(KeyDownEvent, self.keyHandler)
-			self.keyHandler = nil
+		-- 핸들러 해제.
+		if self:IsClient() then
+			if self.keyHandler ~= nil then
+				_InputService:DisconnectEvent(KeyDownEvent, self.keyHandler)
+				self.keyHandler = nil
+			end
+			if self.interactRequestHandler ~= nil then
+				local lp = _UserService.LocalPlayer
+				if isvalid(lp) then
+					lp:DisconnectEvent(InteractRequestEvent, self.interactRequestHandler)
+				end
+				self.interactRequestHandler = nil
+			end
 		end
-	end
-
-	@ExecSpace("ClientOnly")
-	method void OnTouch(TouchEvent event)
-		local localPlayer = _UserService.LocalPlayer
-		if not isvalid(localPlayer) then return end
-		
-		local dist = self:GetDistanceToPlayer(localPlayer)
-		log("[MerchantInteract] Touched by player. Distance: " .. tostring(dist))
-
-		if dist > 3.0 then
-			self:ShowRangeFeedback(localPlayer)
-			return
-		end
-
-		self:OpenShop()
 	end
 
 	@ExecSpace("ClientOnly")
 	method void OnKeyDown(KeyDownEvent event)
+		-- F 키 → TryInteract.
 		if event.key ~= KeyboardKey.F then return end
+		self:TryInteract()
+	end
 
+	@ExecSpace("ClientOnly")
+	method void TryInteract()
+		-- 근처면 상점 오픈 (OnKeyDown 본문 이동).
 		local localPlayer = _UserService.LocalPlayer
 		if not isvalid(localPlayer) then return end
 
 		local dist = self:GetDistanceToPlayer(localPlayer)
 		if dist <= 3.0 then
-			log("[MerchantInteract] F key pressed. Opening shop. Distance: " .. tostring(dist))
+			log("[MerchantInteract] TryInteract. Opening shop. Distance: " .. tostring(dist))
 			self:OpenShop()
 		end
 	end
 
 	@ExecSpace("ClientOnly")
 	method number GetDistanceToPlayer(Entity player)
+		-- 월드 거리.
 		local myPos = self.Entity.TransformComponent.WorldPosition
 		local playerPos = player.TransformComponent.WorldPosition
 		return Vector2.Distance(Vector2(myPos.x, myPos.y), Vector2(playerPos.x, playerPos.y))
 	end
 
 	@ExecSpace("ClientOnly")
-	method void ShowRangeFeedback(Entity player)
-		local pc = player:GetComponent("script.PlayerController")
-		if isvalid(pc) then
-			---@type PlayerController
-			local c = pc
-			c:ClientShowMineFeedback("상인 NPC에게 더 가까이 다가가야 합니다.")
-		end
-	end
-
-	@ExecSpace("ClientOnly")
 	method void OpenShop()
+		-- ShopPopup 오픈.
 		local shopPopup = _EntityService:GetEntityByPath("/ui/PopupGroup/ShopPopup")
 		if isvalid(shopPopup) then
 			local ctrl = shopPopup:GetComponent("script.UIShopController")

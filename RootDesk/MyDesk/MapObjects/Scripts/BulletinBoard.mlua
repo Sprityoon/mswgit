@@ -1,38 +1,55 @@
 @Component
 script BulletinBoard extends Component
 
-	-- Town daily request board: F / Touch → RequestPopup (ResearchLab pattern).
+	-- Town daily request board: F / BtnInteract → RequestPopup.
+	-- T59: TouchEvent 제거. KeyDown F + InteractRequestEvent 브리지.
 
 	property any keyHandler = nil
+	property any interactRequestHandler = nil
 
 	method void OnBeginPlay()
+		-- 클라: F KeyDown + InteractRequestEvent 구독.
 		if self:IsClient() then
-			self.Entity:ConnectEvent(TouchEvent, self.OnTouch)
 			self.keyHandler = _InputService:ConnectEvent(KeyDownEvent, self.OnKeyDown)
+			local lp = _UserService.LocalPlayer
+			if isvalid(lp) then
+				-- LEA-4002: ClientOnly 메서드에 커스텀 Event 타입 파라미터 불가 → 클로저 구독.
+				self.interactRequestHandler = lp:ConnectEvent(InteractRequestEvent, function()
+					self:TryInteract()
+				end)
+			else
+				log_warning("[BulletinBoard] LocalPlayer nil — InteractRequestEvent not connected")
+			end
 		end
 	end
 
 	method void OnEndPlay()
-		if self:IsClient() and self.keyHandler ~= nil then
-			_InputService:DisconnectEvent(KeyDownEvent, self.keyHandler)
-			self.keyHandler = nil
+		-- 핸들러 해제.
+		if self:IsClient() then
+			if self.keyHandler ~= nil then
+				_InputService:DisconnectEvent(KeyDownEvent, self.keyHandler)
+				self.keyHandler = nil
+			end
+			if self.interactRequestHandler ~= nil then
+				local lp = _UserService.LocalPlayer
+				if isvalid(lp) then
+					lp:DisconnectEvent(InteractRequestEvent, self.interactRequestHandler)
+				end
+				self.interactRequestHandler = nil
+			end
 		end
-	end
-
-	@ExecSpace("ClientOnly")
-	method void OnTouch(TouchEvent event)
-		local localPlayer = _UserService.LocalPlayer
-		if not isvalid(localPlayer) then return end
-		if self:GetDistanceToPlayer(localPlayer) > 3.0 then
-			self:ShowRangeFeedback(localPlayer)
-			return
-		end
-		self:OpenRequestUI()
 	end
 
 	@ExecSpace("ClientOnly")
 	method void OnKeyDown(KeyDownEvent event)
+		-- F 키 → TryInteract.
 		if event.key ~= KeyboardKey.F then return end
+		self:TryInteract()
+	end
+
+	@ExecSpace("ClientOnly")
+	method void TryInteract()
+		-- 근처면 의뢰 UI 오픈 (OnKeyDown 본문 이동).
 		local localPlayer = _UserService.LocalPlayer
 		if not isvalid(localPlayer) then return end
 		if self:GetDistanceToPlayer(localPlayer) <= 3.0 then
@@ -42,21 +59,15 @@ script BulletinBoard extends Component
 
 	@ExecSpace("ClientOnly")
 	method number GetDistanceToPlayer(Entity player)
+		-- 월드 거리.
 		local myPos = self.Entity.TransformComponent.WorldPosition
 		local playerPos = player.TransformComponent.WorldPosition
 		return Vector2.Distance(Vector2(myPos.x, myPos.y), Vector2(playerPos.x, playerPos.y))
 	end
 
 	@ExecSpace("ClientOnly")
-	method void ShowRangeFeedback(Entity player)
-		local pc = player:GetComponent("script.PlayerController")
-		if isvalid(pc) then
-			pc:ShowMineFeedback("게시판에 더 가까이 다가가야 합니다.")
-		end
-	end
-
-	@ExecSpace("ClientOnly")
 	method void OpenRequestUI()
+		-- RequestPopup 토글.
 		local popup = _EntityService:GetEntityByPath("/ui/PopupGroup/RequestPopup")
 		if not isvalid(popup) then
 			log_error("[BulletinBoard] RequestPopup not found at /ui/PopupGroup/RequestPopup")

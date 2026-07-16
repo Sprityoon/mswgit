@@ -25,16 +25,16 @@ script RankingViewLogic extends Logic
 		
 		local validPageNo = dsLogic:GetValidPageNo(pageNo, pageSize)
 		local dataList = dsLogic:GetRankingDataList(validPageNo, pageSize)
-		self:ResponseDataList(cycleIndex, validPageNo, pageSize, dataList, senderUserId)
+		self:ResponseDataList(cycleIndex, validPageNo, pageSize, self:ToPlainRankingRows(dataList), senderUserId)
 	end
 
 	@ExecSpace("Client")
 	method void ResponseDataList(integer cycleIndex, integer pageNo, integer pageSize, table dataList)
+		-- 페이지 이동 응답 (평탄 table 가정).
 		local entity = _RankingSampleUILogic:GetUI()
 		if entity == nil then
 			return
 		end
-		
 		entity.UIRanking:SetRanking(cycleIndex, pageNo, pageSize, dataList)
 	end
 
@@ -46,6 +46,7 @@ script RankingViewLogic extends Logic
 
 	@ExecSpace("ServerOnly")
 	method void ProcessDataListWithSenderData(string userId, integer pageNo, integer pageSize)
+		-- 목록+내 점수 조회 후 클라로 전달. RankingData를 any로 넘기면 LEA-3036 → 원시 필드 RPC.
 		local userEntity = _UserService:GetUserEntityByUserId(userId)
 		if not isvalid(userEntity) then
 			return
@@ -59,28 +60,70 @@ script RankingViewLogic extends Logic
 		local configData = dsLogic.ConfigData
 		local cycleIndex = configData:GetCycleIndex(_DateTimeLogic:GetTimeElapsed())
 		
-		local profileCode = userEntity.PlayerComponent.ProfileCode
+		local playerComp = userEntity.PlayerComponent
+		local profileCode = playerComp.ProfileCode
+		if profileCode == nil or profileCode == "" then
+			profileCode = tostring(playerComp.UserId or "")
+		end
 		local myData = _RankingDataCacheLogic:GetMyRankingDataAndWait(profileCode, cycleIndex)
+		local myRank = 0
+		local myScore = 0
+		local myTag = ""
+		if myData ~= nil then
+			myRank = math.floor(tonumber(myData.Rank) or 0)
+			myScore = math.floor(tonumber(myData.Score) or 0)
+			myTag = tostring(myData.Tag or "")
+		end
 		
 		if cycleIndex ~= dsLogic.CycleIndex then
-			self:ResponseDataListWithSenderData(cycleIndex, 1, pageSize, {}, myData, userId)
+			self:ResponseDataListWithSenderData(cycleIndex, 1, pageSize, {}, myRank, myScore, profileCode, myTag, userId)
 			return
 		end
 		
 		local validPageNo = dsLogic:GetValidPageNo(pageNo, pageSize)
 		local dataList = dsLogic:GetRankingDataList(validPageNo, pageSize)
+		local plainList = self:ToPlainRankingRows(dataList)
 		
-		self:ResponseDataListWithSenderData(cycleIndex, validPageNo, pageSize, dataList, myData, userId)
+		self:ResponseDataListWithSenderData(cycleIndex, validPageNo, pageSize, plainList, myRank, myScore, profileCode, myTag, userId)
+	end
+
+	@ExecSpace("ServerOnly")
+	method table ToPlainRankingRows(table dataList)
+		-- RankingData Struct → 평탄 table (Client RPC LEA-3036 회피).
+		local out = {}
+		if dataList == nil then return out end
+		for i = 1, #dataList do
+			local d = dataList[i]
+			if d ~= nil then
+				out[i] = {
+					Rank = math.floor(tonumber(d.Rank) or 0),
+					ProfileCode = tostring(d.ProfileCode or ""),
+					Score = math.floor(tonumber(d.Score) or 0),
+					Tag = tostring(d.Tag or ""),
+				}
+			end
+		end
+		return out
 	end
 
 	@ExecSpace("Client")
-	method void ResponseDataListWithSenderData(integer cycleIndex, integer pageNo, integer pageSize, table dataList, any myData)
+	method void ResponseDataListWithSenderData(integer cycleIndex, integer pageNo, integer pageSize, table dataList, integer myRank, integer myScore, string myProfileCode, string myTag)
+		-- T63 핫픽스: any/RankingData RPC 금지 → 원시 필드로 수신 후 재조립.
 		local entity = _RankingSampleUILogic:GetUI()
 		if entity == nil then
 			return
 		end
-		
+		local myData = RankingData()
+		myData.Rank = myRank
+		myData.Score = myScore
+		myData.ProfileCode = myProfileCode
+		myData.Tag = myTag
 		entity.UIRanking:SetRankingAndMyData(cycleIndex, pageNo, pageSize, dataList, myData)
+		log("[T63][FISHRANK] UI apply cycle=" .. tostring(cycleIndex)
+			.. " page=" .. tostring(pageNo)
+			.. " rows=" .. tostring(dataList ~= nil and #dataList or 0)
+			.. " myScore=" .. tostring(myScore)
+			.. " myRank=" .. tostring(myRank))
 	end
 
 	@ExecSpace("Server")
@@ -108,12 +151,25 @@ script RankingViewLogic extends Logic
 
 	@ExecSpace("Server")
 	method void RequestForceUpdate()
+		-- 어드민 강제 갱신 (기존 경로 — ForceRefreshSnapshot 재사용).
 		if not _AdminLogic:IsAdmin(senderUserId) then
 			return
 		end
-		
-		_RankingDataStorageLogic:UpdateDataTable()
-		_RankingDataCacheLogic:Clear()
+		_RankingDataStorageLogic:ForceRefreshSnapshot()
+	end
+
+	@ExecSpace("Server")
+	method void RequestFreshDataListWithSenderData(integer pageNo, integer pageSize)
+		-- T63: UI Open — 스냅샷+캐시 강제 갱신 후 목록/내 점수 응답 (비어드민 허용).
+		local dsLogic = _RankingDataStorageLogic
+		if not dsLogic.IsInit then
+			return
+		end
+		dsLogic:ForceRefreshSnapshot()
+		self:ProcessDataListWithSenderData(senderUserId, pageNo, pageSize)
+		log("[T63][FISHRANK] RequestFreshDataList page=" .. tostring(pageNo)
+			.. " size=" .. tostring(pageSize)
+			.. " user=" .. tostring(senderUserId))
 	end
 
 	method void CalculateRanks(integer rankingMode, table rankingDataList)

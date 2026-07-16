@@ -11,15 +11,14 @@ script UISkillBarController extends Component
 	property table clickHandlers = {}
 	property table hoverHandlers = {}
 	property integer hoverSlotIndex = 0
-	property boolean isMobileLayout = false
+
 
 	@ExecSpace("ClientOnly")
 	method void OnBeginPlay()
-		-- description: Wire slot click/hover, apply platform layout once, then poll cooldowns.
+		-- description: Wire slot click/hover, poll cooldowns.
 		self.clickHandlers = {}
 		self.hoverHandlers = {}
 		self.hoverSlotIndex = 0
-		self:ApplyPlatformLayout()
 		self:SetupSlotEvents()
 		self:HideTooltip()
 		self:UpdateSlots()
@@ -27,7 +26,7 @@ script UISkillBarController extends Component
 			if not isvalid(self) or not isvalid(self.Entity) then return end
 			self:UpdateSlots()
 		end, 0.1)
-		log("[SKILL-BAR] OnBeginPlay mobile=" .. tostring(self.isMobileLayout))
+		log("[SKILL-BAR] OnBeginPlay")
 	end
 
 	@ExecSpace("ClientOnly")
@@ -59,89 +58,6 @@ script UISkillBarController extends Component
 		local pc = lp:GetComponent("script.PlayerController")
 		if not isvalid(pc) then return nil end
 		return pc
-	end
-
-	@ExecSpace("ClientOnly")
-	method boolean DetectMobilePlatform()
-		-- description: Client platform check via Environment.IsMobilePlatform (verified in .d.mlua).
-		if _Environment == nil then return false end
-		local ok, mobile = pcall(function()
-			return _Environment:IsMobilePlatform()
-		end)
-		if ok and mobile == true then return true end
-		return false
-	end
-
-	@ExecSpace("ClientOnly")
-	method void ApplyPlatformLayout()
-		-- description: PC keeps bottom-center bar; mobile moves bar to bottom-right thumb zone (≥88 hit).
-		self.isMobileLayout = self:DetectMobilePlatform()
-		local barTr = self.Entity.UITransformComponent
-		if not isvalid(barTr) then return end
-
-		if self.isMobileLayout then
-			-- Draft coords (absolute bottom-right): Q(-385,395) W(-285) E(-185) R(-85).
-			-- SkillBar center ≈ (-235, 395), size 400×100; slots local x = -150/-50/50/150.
-			barTr.AlignmentOption = AlignmentType.BottomRight
-			barTr.AnchorsMin = Vector2(1, 0)
-			barTr.AnchorsMax = Vector2(1, 0)
-			barTr.Pivot = Vector2(0.5, 0.5)
-			barTr.RectSize = Vector2(400, 100)
-			barTr.anchoredPosition = Vector2(-235, 395)
-
-			local slotXs = { -150, -50, 50, 150 }
-			for i = 1, self.SlotCount do
-				local slot = self.Entity:GetChildByName("SkillSlot" .. i, true)
-				if isvalid(slot) and isvalid(slot.UITransformComponent) then
-					local tr = slot.UITransformComponent
-					tr.RectSize = Vector2(88, 88)
-					tr.anchoredPosition = Vector2(slotXs[i], 0)
-					local cd = slot:GetChildByName("Cooldown", true)
-					if isvalid(cd) and isvalid(cd.UITransformComponent) then
-						cd.UITransformComponent.RectSize = Vector2(88, 88)
-					end
-					local icon = slot:GetChildByName("Icon", true)
-					if isvalid(icon) and isvalid(icon.UITransformComponent) then
-						icon.UITransformComponent.RectSize = Vector2(48, 48)
-					end
-					local key = slot:GetChildByName("Key", true)
-					if isvalid(key) and isvalid(key.UITransformComponent) then
-						key.UITransformComponent.anchoredPosition = Vector2(-28, 28)
-					end
-				end
-			end
-			log("[SKILL-BAR] mobile layout applied bar=(-235,395) slots=88 pitch=100")
-		else
-			-- PC defaults from .ui (bottom-center 0,142 / 72px slots). Re-apply so reload is stable.
-			barTr.AlignmentOption = AlignmentType.BottomCenter
-			barTr.AnchorsMin = Vector2(0.5, 0)
-			barTr.AnchorsMax = Vector2(0.5, 0)
-			barTr.Pivot = Vector2(0.5, 0)
-			barTr.RectSize = Vector2(420, 84)
-			barTr.anchoredPosition = Vector2(0, 142)
-
-			local slotXs = { -117, -39, 39, 117 }
-			for i = 1, self.SlotCount do
-				local slot = self.Entity:GetChildByName("SkillSlot" .. i, true)
-				if isvalid(slot) and isvalid(slot.UITransformComponent) then
-					local tr = slot.UITransformComponent
-					tr.RectSize = Vector2(72, 72)
-					tr.anchoredPosition = Vector2(slotXs[i], 0)
-					local cd = slot:GetChildByName("Cooldown", true)
-					if isvalid(cd) and isvalid(cd.UITransformComponent) then
-						cd.UITransformComponent.RectSize = Vector2(72, 72)
-					end
-					local icon = slot:GetChildByName("Icon", true)
-					if isvalid(icon) and isvalid(icon.UITransformComponent) then
-						icon.UITransformComponent.RectSize = Vector2(40, 40)
-					end
-					local key = slot:GetChildByName("Key", true)
-					if isvalid(key) and isvalid(key.UITransformComponent) then
-						key.UITransformComponent.anchoredPosition = Vector2(-22, 22)
-					end
-				end
-			end
-		end
 	end
 
 	@ExecSpace("ClientOnly")
@@ -188,7 +104,6 @@ script UISkillBarController extends Component
 	method void OnSlotHoverState(integer slotIndex, ButtonStateChangeEvent ev)
 		-- description: PC hover shows SkillTooltip; leave hides. Mobile has no hover — no-op path is fine.
 		if ev == nil then return end
-		if self.isMobileLayout then return end
 		if ev.state == ButtonState.Hover then
 			self.hoverSlotIndex = slotIndex
 			self:ShowTooltipForSlot(slotIndex)

@@ -111,8 +111,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \".claude/hooks/mlua-lsp/mlua-session-start.cjs\"",
-            "timeout": 120
+            "command": "node \".claude/hooks-project/mlua-session-start.cjs\"",
+            "timeout": 15
           }
         ]
       },

@@ -1,15 +1,15 @@
 @Component
 script TreasureChest extends Component
 
-	-- T9/T34: 사냥터 보물 상자. F/터치 1회 개봉 → ItemDropDataSet(SourceId=DropSourceId).
-	-- F는 PlayerController.FindNearbyTreasureChest에서도 호출 (포탈과 겹치지 않게 그쪽이 우선).
+	-- T9/T34: 사냥터 보물 상자. F/BtnInteract 1회 개봉 → ItemDropDataSet(SourceId=DropSourceId).
+	-- F/BtnInteract는 PlayerController.FindNearbyTreasureChest → ServerRequestOpen (T59: Touch 제거).
 
 	@Sync
 	property boolean IsOpened = false
 
 	-- ItemDropDataSet.SourceId 키 (기본 TreasureChest — Probability=1.0 보장 드롭 행 존재)
 	property string DropSourceId = "TreasureChest"
-	-- 클라 상호작용 거리 / 서버 검증 거리
+	-- 클라 근접 참고값(모델 프로퍼티 유지) / 서버 검증 거리. F/BtnInteract 판정은 PlayerController.
 	property number InteractDistance = 3.0
 	property number ServerOpenDistance = 4.0
 	-- 개봉 후 스프라이트 감광 톤
@@ -17,47 +17,6 @@ script TreasureChest extends Component
 	property number OpenedTintG = 0.45
 	property number OpenedTintB = 0.45
 	property number OpenedTintA = 0.75
-
-	property any keyHandler = nil
-
-	method void OnBeginPlay()
-		if self:IsClient() then
-			self.Entity:ConnectEvent(TouchEvent, self.OnTouch)
-			-- 전역 F는 PlayerController가 처리. 터치/클릭만 여기서.
-		end
-	end
-
-	method void OnEndPlay()
-		if self:IsClient() and self.keyHandler ~= nil then
-			_InputService:DisconnectEvent(KeyDownEvent, self.keyHandler)
-			self.keyHandler = nil
-		end
-	end
-
-	@ExecSpace("ClientOnly")
-	method void OnTouch(TouchEvent event)
-		self:TryOpenLocal()
-	end
-
-	@ExecSpace("ClientOnly")
-	method void TryOpenLocal()
-		local localPlayer = _UserService.LocalPlayer
-		if not isvalid(localPlayer) then return end
-		local myPos = self.Entity.TransformComponent.WorldPosition
-		local playerPos = localPlayer.TransformComponent.WorldPosition
-		local dist = Vector2.Distance(Vector2(myPos.x, myPos.y), Vector2(playerPos.x, playerPos.y))
-		if dist > self.InteractDistance then
-			local pc = localPlayer:GetComponent("script.PlayerController")
-			if isvalid(pc) then pc:ShowMineFeedback("상자에 더 가까이 다가가야 합니다.") end
-			return
-		end
-		if self.IsOpened then
-			local pc = localPlayer:GetComponent("script.PlayerController")
-			if isvalid(pc) then pc:ShowMineFeedback("이미 열어본 상자입니다.") end
-			return
-		end
-		self:ServerRequestOpen()
-	end
 
 	@ExecSpace("Server")
 	method void ServerRequestOpen()

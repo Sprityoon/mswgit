@@ -10,13 +10,22 @@ script VillagerDialog extends Component
 	property number AutoTalkRange = 6.0
 	property number AutoTalkAccum = 0
 	property any keyHandler = nil
+	property any interactRequestHandler = nil
 	property any balloonClearTimer = nil
 
 	method void OnBeginPlay()
-		-- 클라 입력 구독 + 서버 자동 혼잣말 타이머 준비.
+		-- 클라: F KeyDown + InteractRequestEvent(T59). 서버: 자동 혼잣말 준비.
 		if self:IsClient() then
-			self.Entity:ConnectEvent(TouchEvent, self.OnTouch)
 			self.keyHandler = _InputService:ConnectEvent(KeyDownEvent, self.OnKeyDown)
+			local lp = _UserService.LocalPlayer
+			if isvalid(lp) then
+				-- LEA-4002: ClientOnly 메서드에 커스텀 Event 타입 파라미터 불가 → 클로저 구독.
+				self.interactRequestHandler = lp:ConnectEvent(InteractRequestEvent, function()
+					self:TryInteract()
+				end)
+			else
+				log_warning("[T56][DIALOG] LocalPlayer nil — InteractRequestEvent not connected")
+			end
 			log("[T56][DIALOG] client ready npc=" .. tostring(self.NpcId))
 		end
 		if self:IsServer() then
@@ -27,9 +36,18 @@ script VillagerDialog extends Component
 
 	method void OnEndPlay()
 		-- 핸들러·타이머 정리.
-		if self:IsClient() and self.keyHandler ~= nil then
-			_InputService:DisconnectEvent(KeyDownEvent, self.keyHandler)
-			self.keyHandler = nil
+		if self:IsClient() then
+			if self.keyHandler ~= nil then
+				_InputService:DisconnectEvent(KeyDownEvent, self.keyHandler)
+				self.keyHandler = nil
+			end
+			if self.interactRequestHandler ~= nil then
+				local lp = _UserService.LocalPlayer
+				if isvalid(lp) then
+					lp:DisconnectEvent(InteractRequestEvent, self.interactRequestHandler)
+				end
+				self.interactRequestHandler = nil
+			end
 		end
 		if self.balloonClearTimer ~= nil then
 			_TimerService:ClearTimer(self.balloonClearTimer)
@@ -53,19 +71,15 @@ script VillagerDialog extends Component
 	end
 
 	@ExecSpace("ClientOnly")
-	method void OnTouch(TouchEvent event)
-		-- 터치 상호작용.
-		local localPlayer = _UserService.LocalPlayer
-		if not isvalid(localPlayer) then return end
-		local dist = self:GetDistanceToPlayer(localPlayer)
-		if dist > self.InteractRange then return end
-		self:RequestTalk()
+	method void OnKeyDown(KeyDownEvent event)
+		-- F 키 → TryInteract.
+		if event.key ~= KeyboardKey.F then return end
+		self:TryInteract()
 	end
 
 	@ExecSpace("ClientOnly")
-	method void OnKeyDown(KeyDownEvent event)
-		-- F 키 상호작용 (MerchantInteract 패턴).
-		if event.key ~= KeyboardKey.F then return end
+	method void TryInteract()
+		-- 근처면 대화 요청 (OnKeyDown 본문 이동).
 		local localPlayer = _UserService.LocalPlayer
 		if not isvalid(localPlayer) then return end
 		local dist = self:GetDistanceToPlayer(localPlayer)

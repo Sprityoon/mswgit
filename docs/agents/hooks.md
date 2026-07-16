@@ -21,10 +21,17 @@
 | PostToolUse (Edit/Write/apply_patch) | `hooks/mlua-lsp/mlua-diagnose-post-tool-use.cjs` | `.mlua` 저장 시 LSP 진단 자동 실행, 에러 시 block | 벤더 |
 | PostToolUse (Read/Skill), InstructionsLoaded | `hooks/skill-log/skill-log.cjs` | 스킬 로드 기록 → `.mswai/logs/skill.log` (관측 전용, async) | 벤더 |
 | PostToolUse (전체) | `hooks/mcp-log/mcp-log.cjs` | MCP 호출 기록 → `.mswai/logs/mcp.log`. **응답 본문은 `MCP_LOG_MAX_OUTPUT_BYTES=2048`로 캡** (settings.json `env`) | 벤더 |
-| SessionStart | `hooks/mlua-lsp/mlua-session-start.cjs` / SessionEnd `...-end.cjs` | LSP 데몬 기동/종료 | 벤더 |
+| SessionStart | `hooks-project/mlua-session-start.cjs` (SessionEnd는 벤더 `hooks/mlua-lsp/mlua-session-end.cjs` 유지) | LSP 데몬 기동/종료 | 프로젝트 (벤더 포크 — 2026-07-16 stdin 블록 수정, 아래 변경 항목) |
 | SessionStart (startup·resume) | `hooks/update-check/update-check.cjs` | mswai 신버전 안내 | 벤더 |
 | UserPromptSubmit | `hooks/core-version-check/core-version-check.cjs` | `Environment/config`의 CoreVersion ≠ `26.5.0.0`이면 작업 중단 지시 주입 (워크스페이스당 1회) | 벤더 |
 | UserPromptSubmit | `hooks-project/skill-router-lite.cjs` | 스킬 라우팅 리마인더: **세션 첫 프롬프트 = 벤더 전문(~20KB) 위임 주입, 이후 = 요약(~2KB)** | 프로젝트 (신설 — 매 턴 20KB 주입하던 벤더판 대체. 전문 텍스트의 단일 소스는 여전히 벤더 스크립트) |
+
+### 2026-07-16 변경 — SessionStart LSP 훅 timeout 수정 (stdin 무기한 대기 → 프로젝트 포크)
+
+- **증상**: `project/settings:session_start[0].hooks[0]` timeout(120s) 에러 (제작자 보고).
+- **원인(지휘자 실측 재현)**: 벤더 `hooks/mlua-lsp/mlua-session-start.cjs`의 `fs.readFileSync(0)`가 **stdin EOF를 무기한 대기** — 하네스가 stdin을 닫지 않는 경로(세션 재개·다중 세션 동시 기동 등)에서 훅이 120초 뒤 timeout으로 킬. 실측: stdin을 5초 열어두면 벤더판 node 수명 정확히 5초(EOF까지 블록). 스크립트 본연의 작업은 매번 14~32ms에 완료(`.mswai/logs/lsp.log`) — 느린 게 아니라 stdin 대기가 전부.
+- **조치**: `hooks-project/mlua-session-start.cjs` 포크 신설 — stdin 읽기에 **2초 상한**(상한 도달 시 수신분만 파싱, cwd는 `process.cwd()` 폴백). 공용 모듈(resolve-cmd/lsp-log)은 벤더 경로 require로 mswai update 자동 추종. settings.json 배선 교체 + timeout 120→15. 실측: stdin을 8초 열어둬도 node 수명 2초.
+- **잔여**: 벤더 SessionEnd 훅(`mlua-session-end.cjs`)도 동일 stdin 패턴(timeout 20s) — 세션 종료 시라 체감 낮아 유지. 재발 시 동일 포크 적용.
 
 ### 2026-07-14 변경 — 훅 명령 상대 경로 전환 (타사 하네스 exit 1 해소)
 

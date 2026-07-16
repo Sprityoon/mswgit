@@ -27,8 +27,9 @@ script RankingDataStorageLogic extends Logic
 		config.Key = "FishingWeekly"
 		config.CycleEnum = _CycleEnum.Week
 		config.ViewCount = 20
-		config.RefreshIntervalSeconds = 1800
-		config.RefreshCacheIntervalSeconds = 600
+		-- T63: 주기 완화(1800/600 → 300/60). 즉시 반영은 ForceRefreshSnapshot 경로.
+		config.RefreshIntervalSeconds = 300
+		config.RefreshCacheIntervalSeconds = 60
 		config.RankModeEnum = _RankingModeEnum.Rank
 		config.ReleaseBaseTime = DateTime(2025, 1, 1).Elapsed
 		
@@ -48,6 +49,7 @@ script RankingDataStorageLogic extends Logic
 
 	@ExecSpace("ServerOnly")
 	method void UpdateDataTable()
+		-- SortableDS 전량 조회 → 서버 스냅샷(RankingDataList) 재구성.
 		local curElapsed = _DateTimeLogic:GetTimeElapsed()
 		
 		local config = self.ConfigData
@@ -111,6 +113,17 @@ script RankingDataStorageLogic extends Logic
 			local data = dataList[i]
 			byProfileCode[data.ProfileCode] = data
 		end
+	end
+
+	@ExecSpace("ServerOnly")
+	method void ForceRefreshSnapshot()
+		-- T63: 스냅샷+내 점수 캐시 즉시 갱신 (어드민 ForceUpdate / 적립 디바운스 / Open 공용).
+		self:UpdateDataTable()
+		if _RankingDataCacheLogic ~= nil then
+			_RankingDataCacheLogic:Clear()
+		end
+		log("[T63][FISHRANK] ForceRefreshSnapshot cycle=" .. tostring(self.CycleIndex)
+			.. " rows=" .. tostring(#self.RankingDataList))
 	end
 
 	@ExecSpace("ServerOnly")
