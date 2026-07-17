@@ -1,0 +1,81 @@
+@Component
+@ExecSpace("ClientOnly")
+script UIFishingGaugeController extends Component
+
+	-- T64: 낚시 릴링 게이지 (HUD). 서버 FishingSpot 릴링 틱 → PlayerController Client RPC → 이 컨트롤러.
+	-- 진행(금색)·텐션(적색) 게이지 + 위험(⚠) 표시. 낚시 중에만 표시.
+
+	property Entity panel = "285fa0b1-6704-48c1-8d72-75c4f57e9bf7"
+
+	property SpriteGUIRendererComponent progressFill = "d40a9d65-3949-41d8-b750-5b4cacc9e9a7"
+
+	property SpriteGUIRendererComponent tensionFill = "a3a8425d-d0d6-4041-ad28-38d8791088cf"
+
+	property Entity warnText = "1df8ee92-a5ac-4562-b397-47a2ef8461da"
+
+	property Entity hintText = "590f9930-1be1-41ce-a27d-90f07ae3b346"
+
+	-- 위험 표시 점멸 주기 (초) — 밸런스가 아니라 연출값이지만 리터럴 대신 프로퍼티로 관리
+	property number WarnBlinkInterval = 0.25
+
+	-- 게이지 만점 (서버 FishingSpot.GaugeMax와 동일 스케일)
+	property number GaugeMax = 100.0
+
+	method void OnBeginPlay()
+		-- 시작 시 게이지 숨김 (스크립트 홀더 엔티티는 상시 enable, Panel만 토글).
+		if isvalid(self.panel) then
+			self.panel.Enable = false
+		end
+	end
+
+	method void Show()
+		-- 릴링 시작: 게이지 초기화 후 표시.
+		if isvalid(self.progressFill) then self.progressFill.FillAmount = 0 end
+		if isvalid(self.tensionFill) then self.tensionFill.FillAmount = 0 end
+		if isvalid(self.warnText) then self.warnText.Enable = false end
+		if isvalid(self.hintText) then self.hintText.Enable = true end
+		if isvalid(self.panel) then
+			self.panel.Enable = true
+		end
+		log("[T64][GAUGE] Show")
+	end
+
+	method void UpdateGauge(number progress, number tension, boolean danger)
+		-- 서버 릴링 틱 반영 (10Hz). danger 중에는 ⚠ 점멸 + 진행 게이지 적색 틴트.
+		local maxV = self.GaugeMax
+		if maxV <= 0 then maxV = 100.0 end
+		if isvalid(self.progressFill) then
+			local ratio = math.max(0, math.min(1, progress / maxV))
+			self.progressFill.FillAmount = ratio
+			if danger then
+				self.progressFill.Color = Color(0.94, 0.31, 0.31, 1)
+			else
+				self.progressFill.Color = Color(0.94, 0.66, 0.19, 1)
+			end
+		end
+		if isvalid(self.tensionFill) then
+			self.tensionFill.FillAmount = math.max(0, math.min(1, tension / maxV))
+		end
+		if isvalid(self.warnText) then
+			local blinkOn = false
+			if danger then
+				local interval = self.WarnBlinkInterval
+				if interval <= 0 then interval = 0.25 end
+				blinkOn = math.floor(_UtilLogic.ElapsedSeconds / interval) % 2 == 0
+			end
+			self.warnText.Enable = blinkOn
+		end
+		if isvalid(self.hintText) then
+			self.hintText.Enable = not danger
+		end
+	end
+
+	method void Hide()
+		-- 릴링 종료(성공/실패/취소): 게이지 숨김.
+		if isvalid(self.panel) then
+			self.panel.Enable = false
+		end
+		log("[T64][GAUGE] Hide")
+	end
+
+end

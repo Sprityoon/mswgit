@@ -106,6 +106,18 @@ script PlayerController extends Component
 	@Sync
 	property Entity ActiveFishingSpot = nil
 
+	-- T64: 낚시 숙련 레벨/경험치 (영속 — PersistenceManager)
+	@Sync
+	property integer FishingLevel = 1
+
+	@Sync
+	property integer FishingXp = 0
+
+	-- T64: 숙련 레벨업 곡선 설정값 (필요 XP = Base × Growth^(level-1))
+	property integer FishingXpBase = 30
+
+	property number FishingXpGrowth = 1.35
+
 	method void OnBeginPlay()
 		-- description: Initialize key and screen touch event listeners on the client.
 		self.CooldownMap = {}
@@ -300,6 +312,15 @@ script PlayerController extends Component
 			   _InputService:IsKeyPressed(KeyboardKey.S) or
 			   _InputService:IsKeyPressed(KeyboardKey.D) then
 				self:ServerRequestCancelFishing()
+				return
+			end
+			-- T64: 릴링 홀드 폴링 — F 키(PC) 또는 BtnInteract 홀드 플래그(모바일). 변화 시에만 RPC.
+			if self.FishingState == "Reeling" then
+				local holding = _InputService:IsKeyPressed(KeyboardKey.F) or (self._T.MobileReelHold == true)
+				if holding ~= (self._T.ReelHolding == true) then
+					self._T.ReelHolding = holding
+					self:ServerSetReelHold(holding)
+				end
 			end
 			return
 		end
@@ -1117,6 +1138,10 @@ script PlayerController extends Component
 	method boolean TryInteract()
 		-- T59: F/BtnInteract 공통 상호작용 본문 (KeyDown F에서 이동 — 로직 변경 금지).
 		if self.FishingState ~= "None" and isvalid(self.ActiveFishingSpot) then
+			-- T64: 릴링 중 단발 F는 소비만 — 홀드는 OnUpdate 폴링(ServerSetReelHold)이 전담.
+			if self.FishingState == "Reeling" then
+				return true
+			end
 			self:ServerRequestFishingInteract(self.ActiveFishingSpot.Id)
 			return true
 		end
@@ -1190,6 +1215,10 @@ script PlayerController extends Component
 	@ExecSpace("ClientOnly")
 	method void OnInteractButton()
 		-- T59: BtnInteract = TryInteract + 미처리 시 InteractRequestEvent(분산 핸들러 브리지).
+		-- T64: 릴링 중 클릭(릴리즈 시 발화)은 무시 — 홀드는 SetMobileReelHold 경로.
+		if self.FishingState == "Reeling" then
+			return
+		end
 		if self:TryInteract() then
 			return
 		end
@@ -2602,9 +2631,8 @@ script PlayerController extends Component
 			spot:StartFishing(self.Entity)
 		elseif self.FishingState == "Casting" then
 			spot:PullRod(self.Entity)
-		elseif self.FishingState == "Bite" then
-			spot:PullRod(self.Entity)
 		end
+		-- T64: Reeling 중 상호작용 RPC는 무시 — 홀드는 ServerSetReelHold 전담.
 	end
 
 	@ExecSpace("Server")
@@ -2621,6 +2649,100 @@ script PlayerController extends Component
 		self.FishingState = "None"
 		self.ActiveFishingSpot = nil
 		self:ClientShowMineFeedback("낚시가 취소되었습니다.")
+	end
+
+	-- =========================================================================
+	-- T64: 낚시 v2 — 릴링 홀드 입력 중계 + 낚시 숙련 레벨
+	-- =========================================================================
+
+	@ExecSpace("Server")
+	method void ServerSetReelHold(boolean holding)
+		-- T64: 클라 홀드/릴리즈 변화를 활성 낚시터의 릴링 세션에 반영.
+		local playerComp = self.Entity.PlayerComponent
+		if playerComp == nil or senderUserId ~= playerComp.UserId then return end
+		if self.FishingState ~= "Reeling" then return end
+		if not isvalid(self.ActiveFishingSpot) then return end
+		local spot = self.ActiveFishingSpot:GetComponent("script.FishingSpot")
+		if isvalid(spot) then
+			spot:SetReelHold(self.Entity, holding)
+		end
+	end
+
+	@ExecSpace("ClientOnly")
+	method void SetMobileReelHold(boolean holding)
+		-- T64: BtnInteract Pressed/Released(UIHUDController) → 홀드 플래그. OnUpdate 폴링이 소비.
+		self._T.MobileReelHold = holding
+	end
+
+	method integer GetFishingMaxXp(integer level)
+		-- T64: 숙련 레벨업 필요 XP 곡선 = FishingXpBase × FishingXpGrowth^(level-1)
+		if level < 1 then level = 1 end
+		return math.floor(self.FishingXpBase * (self.FishingXpGrowth ^ (level - 1)))
+	end
+
+	@ExecSpace("ServerOnly")
+	method void AddFishingXP(integer amount)
+		-- T64: 어획 시 숙련 XP 적립 + 레벨업 처리. 영속은 PersistenceManager(dirty 마킹).
+		if amount <= 0 then return end
+		local playerComp = self.Entity.PlayerComponent
+		self.FishingXp = self.FishingXp + amount
+		local leveledUp = false
+		while self.FishingXp >= self:GetFishingMaxXp(self.FishingLevel) do
+			self.FishingXp = self.FishingXp - self:GetFishingMaxXp(self.FishingLevel)
+			self.FishingLevel = self.FishingLevel + 1
+			leveledUp = true
+			if playerComp ~= nil then
+				self:ClientShowMineFeedback("낚시 숙련 레벨 업! Lv." .. tostring(self.FishingLevel)
+					.. " (텐션 완화·새 어종 개방)", playerComp.UserId)
+			end
+		end
+		if leveledUp then
+			log("[T64][FISHING] FishingLevel up -> " .. tostring(self.FishingLevel)
+				.. " xp=" .. tostring(self.FishingXp))
+		end
+		if playerComp ~= nil and _PersistenceManager then
+			_PersistenceManager:MarkPlayerDirty(playerComp.UserId)
+		end
+	end
+
+	@ExecSpace("Client")
+	method void ClientReelBegin()
+		-- T64: 릴링 시작 — HUD 게이지 표시. 홀드 상태 초기화.
+		self._T.ReelHolding = false
+		self._T.MobileReelHold = false
+		local gauge = _EntityService:GetEntityByPath("/ui/HUDGroup/FishingGauge")
+		if isvalid(gauge) then
+			local ctrl = gauge:GetComponent("script.UIFishingGaugeController")
+			if isvalid(ctrl) then
+				ctrl:Show()
+			end
+		end
+	end
+
+	@ExecSpace("Client")
+	method void ClientReelUpdate(number progress, number tension, boolean danger)
+		-- T64: 서버 릴링 틱(10Hz) → 게이지 갱신.
+		local gauge = _EntityService:GetEntityByPath("/ui/HUDGroup/FishingGauge")
+		if isvalid(gauge) then
+			local ctrl = gauge:GetComponent("script.UIFishingGaugeController")
+			if isvalid(ctrl) then
+				ctrl:UpdateGauge(progress, tension, danger)
+			end
+		end
+	end
+
+	@ExecSpace("Client")
+	method void ClientReelEnd()
+		-- T64: 릴링 종료(성공/실패/취소) — 게이지 숨김 + 홀드 상태 리셋.
+		self._T.ReelHolding = false
+		self._T.MobileReelHold = false
+		local gauge = _EntityService:GetEntityByPath("/ui/HUDGroup/FishingGauge")
+		if isvalid(gauge) then
+			local ctrl = gauge:GetComponent("script.UIFishingGaugeController")
+			if isvalid(ctrl) then
+				ctrl:Hide()
+			end
+		end
 	end
 
 end

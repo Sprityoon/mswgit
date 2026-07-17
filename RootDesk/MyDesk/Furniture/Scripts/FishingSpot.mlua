@@ -2,22 +2,33 @@
 script FishingSpot extends Component
 
 	property string SpotType = "estate"
-	
+
 	property table Sessions = {}
+
+	-- T64: 릴링 미니게임 파라미터 (게이지 0~100). 어종별 수치는 FishingDifficultyDataSet CSV.
+	property number ReelTickInterval = 0.1
+
+	property number GaugeMax = 100.0
+
+	-- 낚시 숙련 레벨당 텐션 상승 완화율 (레벨 1 기준 0, 레벨당 4% 감소)
+	property number TensionReliefPerLevel = 0.04
+
+	-- 텐션 완화 하한 배율 (아무리 고레벨이어도 이 이하로는 안 내려감)
+	property number TensionReliefMinMult = 0.4
 
 	method void OnBeginPlay()
 		self.Sessions = {}
 	end
-	
+
 	@ExecSpace("ServerOnly")
 	method void StartFishing(Entity playerEntity)
 		if not isvalid(playerEntity) then return end
 		local playerComp = playerEntity.PlayerComponent
 		if playerComp == nil then return end
 		local userId = playerComp.UserId
-		
+
 		self:CancelFishing(playerEntity)
-		
+
 		local minTime = 2.0
 		local maxTime = 5.0
 		local fishDs = _DataService:GetTable("FishDataSet")
@@ -35,7 +46,7 @@ script FishingSpot extends Component
 				maxTime = tonumber(selectedRow:GetItem("BiteTimeMax")) or maxTime
 			end
 		end
-		
+
 		local waitTime = minTime + math.random() * (maxTime - minTime)
 		-- T21: 날씨 입질 배율 (FishBiteMult < 1 → 입질 단축 보너스, 페널티 없음)
 		local fishMult = 1.0
@@ -44,187 +55,335 @@ script FishingSpot extends Component
 			if fishMult == nil or fishMult <= 0 then fishMult = 1.0 end
 			waitTime = waitTime * fishMult
 		end
-		
+
 		local pc = playerEntity:GetComponent("script.PlayerController")
 		if isvalid(pc) then
 			pc.FishingState = "Casting"
 			pc.ActiveFishingSpot = self.Entity
-			pc:ClientShowMineFeedback("찌를 던졌습니다. 기다리는 중...")
+			pc:ClientShowMineFeedback("찌를 던졌습니다. 기다리는 중...", userId)
 			log("[FISHING] Casting started by User: " .. userId .. " at " .. self.SpotType
 				.. " wait=" .. string.format("%.2f", waitTime)
 				.. " weatherMult=" .. tostring(fishMult)
 				.. " weather=" .. tostring(_WeatherManager ~= nil and _WeatherManager:GetCurrentWeatherId() or "n/a"))
-			
+
 			local movement = playerEntity.MovementComponent
 			if isvalid(movement) then movement:Stop() end
 		end
-		
+
 		local timerId = _TimerService:SetTimerOnce(function()
 			self:TriggerBite(playerEntity)
 		end, waitTime)
-		
+
 		self.Sessions[userId] = {
 			state = "Casting",
 			castingTimer = timerId,
-			windowTimer = nil
+			reelTimer = nil
 		}
 	end
-	
+
 	@ExecSpace("ServerOnly")
 	method void TriggerBite(Entity playerEntity)
+		-- T64: 입질 시 자동으로 릴링 페이즈 진입 — "그냥 놓침"은 없다 (실패는 줄 끊김뿐).
 		if not isvalid(playerEntity) then return end
 		local playerComp = playerEntity.PlayerComponent
 		if playerComp == nil then return end
 		local userId = playerComp.UserId
-		
+
 		local session = self.Sessions[userId]
 		if session == nil or session.state ~= "Casting" then return end
-		
-		session.state = "Bite"
-		session.castingTimer = nil
-		
+
 		local pc = playerEntity:GetComponent("script.PlayerController")
-		if isvalid(pc) then
-			pc.FishingState = "Bite"
-			pc:ClientShowMineFeedback("!!! 입질이 왔습니다! 지금입니다 !!!")
-			log("[FISHING] Bite triggered for User: " .. userId .. " at " .. self.SpotType)
+		if not isvalid(pc) then
+			self:CancelFishing(playerEntity)
+			return
 		end
-		
-		local winTimerId = _TimerService:SetTimerOnce(function()
-			self:TimeoutBite(playerEntity)
-		end, 0.8)
-		
-		session.windowTimer = winTimerId
+
+		-- 입질 시점에 숙련 레벨 기반 추첨 (레벨 비례 어종 풀 개방)
+		local fishingLevel = tonumber(pc.FishingLevel) or 1
+		local fish = self:RollFish(fishingLevel)
+		if fish == nil then
+			self:CancelFishing(playerEntity)
+			pc:ClientShowMineFeedback("이곳에는 잡을 수 있는 물고기가 없는 것 같습니다.", userId)
+			log("[T64][FISHING] Bite with empty pool for User: " .. userId .. " at " .. self.SpotType)
+			return
+		end
+
+		local params = self:GetDifficultyParams(fish.difficulty)
+		local reliefMult = 1.0 - self.TensionReliefPerLevel * (fishingLevel - 1)
+		if reliefMult < self.TensionReliefMinMult then reliefMult = self.TensionReliefMinMult end
+
+		session.state = "Reeling"
+		session.castingTimer = nil
+		session.fishItem = fish.item
+		session.fishXp = fish.xp
+		session.progress = 0.0
+		session.tension = 0.0
+		session.holding = false
+		session.danger = false
+		session.params = params
+		session.reliefMult = reliefMult
+		session.dangerTimer = params.DangerIntervalMin + math.random() * (params.DangerIntervalMax - params.DangerIntervalMin)
+
+		pc.FishingState = "Reeling"
+		pc:ClientShowMineFeedback("입질! 꾹 눌러 릴을 감으세요! (⚠ 표시 중에는 손 떼기)", userId)
+		pc:ClientReelBegin(userId)
+		log("[T64][FISHING] Reeling started for User: " .. userId .. " fish=" .. fish.item
+			.. " difficulty=" .. tostring(fish.difficulty)
+			.. " fishingLevel=" .. tostring(fishingLevel)
+			.. " reliefMult=" .. string.format("%.2f", reliefMult))
+
+		session.reelTimer = _TimerService:SetTimerRepeat(function()
+			self:ReelTick(playerEntity, userId)
+		end, self.ReelTickInterval)
 	end
-	
+
 	@ExecSpace("ServerOnly")
-	method void TimeoutBite(Entity playerEntity)
+	method void SetReelHold(Entity playerEntity, boolean holding)
+		-- T64: 클라 홀드/릴리즈 입력 반영 (PlayerController.ServerSetReelHold 경유).
 		if not isvalid(playerEntity) then return end
 		local playerComp = playerEntity.PlayerComponent
 		if playerComp == nil then return end
-		local userId = playerComp.UserId
-		
+		local session = self.Sessions[playerComp.UserId]
+		if session == nil or session.state ~= "Reeling" then return end
+		session.holding = holding == true
+	end
+
+	@ExecSpace("ServerOnly")
+	method void ReelTick(Entity playerEntity, string userId)
+		-- T64: 릴링 서버 틱 — 진행/텐션/위험 갱신 후 소유 클라에 게이지 동기화.
 		local session = self.Sessions[userId]
-		if session == nil or session.state ~= "Bite" then return end
-		
-		self:CancelFishing(playerEntity)
-		
+		if session == nil or session.state ~= "Reeling" then return end
+
+		if not isvalid(playerEntity) then
+			if session.reelTimer ~= nil then _TimerService:ClearTimer(session.reelTimer) end
+			self.Sessions[userId] = nil
+			return
+		end
+
+		local dt = self.ReelTickInterval
+		local params = session.params
+
+		-- 위험 페이즈 스케줄링 (지속/간격은 어종 난이도 CSV)
+		session.dangerTimer = session.dangerTimer - dt
+		if session.dangerTimer <= 0 then
+			session.danger = not session.danger
+			if session.danger then
+				session.dangerTimer = params.DangerDurationMin + math.random() * (params.DangerDurationMax - params.DangerDurationMin)
+			else
+				session.dangerTimer = params.DangerIntervalMin + math.random() * (params.DangerIntervalMax - params.DangerIntervalMin)
+			end
+		end
+
+		if session.holding then
+			session.progress = session.progress + params.ProgressPerSec * dt
+			if session.danger then
+				session.tension = session.tension + params.TensionRisePerSec * session.reliefMult * dt
+			end
+		else
+			session.progress = math.max(0.0, session.progress - params.ProgressDecayPerSec * dt)
+			session.tension = math.max(0.0, session.tension - params.TensionRecoverPerSec * dt)
+		end
+
 		local pc = playerEntity:GetComponent("script.PlayerController")
 		if isvalid(pc) then
-			pc:ClientShowMineFeedback("물고기를 놓쳤습니다!")
-			log("[FISHING] Timeout (Miss) for User: " .. userId .. " at " .. self.SpotType)
+			pc:ClientReelUpdate(session.progress, session.tension, session.danger, userId)
+		end
+
+		if session.tension >= self.GaugeMax then
+			self:FailReel(playerEntity, userId)
+		elseif session.progress >= self.GaugeMax then
+			self:SucceedReel(playerEntity, userId)
 		end
 	end
-	
+
+	@ExecSpace("ServerOnly")
+	method void SucceedReel(Entity playerEntity, string userId)
+		-- T64: 진행 게이지 만땅 = 어획. 아이템 지급 + 낚시왕 점수 + 숙련 XP.
+		local session = self.Sessions[userId]
+		if session == nil then return end
+		if session.reelTimer ~= nil then _TimerService:ClearTimer(session.reelTimer) end
+		local fishItem = session.fishItem
+		local fishXp = tonumber(session.fishXp) or 0
+		self.Sessions[userId] = nil
+
+		if not isvalid(playerEntity) then return end
+		local pc = playerEntity:GetComponent("script.PlayerController")
+		if isvalid(pc) then
+			pc.FishingState = "None"
+			pc.ActiveFishingSpot = nil
+			pc:ClientReelEnd(userId)
+		end
+
+		local inv = playerEntity:GetComponent("script.PlayerInventory")
+		if isvalid(inv) and fishItem ~= nil and fishItem ~= "" then
+			inv:AddItem(fishItem, 1)
+			-- T57: 주간 낚시왕 점수 적립
+			if _FishingContestLogic ~= nil then
+				_FishingContestLogic:AddCatchPoints(playerEntity, fishItem)
+			end
+			if isvalid(pc) then
+				if fishXp > 0 then
+					pc:AddFishingXP(fishXp)
+				end
+				pc:ClientShowMineFeedback("[성공] " .. fishItem .. "을(를) 낚았습니다! (숙련 +" .. tostring(fishXp) .. ")", userId)
+			end
+			log("[T64][FISHING] Success! Caught " .. fishItem .. " by User: " .. userId
+				.. " at " .. self.SpotType .. " xp=" .. tostring(fishXp))
+		end
+	end
+
+	@ExecSpace("ServerOnly")
+	method void FailReel(Entity playerEntity, string userId)
+		-- T64: 텐션 만땅 = 줄 끊김 (유일한 실패 경로).
+		local session = self.Sessions[userId]
+		if session == nil then return end
+		if session.reelTimer ~= nil then _TimerService:ClearTimer(session.reelTimer) end
+		self.Sessions[userId] = nil
+
+		if not isvalid(playerEntity) then return end
+		local pc = playerEntity:GetComponent("script.PlayerController")
+		if isvalid(pc) then
+			pc.FishingState = "None"
+			pc.ActiveFishingSpot = nil
+			pc:ClientReelEnd(userId)
+			pc:ClientShowMineFeedback("줄이 끊어졌습니다! 물고기가 도망갔습니다...", userId)
+		end
+		log("[T64][FISHING] Line broken (tension max) for User: " .. userId .. " at " .. self.SpotType)
+	end
+
 	@ExecSpace("ServerOnly")
 	method void PullRod(Entity playerEntity)
 		if not isvalid(playerEntity) then return end
 		local playerComp = playerEntity.PlayerComponent
 		if playerComp == nil then return end
 		local userId = playerComp.UserId
-		
+
 		local session = self.Sessions[userId]
 		if session == nil then return end
-		
+
 		if session.state == "Casting" then
 			self:CancelFishing(playerEntity)
 			local pc = playerEntity:GetComponent("script.PlayerController")
 			if isvalid(pc) then
-				pc:ClientShowMineFeedback("너무 일찍 낚싯대를 걷어올렸습니다!")
-				log("[FISHING] Pull early (Fail) for User: " .. userId .. " at " .. self.SpotType)
-			end
-		elseif session.state == "Bite" then
-			if session.windowTimer ~= nil then
-				_TimerService:ClearTimer(session.windowTimer)
-			end
-			self.Sessions[userId] = nil
-			
-			local pc = playerEntity:GetComponent("script.PlayerController")
-			if isvalid(pc) then
-				pc.FishingState = "None"
-				pc.ActiveFishingSpot = nil
-			end
-			
-			local selectedFish = self:RollFish()
-			if selectedFish ~= "" then
-				local inv = playerEntity:GetComponent("script.PlayerInventory")
-				if isvalid(inv) then
-					inv:AddItem(selectedFish, 1)
-					-- T57: 주간 낚시왕 점수 적립 (훅 최소 — 미니게임 로직 무변경)
-					if _FishingContestLogic ~= nil then
-						_FishingContestLogic:AddCatchPoints(playerEntity, selectedFish)
-					end
-					if isvalid(pc) then
-						pc:ClientShowMineFeedback("[성공] " .. selectedFish .. "을(를) 낚았습니다!")
-						log("[FISHING] Success! Caught " .. selectedFish .. " by User: " .. userId .. " at " .. self.SpotType)
-					end
-				end
-			else
-				if isvalid(pc) then
-					pc:ClientShowMineFeedback("낚시에 실패했습니다.")
-					log("[FISHING] Fail to catch (empty pool) for User: " .. userId .. " at " .. self.SpotType)
-				end
+				pc:ClientShowMineFeedback("낚싯대를 걷어올렸습니다.", userId)
+				log("[FISHING] Pull during casting (cancel) for User: " .. userId .. " at " .. self.SpotType)
 			end
 		end
+		-- T64: Reeling 중 단발 입력은 무시 — 홀드는 SetReelHold 경로가 전담.
 	end
-	
+
 	@ExecSpace("ServerOnly")
 	method void CancelFishing(Entity playerEntity)
 		if not isvalid(playerEntity) then return end
 		local playerComp = playerEntity.PlayerComponent
 		if playerComp == nil then return end
 		local userId = playerComp.UserId
-		
+
 		local session = self.Sessions[userId]
 		if session == nil then return end
-		
+
 		if session.castingTimer ~= nil then
 			_TimerService:ClearTimer(session.castingTimer)
 		end
-		if session.windowTimer ~= nil then
-			_TimerService:ClearTimer(session.windowTimer)
+		if session.reelTimer ~= nil then
+			_TimerService:ClearTimer(session.reelTimer)
 		end
-		
+
+		local wasReeling = session.state == "Reeling"
 		self.Sessions[userId] = nil
-		
+
 		local pc = playerEntity:GetComponent("script.PlayerController")
 		if isvalid(pc) then
 			pc.FishingState = "None"
 			pc.ActiveFishingSpot = nil
+			if wasReeling then
+				pc:ClientReelEnd(userId)
+			end
 			log("[FISHING] Cancelled for User: " .. userId .. " at " .. self.SpotType)
 		end
 	end
-	
+
 	@ExecSpace("ServerOnly")
-	method string RollFish()
+	method table RollFish(integer fishingLevel)
+		-- T64: SpotType 일치 + MinFishingLevel(공란=1) ≤ 숙련 레벨 행만 가중 추첨.
+		-- 반환: { item, difficulty, xp } 또는 nil (풀 비었을 때).
 		local fishDs = _DataService:GetTable("FishDataSet")
-		if fishDs == nil then return "" end
-		
+		if fishDs == nil then return nil end
+
 		local rows = fishDs:GetAllRow()
 		local pool = {}
 		local totalWeight = 0
 		for _, row in ipairs(rows) do
 			if row:GetItem("SpotType") == self.SpotType then
-				local fishItem = row:GetItem("FishItem")
-				local weight = tonumber(row:GetItem("Weight")) or 0
-				if weight > 0 then
-					table.insert(pool, { item = fishItem, w = weight })
-					totalWeight = totalWeight + weight
+				local minLevel = 1
+				local okMin, rawMin = pcall(function() return row:GetItem("MinFishingLevel") end)
+				if okMin and rawMin ~= nil and tostring(rawMin) ~= "" then
+					minLevel = tonumber(rawMin) or 1
+				end
+				if fishingLevel >= minLevel then
+					local fishItem = row:GetItem("FishItem")
+					local weight = tonumber(row:GetItem("Weight")) or 0
+					if weight > 0 then
+						local difficulty = "1"
+						local okDiff, rawDiff = pcall(function() return row:GetItem("Difficulty") end)
+						if okDiff and rawDiff ~= nil and tostring(rawDiff) ~= "" then
+							difficulty = tostring(rawDiff)
+						end
+						local xp = 0
+						local okXp, rawXp = pcall(function() return row:GetItem("FishingXp") end)
+						if okXp and rawXp ~= nil and tostring(rawXp) ~= "" then
+							xp = tonumber(rawXp) or 0
+						end
+						table.insert(pool, { item = fishItem, w = weight, difficulty = difficulty, xp = xp })
+						totalWeight = totalWeight + weight
+					end
 				end
 			end
 		end
-		
-		if totalWeight <= 0 then return "" end
-		
+
+		if totalWeight <= 0 then return nil end
+
 		local rng = math.random() * totalWeight
 		local acc = 0
 		for _, entry in ipairs(pool) do
 			acc = acc + entry.w
 			if rng <= acc then
-				return entry.item
+				return { item = entry.item, difficulty = entry.difficulty, xp = entry.xp }
 			end
 		end
-		return ""
+		return nil
+	end
+
+	@ExecSpace("ServerOnly")
+	method table GetDifficultyParams(string difficulty)
+		-- T64: FishingDifficultyDataSet에서 난이도 티어 행 조회. 행/컬럼 결손 시 티어 1 상당 안전값.
+		local params = {
+			ProgressPerSec = 22.0,
+			ProgressDecayPerSec = 8.0,
+			TensionRisePerSec = 55.0,
+			TensionRecoverPerSec = 45.0,
+			DangerIntervalMin = 2.5,
+			DangerIntervalMax = 4.5,
+			DangerDurationMin = 0.8,
+			DangerDurationMax = 1.2
+		}
+		local ds = _DataService:GetTable("FishingDifficultyDataSet")
+		if ds == nil then
+			log_warning("[T64][FISHING] FishingDifficultyDataSet missing — using defaults")
+			return params
+		end
+		local row = ds:FindRow("Difficulty", tostring(difficulty))
+		if row == nil then
+			log_warning("[T64][FISHING] Difficulty row '" .. tostring(difficulty) .. "' missing — using defaults")
+			return params
+		end
+		for key, _ in pairs(params) do
+			local ok, raw = pcall(function() return row:GetItem(key) end)
+			if ok and raw ~= nil and tostring(raw) ~= "" then
+				params[key] = tonumber(raw) or params[key]
+			end
+		end
+		return params
 	end
 
 end

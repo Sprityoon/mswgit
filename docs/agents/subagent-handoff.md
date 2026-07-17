@@ -96,7 +96,7 @@
 > 🧭 **현황판 (지휘자 2026-07-16 — 2차)**
 > - **Play PASS 확정**: T50까지의 전 완료분 + T51 · T58 · T59 · T60 · **T62**(⚖️ 2026-07-16 확정) · **T63**(낚시 랭킹 수정 — 핫픽스 포함 확인). 체크포인트 커밋 = 이 갱신과 동시.
 > - **Play 대기(제작자 광범위 Play에서 이상 보고 없음 — 개별 명시 확인은 미완)**: T19(목장) · T23(펫) · T27(퀘스트 107 해금 — **미완료 캐릭터로** 확인) · T49(아트 육안) · T54(팝업 여닫기) · T55(BGM) · T56(주민 대화) · **T61(지형 쿨다운 0.25s 체감)**. 체크리스트 = 각 `reports/T<n>-*.md` §6.
-> - **진행 예정**: **T64 낚시 v2(홀드-릴리즈 릴링 + 낚시 숙련 레벨)** — ⚖️ 2026-07-16 보스 지시, **지휘자 직접 구현 허용**. 설계 확정본 = T64 블록.
+> - **코드 완료·Play 대기(2026-07-18)**: **T64 낚시 v2** — 지휘자 직접 구현 완료(LSP errors=0). ⚠ Maker 미기동 상태에서 작업 — **첫 refresh에서 신규 스크립트 2종(`UIFishingGaugeController`)·데이터셋(`FishingDifficultyDataSet`) 등록 + Error=0 확인 필요**. 체크리스트 = `reports/T64-fishing-v2-reeling.md` §6.
 > - **병렬 규약(요지)**: ① 상대 레인 소유 파일은 읽기만 ② 이 문서 갱신은 자기 T블록 라인만 ③ 티켓 완료마다 refresh 1회+빌드 Error 수를 보고서 §4에 기재 ④ 무보고 종료 = 반려(§5 조항 11).
 
 ### T4. [대기] 경계 테라스/절벽 아트 정리
@@ -129,7 +129,7 @@
 - **핫픽스 (2026-07-16)**: 제작자 "여전히 안 보임" → 로그상 스냅샷 `rows=1`인데 UI RPC가 **LEA-3036**(`any myData`)으로 드롭. 원시 필드+평탄 table 전달로 수정. refresh Error=0.
 - **검증**: Maker refresh 빌드 **Error=0** (total 497 / Warning 25 / Info 472). **런타임 검증 보류(제작자 수행)** — Open 시 `[T63][FISHRANK] UI apply myScore=` 확인.
 
-### T64. [대기 — 지휘자 직접 수행 예정(⚖️ 보스 "직접 구현해도 돼" 2026-07-16)] 낚시 v2 — 홀드-릴리즈 릴링 미니게임 + 낚시 숙련 레벨 (Phase 15-C v2)
+### T64. [코드 완료 — 2026-07-18 지휘자 직접 | LSP errors=0 (전 파일) | refresh·Play 검증 보류(Maker 미기동 — 제작자 수행)] 낚시 v2 — 홀드-릴리즈 릴링 미니게임 + 낚시 숙련 레벨 (Phase 15-C v2)
 
 - **배경(⚖️ 보스 지시 원문 요지)**: "낚시가 좀 더 어려워졌으면. **입질 이후 그냥 놓치는 경우는 없애고**, 스타듀밸리처럼 **낚시 레벨에 비례해 나오는 물고기·난이도 편차**가 생기거나, 두근두근타운처럼 **꾹 눌러서 잡되 위험 표시가 뜨면 잠시 풀었다가 다시 눌러야** 하거나. 복잡해도 직접 구현 가능." → **⚖️ 설계 확정(지휘자, 두 안 혼합)**: 릴링 조작 = 두근두근타운식 홀드-릴리즈, 편차 축 = 스타듀식 어종 난이도+숙련 레벨.
 - **설계 확정**:
@@ -142,6 +142,7 @@
 - **Target**: `Furniture/Scripts/FishingSpot.mlua`(릴링 상태기 — 기존 세션 관리·RollFish 재사용, BiteTime·날씨 FishBiteMult 유지), `Player/Scripts/PlayerController.mlua`(낚시 입력 홀드/릴리즈 + FishingLevel), `Player/Scripts/PersistenceManager.mlua`(숙련 영속), `item/DataSets/FishDataSet.csv`(컬럼 3종), `ui/HUDGroup.ui`(FishingGauge — UIBuilder), `UI/Scripts/UIFishingGaugeController.mlua`(신규).
 - **Acceptance**: ① 입질 후 "그냥 놓침" 0 — 실패는 텐션 초과(줄 끊김)뿐 ② 위험 표시 중 홀드 유지 시 텐션 상승→끊김, 릴리즈-재홀드 리듬으로 어획 가능 ③ 어종별 난이도 체감 차이(Difficulty) + 숙련 레벨업 시 고레벨 어종 등장·텐션 완화(로그 근거) ④ 재접속 후 숙련 레벨 유지 ⑤ 낚시왕 랭킹(T57/T63)·날씨 입질 보너스(T21) 회귀 0 ⑥ 수치·어종 하드코딩 0(전부 CSV/프로퍼티) ⑦ refresh Error=0 + 보고 3종 + §7 루브릭(FishingGauge). 난이도 감성은 제작자 Play.
 - **충돌 주의**: 지휘자 단독 레인(FishingSpot·PlayerController·PersistenceManager·HUDGroup.ui). 규칙 9(세이브)·규칙 11(.ui 편집 전 refresh 상태 확인) 준수.
+- **구현 요약 (2026-07-18)**: ① 미스 폐지 — `TriggerBite`=자동 릴링 진입, 실패=텐션 초과 `FailReel`뿐 ② 서버 `ReelTick` 0.1s(진행/텐션/위험 랜덤 스케줄) + 클라 홀드 폴링(F `IsKeyPressed` ∨ 모바일 플래그, 변화 시만 `ServerSetReelHold`) ③ `FishDataSet` 컬럼 3종 + 신규 `FishingDifficultyDataSet`(티어별 파라미터 CSV) ④ `FishingLevel/FishingXp` @Sync+영속(선캡처, Yield 무추가) — 텐션 완화·풀 개방 ⑤ HUD `FishingGauge`(공용 프레임+UIMyInfo 바 패밀리+골드, §7 루브릭 8/8) ⑥ 모바일=BtnInteract `ButtonStateChangeEvent` Pressed/Released(정의 실확인 — [보류] 불필요). Target 외 최소 수정: `UIHUDController.mlua`(BtnInteract 배선 소유 파일 — 홀드 핸들러 1쌍). 보고서: `reports/T64-fishing-v2-reeling.md`.
 
 ### (신규 작업 추가 템플릿)
 ```

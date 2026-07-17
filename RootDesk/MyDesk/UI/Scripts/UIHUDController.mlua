@@ -42,6 +42,8 @@ script UIHUDController extends Component
 
 	property any btnInteractHandler = nil
 
+	property any btnInteractStateHandler = nil
+
 	property any btnCollectionHandler = nil
 
 	property any btnSkillTreeHandler = nil
@@ -152,6 +154,18 @@ script UIHUDController extends Component
 					if isvalid(controller) then
 						controller:OnInteractButton()
 					end
+				end
+			end)
+			-- T64: 릴링 홀드용 Pressed/Released 감지 — PlayerController 홀드 플래그로 전달.
+			self.btnInteractStateHandler = btnInteract:ConnectEvent(ButtonStateChangeEvent, function(event)
+				local player = _UserService.LocalPlayer
+				if not isvalid(player) then return end
+				local controller = player:GetComponent("script.PlayerController")
+				if not isvalid(controller) then return end
+				if event.state == ButtonState.Pressed then
+					controller:SetMobileReelHold(true)
+				elseif event.state == ButtonState.Released or event.state == ButtonState.Normal then
+					controller:SetMobileReelHold(false)
 				end
 			end)
 		end
@@ -392,6 +406,9 @@ script UIHUDController extends Component
 		local btnInteract = _EntityService:GetEntityByPath("/ui/HUDGroup/MobileUI/BtnInteract")
 		if isvalid(btnInteract) and self.btnInteractHandler then
 			btnInteract:DisconnectEvent(ButtonClickEvent, self.btnInteractHandler)
+		end
+		if isvalid(btnInteract) and self.btnInteractStateHandler then
+			btnInteract:DisconnectEvent(ButtonStateChangeEvent, self.btnInteractStateHandler)
 		end
 
 		local btnCollection = _EntityService:GetEntityByPath("/ui/HUDGroup/BtnCollection")

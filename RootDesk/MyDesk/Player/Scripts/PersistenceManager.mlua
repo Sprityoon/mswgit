@@ -210,6 +210,9 @@ script PersistenceManager extends Logic
 				pc.UnlockedWaypointsJson = data.unlockedWaypoints or "[]"
 				pc.SkillLevelsJson = data.skillLevels or "{}"
 				pc.SP = data.sp or 0
+				-- T64: 낚시 숙련
+				pc.FishingLevel = data.fishingLevel or 1
+				pc.FishingXp = data.fishingXp or 0
 				-- T45⑥: 로드 직후 미해금 장착 필터 (세이브 경로 무변경 — 장착 목록은 @Sync 세션 값)
 				pc:SanitizeEquippedSkills()
 				
@@ -465,6 +468,8 @@ script PersistenceManager extends Logic
 			pc.GatheringSpeed = 1.0
 			pc.SkillLevelsJson = "{}"
 			pc.SP = 0
+			pc.FishingLevel = 1
+			pc.FishingXp = 0
 			pc.EquippedSkillsJson = "[]"
 			pc:SanitizeEquippedSkills()
 			pc.IsSleeping = false
@@ -527,6 +532,8 @@ script PersistenceManager extends Logic
 		local capWaypoints = pc.UnlockedWaypointsJson or "[]"
 		local capSkills = pc.SkillLevelsJson or "{}"
 		local capSp = tonumber(pc.SP) or 0
+		local capFishingLevel = tonumber(pc.FishingLevel) or 1
+		local capFishingXp = tonumber(pc.FishingXp) or 0
 		local capSleeping = pc.IsSleeping == true
 		local capSleepTicks = pc.SleepStartTimeTicks or "0"
 		local capCoin = tonumber(inv.Coin) or 0
@@ -647,6 +654,8 @@ script PersistenceManager extends Logic
 			unlockedWaypoints = capWaypoints,
 			skillLevels = capSkills,
 			sp = capSp,
+			fishingLevel = capFishingLevel,
+			fishingXp = capFishingXp,
 			isSleeping = capSleeping,
 			sleepStartTimeTicks = capSleepTicks,
 			posX = tonumber(posX) or 0.0,

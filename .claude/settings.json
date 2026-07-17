@@ -25,7 +25,18 @@
       "Bash(node \"C:/Users/mh566/AppData/Local/Temp/claude/d-------/75d73352-226f-4872-9471-9e83683df0b7/scratchpad/dump_hud.cjs\")",
       "Bash(node \"C:/Users/mh566/AppData/Local/Temp/claude/d-------/75d73352-226f-4872-9471-9e83683df0b7/scratchpad/dump_popup.cjs\")",
       "Bash(node \"C:/Users/mh566/AppData/Local/Temp/claude/d-------/75d73352-226f-4872-9471-9e83683df0b7/scratchpad/find_btn.cjs\")",
-      "Bash(git stash *)"
+      "Bash(git stash *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git pull *)",
+      "Bash(node inspect_hud_t64.cjs)",
+      "Bash(node scratch/inspect_hud_t64.cjs)",
+      "Bash(node -e \"console.log\\(require\\('node:crypto'\\).randomUUID\\(\\)\\)\")",
+      "Bash(node scratch/build_fishing_gauge_t64.cjs)",
+      "Bash(node scratch/audit_fishing_gauge_t64.cjs)",
+      "Bash(node scratch/inspect_town_fishing_t64.cjs)",
+      "Bash(node scratch/move_rankboard_t64.cjs)",
+      "mcp__msw-maker-mcp__maker_clear_logs",
+      "mcp__msw-maker-mcp__maker_play"
     ]
   },
   "hooks": {

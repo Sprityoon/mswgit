@@ -88057,8 +88057,8 @@
             {
               "@type": "MOD.Core.TransformComponent",
               "Position": {
-                "x": -2,
-                "y": -2.6,
+                "x": 3.5,
+                "y": -5.5,
                 "z": 0
               },
               "QuaternionRotation": {
