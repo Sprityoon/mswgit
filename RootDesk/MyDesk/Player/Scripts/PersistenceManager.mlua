@@ -210,11 +210,14 @@ script PersistenceManager extends Logic
 				pc.UnlockedWaypointsJson = data.unlockedWaypoints or "[]"
 				pc.SkillLevelsJson = data.skillLevels or "{}"
 				pc.SP = data.sp or 0
+				-- T69: QWER 장착 영속 — SkillLevels 복원 후 · Sanitize 전에 복원 (sanitize가 해금 레벨을 읽음)
+				pc.EquippedSkillsJson = data.equippedSkills or "[]"
 				-- T64: 낚시 숙련
 				pc.FishingLevel = data.fishingLevel or 1
 				pc.FishingXp = data.fishingXp or 0
-				-- T45⑥: 로드 직후 미해금 장착 필터 (세이브 경로 무변경 — 장착 목록은 @Sync 세션 값)
+				-- T45⑥: 로드 직후 미해금·패시브·중복 장착 필터
 				pc:SanitizeEquippedSkills()
+				log("[T69][SAVE] load equippedSkills=" .. tostring(pc.EquippedSkillsJson))
 				
 				-- Offline sleeping recovery (T8): 10분(600s) 비례 회복. ≥600s면 풀충전.
 				local savedIsSleeping = data.isSleeping or false
@@ -531,6 +534,8 @@ script PersistenceManager extends Logic
 		local capGather = tonumber(pc.GatheringSpeed) or 1.0
 		local capWaypoints = pc.UnlockedWaypointsJson or "[]"
 		local capSkills = pc.SkillLevelsJson or "{}"
+		-- T69: QWER 장착 — 선캡처(규칙 9: 추가 Yield 금지, 기존 캡처 블록과 동일 위치)
+		local capEquippedSkills = pc.EquippedSkillsJson or "[]"
 		local capSp = tonumber(pc.SP) or 0
 		local capFishingLevel = tonumber(pc.FishingLevel) or 1
 		local capFishingXp = tonumber(pc.FishingXp) or 0
@@ -653,6 +658,7 @@ script PersistenceManager extends Logic
 			activePetId = capActivePet,
 			unlockedWaypoints = capWaypoints,
 			skillLevels = capSkills,
+			equippedSkills = capEquippedSkills,
 			sp = capSp,
 			fishingLevel = capFishingLevel,
 			fishingXp = capFishingXp,
@@ -669,6 +675,7 @@ script PersistenceManager extends Logic
 			guestPermissions = permJson
 		}
 
+		log("[T69][SAVE] capture equippedSkills=" .. tostring(capEquippedSkills))
 		-- data 인코드 실패 시 필드 단위 격리 (전체 세이브 조용히 삼키기 금지 — 필드명 로그)
 		local okData, jsonStr = pcall(function() return _HttpService:JSONEncode(data) end)
 		if not okData or jsonStr == nil or jsonStr == "" then

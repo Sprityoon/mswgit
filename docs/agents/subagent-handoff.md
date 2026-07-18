@@ -30,6 +30,7 @@
 9. **세이브 경로 Yield 금지 (2026-07-11 신설 — T37 인벤토리 전량 유실 사고 재발 방지)**: `SavePlayerData` 등 영속 저장 루틴 안에서 필수 `GetAndWait`/`SetAndWait` 외의 **추가 Yield 호출(다른 GetAndWait, 타이머 대기 등)을 절대 넣지 않는다**. Yield 사이에 플레이어 엔티티가 파괴되면 이후 읽는 컴포넌트 값이 nil → 기본값 폴백으로 **세이브가 빈 데이터로 덮인다**. 저장에 필요한 컴포넌트 값은 루틴 진입 직후 전부 지역 변수로 선캡처하고, 외부 조회가 필요하면 세션 캐시를 쓴다.
 10. **UI stretch 앵커 미신뢰 — RectSize 명시 (2026-07-14 신설 — T48 '정체불명 박스' 실증)**: 이 프로젝트 런타임(CoreVersion 26.5.0.0)에서 `.ui` 자식의 stretch 앵커(AnchorsMin≠AnchorsMax)+Offset 0 조합은 **부모 크기로 늘어나지 않고 `RectSize` 값 그대로 렌더**된다(지휘자 Play 캡처 실증). 새/수정 `.ui` 자식은 **명시 anchor+rect_size로 작성**하고, 부모 크기를 바꾸면 stretch 자식의 RectSize 동기화 여부를 반드시 함께 확인한다.
 11. **Maker 스테일 저장이 빌더 산출 `.ui`를 되돌린다 (2026-07-15 신설 — 실사고)**: Maker 에디터는 저장 시 **에디터 메모리 상태로 워크스페이스 파일을 통째로 재직렬화**한다. 에디터가 구버전 상태(git pull·빌더 편집을 refresh로 반영하기 전)를 들고 있으면 무관한 저장에도 `ui/*.ui`가 구버전으로 덮인다 — 2026-07-15 실사고(T47·T48·T50 산출물 소실 → 지휘자 HEAD 복구). **규칙**: ① git pull 또는 빌더로 `.map`/`.model`/`.ui`를 바꾼 뒤에는 Maker에서 어떤 저장이든 하기 전에 반드시 `refresh` 먼저 ② 에이전트는 Maker 저장 흔적(git status에 의도치 않은 `.ui`/`.csv` 변경)이 보이면 **덮어쓰기 여부부터 대조**하고 작업을 시작한다(핵심 산출물 존재 검사 — `scratch/inspect_stale_save_check.cjs` 선례) ③ CSV의 BOM 재직렬화는 무해(클린 필터 처리). `.ui` 전량 재직렬화 diff도 **내용이 전수 실존하면 무해** — 되돌리지 말고 커밋에 포함(2026-07-16 판정 선례. 되돌리면 다음 에디터 저장에서 재발).
+12. **`_EffectService`/`_ParticleService` instigator에 nil 금지 (2026-07-18 신설 — T71 런타임 실측)**: `PlayEffect`/`PlayBasicParticle` 등의 instigator 인자에 `nil`을 넘기면 **클라이언트에서 생성이 에러 없이 조용히 실패(serial=0)** 한다 — 서버는 nil을 통과시켜 serial>0을 반환하므로 "서버 로그만 성공"으로 오진하기 쉽다. 반드시 유효 엔티티(시전자·대상 등)를 넘기고, 재생 직후 반환 serial을 로그로 남겨 0 여부를 확인한다. `SpawnByModelId` parent nil 금지(핵심 규칙 4)와 동계열 함정.
 
 ### 1.3 ⚖️ 현행 타일 스킴 (2026-07-08 밀착 페어 확정 — 이 문서의 최우선 배경지식)
 
@@ -91,13 +92,14 @@
 ## 3. 작업 큐 (하위 에이전트 위임 대상)
 
 > 상태: `[대기]` / `[진행]` / `[완료]` / `[보류]`
-> 각 항목은 **Target(파일) / Change(변경) / Acceptance(완료 기준)** 3요소를 반드시 채운다. **T번호는 단조 증가·재사용 금지 — 현재 최대 = T67.**
+> 각 항목은 **Target(파일) / Change(변경) / Acceptance(완료 기준)** 3요소를 반드시 채운다. **T번호는 단조 증가·재사용 금지 — 현재 최대 = T71.**
 
 > 🧭 **현황판 (지휘자 2026-07-16 — 2차)**
 > - **Play PASS 확정**: T50까지의 전 완료분 + T51 · T58 · T59 · T60 · **T62**(⚖️ 2026-07-16 확정) · **T63**(낚시 랭킹 수정 — 핫픽스 포함 확인). 체크포인트 커밋 = 이 갱신과 동시.
 > - **Play 대기(제작자 광범위 Play에서 이상 보고 없음 — 개별 명시 확인은 미완)**: T19(목장) · T23(펫) · T27(퀘스트 107 해금 — **미완료 캐릭터로** 확인) · T49(아트 육안) · T54(팝업 여닫기) · T55(BGM) · T56(주민 대화) · **T61(지형 쿨다운 0.25s 체감)**. 체크리스트 = 각 `reports/T<n>-*.md` §6.
 > - **코드 완료·Play 대기(2026-07-18)**: **T64 낚시 v2** — 지휘자 직접 구현 완료(LSP errors=0). ⚠ Maker 미기동 상태에서 작업 — **첫 refresh에서 신규 스크립트 2종(`UIFishingGaugeController`)·데이터셋(`FishingDifficultyDataSet`) 등록 + Error=0 확인 필요**. 체크리스트 = `reports/T64-fishing-v2-reeling.md` §6.
-> - **⚖️ 2026-07-18 보스 지시 3건 → 배치 J (T65→T66→T67) 코드 완료(2026-07-18)**: 세 티켓 모두 refresh Error=0 · **런타임 검증 보류(제작자 Play)**. 보고서 = `T65-mine-attack-sfx.md` · `T66-skill-vfx-dash-damage.md` · `T67-aim-cell-interact-gate.md`. **⚖️ 제작자 1차 Play 피드백(2026-07-18): "선택된 사운드들이 어색" — 기능 자체는 승인(체크포인트 지시), 사운드 리튠은 후속 후보(`item_dataset.SwingSoundRUID/HitSoundRUID` CSV RUID 교체만으로 반영 — 티켓 미발행).**
+> - **⚖️ 2026-07-18 보스 지시 3건 → 배치 J (T65→T66→T67) 코드 완료(2026-07-18)**: 세 티켓 모두 refresh Error=0 · **런타임 검증 보류(제작자 Play)**. 보고서 = `T65-mine-attack-sfx.md` · `T66-skill-vfx-dash-damage.md` · `T67-aim-cell-interact-gate.md`. **⚖️ 제작자 1차 Play 피드백(2026-07-18): "선택된 사운드들이 어색" → 커밋 9850556 후 "모든 소리가 어색, 네가 선택하라" 지시 → T68(지휘자 직접)로 11슬롯 전량 재선정 완료.**
+> - **⚖️ 2026-07-18 제작자 Play 버그 2건 → 배치 K(T69·T70) 코드 완료 + T71 지휘자 직접 해결**: ① QWER 장착 재접속 초기화 = T69 영속화(Play 확인 대기) ② 스킬 모션 = T70 `CastAction`(런타임 재생 확인) ③ 이펙트 미표시의 진범 = **`PlayEffect` instigator nil(신설 규칙 12)** — T71에서 수정, **시전 경로 클라 serial>0 런타임 검증 완료**(육안 최종 확인만 제작자). 사운드 재선정 잔여분은 ⚖️ 제작자 직접(T68 현황 유지).
 > - **병렬 규약(요지)**: ① 상대 레인 소유 파일은 읽기만 ② 이 문서 갱신은 자기 T블록 라인만 ③ 티켓 완료마다 refresh 1회+빌드 Error 수를 보고서 §4에 기재 ④ 무보고 종료 = 반려(§5 조항 11).
 
 ### T4. [대기] 경계 테라스/절벽 아트 정리
@@ -159,7 +161,7 @@
 - **구현 요약 (2026-07-18)**: CSV 컬럼 2종+도구 RUID · `ResolveEquippedToolSound`/`ClientPlaySwingSound` · 자원=`ClientPlayMineEffect` · 몬스터=`HandleHitEvent`→`MulticastPlaySkillSound` · `_SoundService:PlaySound` 2D. 보고서: `docs/agents/reports/T65-mine-attack-sfx.md`.
 - **검증**: Maker refresh **Error=0** (total 517 / Warning 25 / Info 492). **런타임 검증 보류(제작자 수행)**.
 
-### T66. [코드 완료 — 2026-07-18 | refresh Error=0 | 런타임 검증 보류(제작자 수행)] 스킬 이펙트 실표시 수리 + 원작 이펙트·피격 이펙트 + 대시 데미지 (⚖️ 2026-07-18 보스 지시 — 배치 J ②)
+### T66. [부분 완료 — 대시 데미지·피격 훅은 동작(로그 확인) | **이펙트 가시화는 Play 실패(2026-07-18 제작자) → T70 재작업** | 지휘자 로그 진단: 클라 PlayEffect 전건 serial=0(생성 실패), 서버만 serial>0] 스킬 이펙트 실표시 수리 + 원작 이펙트·피격 이펙트 + 대시 데미지 (⚖️ 2026-07-18 보스 지시 — 배치 J ②)
 
 - **배경**: 제작자 Play — "스킬 이펙트가 없다. 원작 메이플처럼 이펙트·데미지를 맞춰라(대시도 데미지)". 지휘자 실사: T46이 `SkillDataSet.EffectRUID` → `MulticastPlayEffect`(`_EffectService:PlayEffect`, 시전 위치)를 이미 구현했고 4스킬 전부 RUID가 채워져 있는데 **비주얼만 안 보임**(사운드는 동일 게이트의 코드가 재생됨) → 유력 원인 ⓐ EffectRUID 무효 ⓑ **렌더 정렬**(톱다운 타일맵에 깔림 — `ExecuteProjectileSkill` 2316~2320행이 `IgnoreMapLayerCheck=true`+`SortingLayer=EntityLayer`를 명시 설정해야 보였던 선례). 또한 피격 이펙트 전무, dash 행 `DamageMultiplier=0`.
 - **Target**: `Player/Scripts/PlayerController.mlua`(이펙트 재생 경로·`ExecuteDashSkill`), `Player/DataSets/SkillDataSet.csv`(+`HitEffectRUID` 컬럼, dash 데미지 값), `Player/Scripts/Projectile.mlua`(명중 이펙트 훅), `Monster/Scripts/Monster.mlua`(피격 이펙트 훅 — T65와 같은 파일, 순차라 충돌 없음)
@@ -188,6 +190,44 @@
 - **충돌 주의**: `PlayerController.mlua` 공유 — **배치 마지막(T66 완료 후) 착수**. 낚시 릴링 홀드(T64 OnUpdate 폴링)는 무수정.
 - **구현 요약 (2026-07-18)**: `IsAimTarget`+`AimFootprintW/H` · FindNearby* 5종 · 분산 6종 거리→조준선 · Animal InteractRequestEvent 추가 · 포탈/낚시 예외 유지. 보고서: `docs/agents/reports/T67-aim-cell-interact-gate.md`.
 - **검증**: Maker refresh **Error=0** (total 471 / Warning 25 / Info 446). **런타임 검증 보류(제작자 수행)**.
+
+### T68. [완료 — 2026-07-18 지휘자 직접 | refresh Error=0 | 체감 확인 = 제작자 Play] 전투·채집·스킬 SFX 전면 재선정 (⚖️ 보스 지시 "모든 소리 어색 — 네가 선택")
+
+- **배경**: T65/T46 음원 선정의 구조적 결함(지휘자 실사 — 공식 리소스 API로 배정 RUID 전수 조회): 매직 클로·플래시 점프 시전음 = **UI 알림음**, 곡괭이 타격 = **파괴음**, 도끼·삽 스윙 = 쿨다운 대비 과장(0.84~0.86s). 이전 선정이 검색 결과의 설명·길이·카테고리를 확인하지 않고 채택한 것이 원인.
+- **Change**: 11슬롯 전량 재검색·재선정 — 원칙 = ① 내용 일치(용도↔설명, UI음·파괴음·몬스터 울음 배제) ② 길이-쿨다운 정합(채집 ≤0.7s / 지형 0.26s / 스킬 1.2~1.6s) ③ 스킬은 `category=skill` 한정. **코드 무변경** — `SkillDataSet.SoundRUID` 4행 + `item_dataset` Swing/Hit RUID 5계열 + `PlayerController` Default 폴백 2종의 값만 교체. 선정표 = `reports/T68-sfx-reselection.md` §3.
+- **Acceptance**: ① 스킬 시전음에서 UI 알림음 감각 소멸 ② 채집 연타·지형 0.25s 쿨다운에서 소리 겹침 없음 ③ 재질감(나무/돌/펀치) 구분 ④ refresh Error=0(달성 — Warning 25/Info 499). 최종 체감 = 제작자 Play, 특정 슬롯 불만 시 슬롯명 지목 → 개별 교체.
+
+### T69. [코드 완료 — 2026-07-18 | refresh Error=0 | 런타임 검증 보류(제작자 수행)] QWER 스킬 장착 영속화 — 재접속 초기화 수정 (⚖️ 2026-07-18 제작자 Play 버그 — 배치 K ①)
+
+- **배경**: 제작자 — "QWER에 배치해도 재접속하면 초기화". **지휘자 진단(코드 확정)**: `EquippedSkillsJson`은 T45에서 **의도적으로 세션 값**으로 설계됨(`PersistenceManager.mlua` 216행 주석 "세이브 경로 무변경"). 세이브 캡처부(531~546행대)에 equipped 캡처 없음, 저장 테이블(640행대)에 필드 없음, 로드 경로에 복원 없음 — 재접속 시 프로퍼티 기본값 `"[]"`으로 시작. `skillLevels`(해금)는 정상 영속(533·655행). ⚖️ **보스 요구로 설계 변경 확정: 장착 목록도 영속화한다.**
+- **Target**: `RootDesk/MyDesk/Player/Scripts/PersistenceManager.mlua` 단독 (PlayerController 무수정 — `EquippedSkillsJson` 프로퍼티·`SanitizeEquippedSkills`는 기존 정의 재사용, 호출 전 정의 확인 규칙 8).
+- **Change**: ① `SavePlayerData` 진입부 선캡처 블록에 `local capEquippedSkills = pc.EquippedSkillsJson or "[]"` 추가(**규칙 9 — 추가 Yield 절대 금지, 기존 선캡처 블록과 같은 위치**) ② 저장 테이블에 `equippedSkills = capEquippedSkills` 필드 추가 ③ 로드 경로에서 `pc.EquippedSkillsJson = data.equippedSkills or "[]"` 복원 — **반드시 211행 `SkillLevelsJson` 복원 후, 217행 `SanitizeEquippedSkills()` 호출 전** 순서(정리 필터가 해금 데이터를 읽으므로) ④ 신규 캐릭 리셋 경로(473행)는 무변경 ⑤ 구 세이브(`equippedSkills` 필드 없음)는 `or "[]"` 폴백으로 기존 동작과 동일.
+- **Acceptance**: ① QWER 장착 → 재접속 → 그대로 유지 ② 구 세이브 로드 에러 0(폴백) ③ 미해금 스킬이 세이브에 섞여도 로드 시 sanitize로 제거 ④ 세이브 루틴에 신규 Yield 0(코드 리뷰로 확인 — 규칙 9) ⑤ refresh Error=0 + 보고 3종. 재접속 확인은 제작자 Play.
+- **충돌 주의**: `PersistenceManager`는 공유 파일 — 배치 내 순차(T70과 파일 겹침 없음, K 배치 선두).
+- **구현 요약 (2026-07-18)**: 선캡처 `capEquippedSkills` · 저장 `equippedSkills` · 로드 순서 SkillLevels→Equipped→Sanitize · Yield 0 · `[T69][SAVE]` 로그. PlayerController 무수정. 보고서: `docs/agents/reports/T69-equipped-skills-persist.md`.
+- **검증**: Maker refresh **Error=0** (total 527 / Warning 25 / Info 502). **런타임 검증 보류(제작자 수행)**.
+
+### T70. [완료 — 모션 OK | 이펙트는 폴백 3단 전부 serial=0(제작자 로그) → **원인 instigator=nil로 확정, T71에서 수정·런타임 검증 완료**] 스킬 시전 모션 + 이펙트 클라 생성 실패 수정 (⚖️ 2026-07-18 제작자 Play 버그 — 배치 K ②, T66 재작업)
+
+- **배경**: 제작자 — "스킬 사용 시 모션·이펙트가 여전히 없음". **지휘자 런타임 로그 진단(2026-07-18 Play 로그 실측)**:
+  - **이펙트**: `[T66][FX] PlayEffect` 로그가 시전마다 쌍으로 발생 — **서버(fromServer=true) serial=2147483665+ (성공·비렌더), 클라(fromServer=false) 전건 serial=0 (생성 실패)**. 즉 T46 시절=옵션 없이 생성돼도 정렬에 가려짐(추정), T66 이후=옵션 딕셔너리를 붙이자 클라 생성 자체가 실패. RUID 8종은 전부 유효한 `animationclip`(지휘자 리소스 API 전수 확인). `EffectService.d.mlua` 시그니처의 7번째 `options` 인자는 실존(FlipX/SortingLayer/OrderInLayer/IgnoreMapLayerCheck 등 키 명시) — **어느 옵션 키가 클라 생성을 죽이는지가 미확정**.
+  - **모션**: 시전 경로에 아바타 액션 트리거가 전무 — 채집(`MineState.mlua` — `ActionStateChangedEvent`로 swingO1/O2 재생, `SwingAction` 컬럼 데이터 주도)과 달리 스킬은 어떤 상태/액션도 재생하지 않음.
+- **Target**: `RootDesk/MyDesk/Player/Scripts/PlayerController.mlua`(`MulticastPlayEffectEx` 폴백 체인 + 시전 모션 멀티캐스트), `RootDesk/MyDesk/Player/DataSets/SkillDataSet.csv`(+`CastAction` 컬럼), (경로 공유 확인만) `Monster/Scripts/Monster.mlua` 227행 `MulticastPlayEffectEx` 호출 — 시그니처 유지.
+- **Change**:
+  ① **이펙트 — 런타임 폴백 체인(자가 진단 겸 자가 치유)**: `MulticastPlayEffectEx`에서 (a) 서버면 스킵(`self:IsClient()` 가드 — 서버 생성은 무의미) (b) full 옵션으로 `PlayEffect` → serial 0이면 `{IgnoreMapLayerCheck=true}`만으로 재시도 → 또 0이면 옵션 nil 재시도 — 각 단계 `[T70][FX] variant=<full|min|none> serial=` 로그. 어느 변형이든 성공하면 화면에 뜨고, 로그가 범인 키를 특정한다. 3단계 전부 0이면 RUID 런타임 무효 → `[T70][FX] ALL-FAIL ruid=` 경고 로그(후속: 지휘자 RUID 재선정).
+  ② **모션 — `CastAction` 컬럼 신설(데이터 주도, MineState 선례 미러)**: 시전 성공 시(`ServerRequestCastSkill` 검증 통과 지점) Multicast로 아바타 body에 `ActionStateChangedEvent`(CoreActionName=PartsActionName=`CastAction` 값, Onetime, PlayRate 1.33 — MineState 8~58행 미러) 전송. 컬럼 공란이면 모션 생략. **기본값 제안(CSV — 튜닝 자유)**: power_strike=`swingO2` / fireball(매직 클로)=`shoot1` / earth_shatter=`swingT2` / dash=공란(도약 이동 자체가 연출). ⚠ 액션 ID 실존 여부는 **msw-avatar 스킬로 확인 후 기입**(원작 body action 세트 — 규칙 8 준용, 존재하지 않는 액션명 금지). 무기 파츠 유무에 따른 한손/양손 계열 주의(MineState 13~16행 주석).
+  ③ 피격 이펙트(`[T66][HITFX]` 경로)·대시 데미지(`[T66][DASH]` — 로그상 정상 동작)는 무수정. `MulticastPlayEffectEx` 시그니처 유지(Monster 227행 호출 호환).
+- **Acceptance**: ① 4스킬 시전 시 클라 `[T70][FX] ... serial>0` 로그(제작자 Play 후 로그로 판정 — 어느 variant인지 보고서에 기재) ② 시전 시 아바타 모션 재생(CastAction 공란 스킬 제외) ③ CSV 행 수정만으로 모션 교체 가능 ④ 피격 이펙트·대시 데미지·사운드 회귀 0 ⑤ Monster 227행 경로 정상(시그니처 무변경) ⑥ refresh Error=0 + 보고 3종.
+- **충돌 주의**: `PlayerController.mlua`·`SkillDataSet.csv` 수정 — T69(PersistenceManager)와 파일 겹침 없으나 **배치 순차 유지**. 착수 전 msw-scripting + **msw-avatar**(액션 ID 확인) + msw-combat-system 스킬 로드.
+- **구현 요약 (2026-07-18)**: 클라 가드+full/min/none 폴백 · `CastAction` CSV+`MulticastPlayCastAction`(MineState 미러) · 액션 ID msw-avatar 실존 확인 · 시그니처 유지. 보고서: `docs/agents/reports/T70-skill-cast-motion-fx-fallback.md`.
+- **검증**: Maker refresh **Error=0** (total 527 / Warning 25 / Info 502). **런타임 검증 보류(제작자 수행)**.
+
+### T71. [완료 — 2026-07-18 지휘자 직접 | refresh Error=0 | **런타임 검증 완료(시전 경로 클라 serial>0 로그)** | 육안 최종 확인 = 제작자] 스킬 이펙트 미표시 진범 수정 — `PlayEffect` instigator nil 금지 (⚖️ 보스 "직접 원인 찾아 수정" 지시)
+
+- **원인 (지휘자 런타임 실측 — Play `maker_execute_script` 격리 실험)**: `_EffectService:PlayEffect`의 2번째 인자 **instigator에 `nil`을 넘기면 클라이언트에서 이펙트 생성이 조용히 실패(serial=0)** 하고, 유효 엔티티를 넘기면 즉시 성공. 실험 매트릭스: A(nil)=0 / B(LocalPlayer)=2 / C(Attached)=3 / D(다른 클립+nil)=0 / E(ParticleService+nil)=0 — **옵션·RUID·정렬 전부 무관, nil instigator가 유일 변수**. T46부터 모든 호출이 nil을 넘겨 왔음(서버는 nil 관대 통과로 serial>0 반환 — T70 진단의 "서버만 성공" 현상의 정체). 클립 자체는 정상 프레임 기반 원작 스킬 이펙트(리소스 API로 frames·subPath 확인).
+- **수정**: `PlayerController.MulticastPlayEffectEx`의 PlayEffect 3곳 `nil` → `self.Entity`(시전자). 전 이펙트 경로(시전/피격/대시/Monster 227행)가 이 메서드로 수렴 — 단일 지점 수정. 폴백 체인·시그니처 유지, 로그 태그 `[T71][FX]`.
+- **검증**: refresh **Error=0**(Warning 25/Info 502) + Play에서 `ServerRequestCastSkill` 직접 호출 — 클라 `[T71][FX] variant=full serial=1`(파워 스트라이크)·`serial=2`(대시) + `[T70][CAST] play action=swingO2` 모션 재생 확인. **variant=full 성공 = SortingLayer(MapLayer5)+IgnoreMapLayerCheck 적용 상태로 생성** → 타일 위 렌더 보장. 육안 색감·타이밍 확인만 제작자 몫.
+- **재발 방지**: §1.2 규칙 12 신설(아래). 보고서: `reports/T71-effect-instigator-nil.md`.
 
 ### (신규 작업 추가 템플릿)
 ```

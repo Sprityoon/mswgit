@@ -119,9 +119,9 @@ script PlayerController extends Component
 	property number FishingXpGrowth = 1.35
 
 	-- T65: 맨손(도구 공란) 스윙/타격 SFX 폴백 — item_dataset SwingSoundRUID/HitSoundRUID 공란 시 사용
-	property string DefaultSwingSoundRUID = "6e1ff144b36649a681bad20b84b90625"
+	property string DefaultSwingSoundRUID = "8c62b200dd5046adb002b3873582cb79"
 
-	property string DefaultHitSoundRUID = "15d8f000508044ae9282464d6e4b4aac"
+	property string DefaultHitSoundRUID = "c1707b72acff4d35a464ffd7a9bdb540"
 
 	-- T66: 시전 이펙트 전방 오프셋(월드 유닛)·스케일 (CSV EffectOffset/EffectScale 공란 시 폴백)
 	property number SkillEffectForwardOffset = 0.8
@@ -2082,6 +2082,15 @@ script PlayerController extends Component
 		self.Stamina = math.max(0, self.Stamina - cost)
 		self.CooldownMap[skillId] = now
 		self:ClientSyncCooldown(skillId, now)
+
+		-- T70: 시전 모션 (CastAction CSV — MineState ActionStateChangedEvent 미러). 공란=생략.
+		local castAction = ""
+		local okCast, rawCast = pcall(function() return row:GetItem("CastAction") end)
+		if okCast and rawCast ~= nil then castAction = tostring(rawCast) end
+		if castAction ~= "" then
+			self:MulticastPlayCastAction(castAction)
+			log("[T70][CAST] skill=" .. skillId .. " action=" .. castAction)
+		end
 		
 		-- T66: 피격 이펙트 RUID를 AttackFast 경로가 소비할 수 있게 선설정
 		local hitEffectRUID = ""
@@ -2508,19 +2517,51 @@ script PlayerController extends Component
 
 	@ExecSpace("Multicast")
 	method void MulticastPlayEffectEx(string effectRUID, Vector3 pos, boolean flipX, number scale)
-		-- T66: PlayEffect + IgnoreMapLayerCheck/SortingLayer (톱다운 가시성) + FlipX.
-		-- 시그니처: EffectService.d.mlua — options keys FlipX/SortingLayer/OrderInLayer/IgnoreMapLayerCheck.
+		-- T70: 클라만 재생. full 옵션 → min(IgnoreMapLayerCheck만) → none 폴백.
+		-- 시그니처 유지(Monster.mlua 호출 호환). EffectService.d.mlua options 키 실확인.
+		-- T71(지휘자 런타임 실측 2026-07-18): instigator=nil이면 클라 생성이 조용히 실패(serial=0).
+		-- 반드시 유효 엔티티(self.Entity)를 넘길 것 — SpawnByModelId parent nil 금지(핵심 규칙 4)와 동계열 함정.
 		if effectRUID == nil or effectRUID == "" then return end
+		if not self:IsClient() then return end
 		local s = scale
 		if s == nil or s <= 0 then s = 1.0 end
-		local opts = {
+		local scaleVec = Vector3(s, s, s)
+		local fullOpts = {
 			IgnoreMapLayerCheck = true,
 			SortingLayer = _RenderLayers.EntityLayer,
 			OrderInLayer = 500,
 			FlipX = flipX == true,
 		}
-		local serial = _EffectService:PlayEffect(effectRUID, nil, pos, 0.0, Vector3(s, s, s), false, opts)
-		log("[T66][FX] PlayEffect ruid=" .. effectRUID .. " serial=" .. tostring(serial) .. " flipX=" .. tostring(flipX))
+		local serial = _EffectService:PlayEffect(effectRUID, self.Entity, pos, 0.0, scaleVec, false, fullOpts)
+		log("[T71][FX] variant=full serial=" .. tostring(serial) .. " ruid=" .. effectRUID)
+		if serial ~= nil and serial ~= 0 then return end
+		local minOpts = { IgnoreMapLayerCheck = true }
+		serial = _EffectService:PlayEffect(effectRUID, self.Entity, pos, 0.0, scaleVec, false, minOpts)
+		log("[T71][FX] variant=min serial=" .. tostring(serial) .. " ruid=" .. effectRUID)
+		if serial ~= nil and serial ~= 0 then return end
+		serial = _EffectService:PlayEffect(effectRUID, self.Entity, pos, 0.0, scaleVec, false, nil)
+		log("[T71][FX] variant=none serial=" .. tostring(serial) .. " ruid=" .. effectRUID)
+		if serial == nil or serial == 0 then
+			log_warning("[T71][FX] ALL-FAIL ruid=" .. effectRUID)
+		end
+	end
+
+	@ExecSpace("Multicast")
+	method void MulticastPlayCastAction(string actionName)
+		-- T70: 시전 모션 — MineState OnEnter와 동일 (body ActionStateChangedEvent, Onetime, PlayRate 1.33).
+		if actionName == nil or actionName == "" then return end
+		if not self:IsClient() then return end
+		local avatarRenderer = self.Entity.AvatarRendererComponent
+		if not isvalid(avatarRenderer) then return end
+		local body = avatarRenderer:GetBodyEntity()
+		if not isvalid(body) then return end
+		local event = ActionStateChangedEvent()
+		event.CoreActionName = actionName
+		event.PartsActionName = actionName
+		event.PlayType = SpriteAnimClipPlayType.Onetime
+		event.PlayRate = 1.33
+		body:SendEvent(event)
+		log("[T70][CAST] play action=" .. actionName)
 	end
 
 	@ExecSpace("Multicast")
