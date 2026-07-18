@@ -6,6 +6,10 @@ script Chest extends Component
 	@Sync
 	property string ItemsJson = "[]"
 
+	-- T67: 조준선 footprint
+	property integer AimFootprintW = 1
+	property integer AimFootprintH = 1
+
 	@ExecSpace("ServerOnly")
 	method void OnBeginPlay()
 		if self.ItemsJson == nil or self.ItemsJson == "" then

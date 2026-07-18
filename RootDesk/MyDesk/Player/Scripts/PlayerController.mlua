@@ -118,6 +118,16 @@ script PlayerController extends Component
 
 	property number FishingXpGrowth = 1.35
 
+	-- T65: 맨손(도구 공란) 스윙/타격 SFX 폴백 — item_dataset SwingSoundRUID/HitSoundRUID 공란 시 사용
+	property string DefaultSwingSoundRUID = "6e1ff144b36649a681bad20b84b90625"
+
+	property string DefaultHitSoundRUID = "15d8f000508044ae9282464d6e4b4aac"
+
+	-- T66: 시전 이펙트 전방 오프셋(월드 유닛)·스케일 (CSV EffectOffset/EffectScale 공란 시 폴백)
+	property number SkillEffectForwardOffset = 0.8
+
+	property number SkillEffectScale = 1.0
+
 	method void OnBeginPlay()
 		-- description: Initialize key and screen touch event listeners on the client.
 		self.CooldownMap = {}
@@ -631,6 +641,8 @@ script PlayerController extends Component
 				if isvalid(state) then
 					state:ChangeState("MINE")
 				end
+				-- T65: 지형 편집 도구는 스윙음만 (타격음 확장 금지)
+				self:ClientPlaySwingSound()
 			end
 			inv:ServerRequestTerrainEdit(activeItem, targetCell.x, targetCell.y, self.LastDirectionX, self.LastDirectionY)
 			return
@@ -646,6 +658,8 @@ script PlayerController extends Component
 		if isvalid(state) then
 			state:ChangeState("MINE")
 		end
+		-- T65: 채집/공격 스윙음 (허공 포함 — 매 Ctrl 스윙)
+		self:ClientPlaySwingSound()
 		
 		local myPos = self.Entity.TransformComponent.WorldPosition
 		self:RequestMine(myPos, targetCell.x, targetCell.y)
@@ -764,13 +778,13 @@ script PlayerController extends Component
 
 	@ExecSpace("ClientOnly")
 	method Entity FindNearbyFurnace()
-		-- description: Finds the closest furnace entity within interaction distance on the client.
+		-- T67: 조준선(IsAimTarget) 필터 — 근접 거리 판정 폐지.
 		local currentMap = self.Entity.CurrentMap
 		if not isvalid(currentMap) then return nil end
 		
 		local myPos = self.Entity.TransformComponent.WorldPosition:ToVector2()
 		local closest = nil
-		local minDist = 1.5 -- Interaction distance (1.5 grid cells)
+		local minDist = 9999.0
 		
 		local furnaceComponents = currentMap:GetChildComponentsByTypeName("script.Furnace", true)
 		if not furnaceComponents then return nil end
@@ -778,7 +792,7 @@ script PlayerController extends Component
 		for _, comp in ipairs(furnaceComponents) do
 			if isvalid(comp) then
 				local ent = comp.Entity
-				if isvalid(ent) then
+				if isvalid(ent) and self:IsAimTarget(ent) then
 					local fPos = ent.TransformComponent.WorldPosition:ToVector2()
 					local dist = (myPos - fPos):Magnitude()
 					if dist < minDist then
@@ -794,13 +808,13 @@ script PlayerController extends Component
 
 	@ExecSpace("ClientOnly")
 	method Entity FindNearbyChest()
-		-- description: Finds the closest chest entity within interaction distance on the client.
+		-- T67: 조준선(IsAimTarget) 필터 — 근접 거리 판정 폐지.
 		local currentMap = self.Entity.CurrentMap
 		if not isvalid(currentMap) then return nil end
 		
 		local myPos = self.Entity.TransformComponent.WorldPosition:ToVector2()
 		local closest = nil
-		local minDist = 1.5 -- Interaction distance (1.5 grid cells)
+		local minDist = 9999.0
 		
 		local chestComponents = currentMap:GetChildComponentsByTypeName("script.Chest", true)
 		if not chestComponents then return nil end
@@ -808,7 +822,7 @@ script PlayerController extends Component
 		for _, comp in ipairs(chestComponents) do
 			if isvalid(comp) then
 				local ent = comp.Entity
-				if isvalid(ent) then
+				if isvalid(ent) and self:IsAimTarget(ent) then
 					local fPos = ent.TransformComponent.WorldPosition:ToVector2()
 					local dist = (myPos - fPos):Magnitude()
 					if dist < minDist then
@@ -822,9 +836,53 @@ script PlayerController extends Component
 		return closest
 	end
 
+	method string ResolveEquippedToolSound(string columnName)
+		-- T65: 장착 퀵슬롯 도구의 SwingSoundRUID/HitSoundRUID — 공란·미장착이면 Default* 폴백.
+		local defaultRuid = ""
+		if columnName == "SwingSoundRUID" then
+			defaultRuid = self.DefaultSwingSoundRUID or ""
+		elseif columnName == "HitSoundRUID" then
+			defaultRuid = self.DefaultHitSoundRUID or ""
+		end
+		local inv = self.Entity:GetComponent("script.PlayerInventory")
+		if not isvalid(inv) then return defaultRuid end
+		---@type PlayerInventory
+		local pi = inv
+		local slots = _HttpService:JSONDecode(pi.QuickSlotsJson) or {}
+		local activeItem = slots[pi.SelectedQuickSlotIndex] or ""
+		if activeItem == "" then return defaultRuid end
+		local baseName = pi:GetBaseItemName(activeItem)
+		local ds = _DataService:GetTable("item_dataset")
+		if ds == nil then return defaultRuid end
+		local row = ds:FindRow("Name", baseName)
+		if row == nil then return defaultRuid end
+		local ok, v = pcall(function() return row:GetItem(columnName) end)
+		if ok and v ~= nil and tostring(v) ~= "" then
+			return tostring(v)
+		end
+		return defaultRuid
+	end
+
+	@ExecSpace("ClientOnly")
+	method void ClientPlaySwingSound()
+		-- T65: 로컬 스윙음 (TryMine MINE 진입 — 허공/지형 편집 포함).
+		local ruid = self:ResolveEquippedToolSound("SwingSoundRUID")
+		if ruid == nil or ruid == "" then return end
+		_SoundService:PlaySound(ruid, 1.0)
+		log("[T65][SWING] sound=" .. ruid)
+	end
+
 	@ExecSpace("Client")
 	method void ClientPlayMineEffect(boolean hitSuccess, Entity targetEntity)
-		-- description: Play attack or hit effect on clients (Disabled).
+		-- T65: 자원 명중 타격음 (RequestMine→Client RPC). 몬스터는 HandleHitEvent 경로.
+		if not hitSuccess then return end
+		if isvalid(targetEntity) and isvalid(targetEntity:GetComponent("script.Monster")) then
+			return
+		end
+		local ruid = self:ResolveEquippedToolSound("HitSoundRUID")
+		if ruid == nil or ruid == "" then return end
+		_SoundService:PlaySound(ruid, 1.0)
+		log("[T65][HIT] resource sound=" .. ruid)
 	end
 
 	@ExecSpace("Client")
@@ -1092,6 +1150,59 @@ script PlayerController extends Component
 				-- Mining mode (tool / bare-hand / empty slot): show the mining target-cell reticle.
 				self:UpdateMineReticle()
 		end
+	end
+
+	method boolean IsAimTarget(Entity target)
+		-- T67: 조준선 셀(playerCell+LastDirection)이 대상 footprint 안이면 true.
+		-- 기본 footprint=1×1(대상 셀). 대형은 컴포넌트 AimFootprintW/H 프로퍼티로 확장(이름 분기 금지).
+		if not isvalid(target) then return false end
+		local currentMap = self.Entity.CurrentMap
+		if not isvalid(currentMap) then return false end
+		local tilemap = currentMap:GetFirstChildComponentByTypeName("RectTileMapComponent")
+		if not isvalid(tilemap) then return false end
+		local playerCell = tilemap:ToCellPosition(self.Entity.TransformComponent.WorldPosition)
+		if playerCell == nil then return false end
+		local aimCell = Vector2Int(playerCell.x + self.LastDirectionX, playerCell.y + self.LastDirectionY)
+		local targetCell = tilemap:ToCellPosition(target.TransformComponent.WorldPosition)
+		if targetCell == nil then return false end
+		local fp = self:ReadAimFootprint(target)
+		local fw = fp.x
+		local fh = fp.y
+		local maxDx = math.floor((fw - 1) / 2)
+		local maxDy = math.floor((fh - 1) / 2)
+		local dx = math.abs(aimCell.x - targetCell.x)
+		local dy = math.abs(aimCell.y - targetCell.y)
+		return dx <= maxDx and dy <= maxDy
+	end
+
+	method Vector2Int ReadAimFootprint(Entity target)
+		-- AimFootprintW/H → Vector2Int(w,h). mlua는 method integer, integer 다중 반환 시그니처 불가(LEA-3015).
+		local typeNames = {
+			"script.ResearchLab",
+			"script.BulletinBoard",
+			"script.Furniture_Bed",
+			"script.Furnace",
+			"script.Chest",
+			"script.FishingSpot",
+			"script.TreasureChest",
+			"script.MerchantInteract",
+			"script.VillagerDialog",
+			"script.FishingLeaderboardInteract",
+			"script.Animal",
+		}
+		for _, typeName in ipairs(typeNames) do
+			local comp = target:GetComponent(typeName)
+			if isvalid(comp) then
+				local okW, w = pcall(function() return comp.AimFootprintW end)
+				local okH, h = pcall(function() return comp.AimFootprintH end)
+				if okW and okH and w ~= nil and h ~= nil then
+					local fw = math.max(1, math.floor(tonumber(w) or 1))
+					local fh = math.max(1, math.floor(tonumber(h) or 1))
+					return Vector2Int(fw, fh)
+				end
+			end
+		end
+		return Vector2Int(1, 1)
 	end
 
 	@ExecSpace("ClientOnly")
@@ -1972,18 +2083,52 @@ script PlayerController extends Component
 		self.CooldownMap[skillId] = now
 		self:ClientSyncCooldown(skillId, now)
 		
+		-- T66: 피격 이펙트 RUID를 AttackFast 경로가 소비할 수 있게 선설정
+		local hitEffectRUID = ""
+		local okHit, rawHit = pcall(function() return row:GetItem("HitEffectRUID") end)
+		if okHit and rawHit ~= nil then hitEffectRUID = tostring(rawHit) end
+		local combatForHit = self.Entity:GetComponent("script.PlayerCombat")
+		if isvalid(combatForHit) then
+			---@type PlayerCombat
+			local ch = combatForHit
+			ch.PendingHitEffectRUID = hitEffectRUID or ""
+		end
+
 		if skillType == "Melee" then
 			self:ExecuteAreaDamageSkill(damageMul, Vector2(dirX, dirY), 1.8, 1.2)
 		elseif skillType == "Ultimate" then
 			self:ExecuteAreaDamageSkill(damageMul, Vector2(0, 0), 5.0, 0.0)
 		elseif skillType == "Dash" then
-			self:ExecuteDashSkill(dirX, dirY)
+			self:ExecuteDashSkill(dirX, dirY, damageMul)
 		elseif skillType == "Projectile" then
-			self:ExecuteProjectileSkill(skillId, damageMul, dirX, dirY)
+			self:ExecuteProjectileSkill(skillId, damageMul, dirX, dirY, hitEffectRUID)
+		end
+
+		if isvalid(combatForHit) then
+			---@type PlayerCombat
+			local ch2 = combatForHit
+			-- 투사체는 비행 중 유지 — Melee/Ultimate/Dash만 즉시 클리어
+			if skillType ~= "Projectile" then
+				ch2.PendingHitEffectRUID = ""
+			end
 		end
 		
 		if effectRUID ~= nil and effectRUID ~= "" then
-			self:MulticastPlayEffect(effectRUID, self.Entity.TransformComponent.WorldPosition)
+			-- T66: 전방 오프셋 + 좌우 플립 (CSV EffectOffset/EffectScale 또는 프로퍼티 폴백)
+			local offset = self.SkillEffectForwardOffset
+			local okOff, rawOff = pcall(function() return row:GetItem("EffectOffset") end)
+			if okOff and rawOff ~= nil and tostring(rawOff) ~= "" then
+				offset = tonumber(rawOff) or offset
+			end
+			local scale = self.SkillEffectScale
+			local okSc, rawSc = pcall(function() return row:GetItem("EffectScale") end)
+			if okSc and rawSc ~= nil and tostring(rawSc) ~= "" then
+				scale = tonumber(rawSc) or scale
+			end
+			local myPos = self.Entity.TransformComponent.WorldPosition
+			local fxPos = Vector3(myPos.x + dirX * offset, myPos.y + dirY * offset, myPos.z)
+			self:MulticastPlayEffectEx(effectRUID, fxPos, dirX > 0, scale)
+			log("[T66][FX] cast skill=" .. skillId .. " ruid=" .. tostring(effectRUID) .. " offset=" .. tostring(offset))
 		end
 		-- T46: SoundRUID 시전 사운드 (데이터 주도)
 		local soundRUID = row:GetItem("SoundRUID")
@@ -2257,8 +2402,9 @@ script PlayerController extends Component
 	end
 
 	@ExecSpace("ServerOnly")
-	method void ExecuteDashSkill(integer dirX, integer dirY)
+	method void ExecuteDashSkill(integer dirX, integer dirY, number damageMul)
 		-- Teleport-dash a short distance toward facing, stopping just before the first obstacle.
+		-- T66: 경로 AABB 스윕 → PendingDamage+AttackFast (4방향 축정렬).
 		local body = self.Entity.KinematicbodyComponent
 		local transform = self.Entity.TransformComponent
 		if not isvalid(transform) then return end
@@ -2291,11 +2437,32 @@ script PlayerController extends Component
 		else
 			transform.WorldPosition = Vector3(finalPos.x, finalPos.y, transform.WorldPosition.z)
 		end
+
+		local mul = damageMul or 0
+		if mul > 0 then
+			local combat = self.Entity:GetComponent("script.PlayerCombat")
+			if isvalid(combat) then
+				---@type PlayerCombat
+				local c = combat
+				local finalDmg = self:ComputeSkillDamage(mul)
+				local minX = math.min(currentPos.x, finalPos.x) - 0.6
+				local maxX = math.max(currentPos.x, finalPos.x) + 0.6
+				local minY = math.min(currentPos.y, finalPos.y) - 0.6
+				local maxY = math.max(currentPos.y, finalPos.y) + 0.6
+				local center = Vector2((minX + maxX) * 0.5, (minY + maxY) * 0.5)
+				local size = Vector2(math.max(1.0, maxX - minX), math.max(1.0, maxY - minY))
+				local prev = c.PendingDamage
+				c.PendingDamage = finalDmg
+				c:AttackFast(BoxShape(center, size, 0), nil, CollisionGroups.HitBox)
+				c.PendingDamage = prev
+				log("[T66][DASH] dmg=" .. finalDmg .. " box=(" .. string.format("%.1f,%.1f", size.x, size.y) .. ") at (" .. string.format("%.1f,%.1f", center.x, center.y) .. ")")
+			end
+		end
 		log("[SKILL] Dash to (" .. string.format("%.1f, %.1f", finalPos.x, finalPos.y) .. ")")
 	end
 
 	@ExecSpace("ServerOnly")
-	method void ExecuteProjectileSkill(string skillId, number damageMul, integer dirX, integer dirY)
+	method void ExecuteProjectileSkill(string skillId, number damageMul, integer dirX, integer dirY, string hitEffectRUID)
 		-- Spawn a flying projectile entity carrying script.Projectile that hits the first monster.
 		local parentMap = self.Entity.CurrentMap
 		if not isvalid(parentMap) then return end
@@ -2328,18 +2495,32 @@ script PlayerController extends Component
 		if isvalid(projComp) then
 			---@type Projectile
 			local p = projComp
-			p:Initialize(self.Entity, Vector2(dirX, dirY), finalDmg, 6.0)
+			p:Initialize(self.Entity, Vector2(dirX, dirY), finalDmg, 6.0, hitEffectRUID or "")
 			log("[SKILL] Fireball spawned dmg " .. finalDmg)
 		end
 	end
 
 	@ExecSpace("Multicast")
 	method void MulticastPlayEffect(string effectRUID, Vector3 pos)
-		-- Play the cast VFX on every client at the cast position (no-op if no RUID configured).
-		if effectRUID ~= nil and effectRUID ~= "" then
-			-- PlayEffect(ruid, instigator, position, zRotation:float, scale:Vector3, isLoop:bool)
-			_EffectService:PlayEffect(effectRUID, nil, pos, 0.0, Vector3(1, 1, 1), false)
-		end
+		-- 하위 호환: 정렬 옵션 포함 기본 재생 (플립/스케일 기본값).
+		self:MulticastPlayEffectEx(effectRUID, pos, self.LastDirectionX > 0, self.SkillEffectScale)
+	end
+
+	@ExecSpace("Multicast")
+	method void MulticastPlayEffectEx(string effectRUID, Vector3 pos, boolean flipX, number scale)
+		-- T66: PlayEffect + IgnoreMapLayerCheck/SortingLayer (톱다운 가시성) + FlipX.
+		-- 시그니처: EffectService.d.mlua — options keys FlipX/SortingLayer/OrderInLayer/IgnoreMapLayerCheck.
+		if effectRUID == nil or effectRUID == "" then return end
+		local s = scale
+		if s == nil or s <= 0 then s = 1.0 end
+		local opts = {
+			IgnoreMapLayerCheck = true,
+			SortingLayer = _RenderLayers.EntityLayer,
+			OrderInLayer = 500,
+			FlipX = flipX == true,
+		}
+		local serial = _EffectService:PlayEffect(effectRUID, nil, pos, 0.0, Vector3(s, s, s), false, opts)
+		log("[T66][FX] PlayEffect ruid=" .. effectRUID .. " serial=" .. tostring(serial) .. " flipX=" .. tostring(flipX))
 	end
 
 	@ExecSpace("Multicast")
@@ -2509,13 +2690,13 @@ script PlayerController extends Component
 
 	@ExecSpace("ClientOnly")
 	method Entity FindNearbyBed()
-		-- description: Finds the closest bed entity within interaction distance on the client.
+		-- T67: 조준선(IsAimTarget) 필터.
 		local currentMap = self.Entity.CurrentMap
 		if not isvalid(currentMap) then return nil end
 		
 		local myPos = self.Entity.TransformComponent.WorldPosition:ToVector2()
 		local closest = nil
-		local minDist = 1.5
+		local minDist = 9999.0
 		
 		local bedComponents = currentMap:GetChildComponentsByTypeName("script.Furniture_Bed", true)
 		if not bedComponents then return nil end
@@ -2523,7 +2704,7 @@ script PlayerController extends Component
 		for _, comp in ipairs(bedComponents) do
 			if isvalid(comp) then
 				local ent = comp.Entity
-				if isvalid(ent) then
+				if isvalid(ent) and self:IsAimTarget(ent) then
 					local fPos = ent.TransformComponent.WorldPosition:ToVector2()
 					local dist = (myPos - fPos):Magnitude()
 					if dist < minDist then
@@ -2539,12 +2720,12 @@ script PlayerController extends Component
 
 	@ExecSpace("ClientOnly")
 	method Entity FindNearbyTreasureChest()
-		-- T9: 미개봉 보물 상자 (거리 ≤2.5). 포탈보다 우선 처리용.
+		-- T67: 조준선(IsAimTarget) 필터. 포탈보다 우선 처리용.
 		local currentMap = self.Entity.CurrentMap
 		if not isvalid(currentMap) then return nil end
 		local myPos = self.Entity.TransformComponent.WorldPosition:ToVector2()
 		local closest = nil
-		local minDist = 2.5
+		local minDist = 9999.0
 		local comps = currentMap:GetChildComponentsByTypeName("script.TreasureChest", true)
 		if not comps then
 			comps = currentMap:GetChildComponentsByTypeName("TreasureChest", true)
@@ -2554,7 +2735,7 @@ script PlayerController extends Component
 			if isvalid(comp) then
 				if not comp.IsOpened then
 					local ent = comp.Entity
-					if isvalid(ent) then
+					if isvalid(ent) and self:IsAimTarget(ent) then
 						local fPos = ent.TransformComponent.WorldPosition:ToVector2()
 						local dist = (myPos - fPos):Magnitude()
 						if dist < minDist then
@@ -2570,17 +2751,18 @@ script PlayerController extends Component
 
 	@ExecSpace("ClientOnly")
 	method Entity FindNearbyFishingSpot()
+		-- T67: 조준선(IsAimTarget) 필터.
 		local currentMap = self.Entity.CurrentMap
 		if not isvalid(currentMap) then return nil end
 		local myPos = self.Entity.TransformComponent.WorldPosition:ToVector2()
 		local closest = nil
-		local minDist = 2.5
+		local minDist = 9999.0
 		local comps = currentMap:GetChildComponentsByTypeName("script.FishingSpot", true)
 		if not comps then return nil end
 		for _, comp in ipairs(comps) do
 			if isvalid(comp) then
 				local ent = comp.Entity
-				if isvalid(ent) then
+				if isvalid(ent) and self:IsAimTarget(ent) then
 					local fPos = ent.TransformComponent.WorldPosition:ToVector2()
 					local dist = (myPos - fPos):Magnitude()
 					if dist < minDist then

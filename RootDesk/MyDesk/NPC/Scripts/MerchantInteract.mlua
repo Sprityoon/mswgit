@@ -7,6 +7,9 @@ script MerchantInteract extends Component
 
 	property any keyHandler = nil
 	property any interactRequestHandler = nil
+	-- T67: 조준선 footprint (셀 단위, 중심=엔티티 셀)
+	property integer AimFootprintW = 1
+	property integer AimFootprintH = 1
 
 	method void OnBeginPlay()
 		-- 클라: F KeyDown + InteractRequestEvent 구독.
@@ -50,15 +53,14 @@ script MerchantInteract extends Component
 
 	@ExecSpace("ClientOnly")
 	method void TryInteract()
-		-- 근처면 상점 오픈 (OnKeyDown 본문 이동).
+		-- T67: 조준선 게이트 (근접 거리 판정 폐지).
 		local localPlayer = _UserService.LocalPlayer
 		if not isvalid(localPlayer) then return end
-
-		local dist = self:GetDistanceToPlayer(localPlayer)
-		if dist <= 3.0 then
-			log("[MerchantInteract] TryInteract. Opening shop. Distance: " .. tostring(dist))
-			self:OpenShop()
-		end
+		local pc = localPlayer:GetComponent("script.PlayerController")
+		if not isvalid(pc) then return end
+		if not pc:IsAimTarget(self.Entity) then return end
+		log("[T67][AIM] MerchantInteract aim-ok")
+		self:OpenShop()
 	end
 
 	@ExecSpace("ClientOnly")

@@ -3,6 +3,10 @@ script FishingSpot extends Component
 
 	property string SpotType = "estate"
 
+	-- T67: 조준선 footprint
+	property integer AimFootprintW = 1
+	property integer AimFootprintH = 1
+
 	property table Sessions = {}
 
 	-- T64: 릴링 미니게임 파라미터 (게이지 0~100). 어종별 수치는 FishingDifficultyDataSet CSV.

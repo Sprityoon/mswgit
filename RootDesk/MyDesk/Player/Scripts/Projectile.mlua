@@ -7,8 +7,10 @@ script Projectile extends Component
 	property number Speed = 6.0
 	property number LifeTime = 2.0
 	property number ElapsedTime = 0.0
+	-- T66: 명중 시 Monster.HandleHitEvent가 소비할 피격 이펙트
+	property string HitEffectRUID = ""
 
-	method void Initialize(Entity owner, Vector2 dir, integer dmg, number speed)
+	method void Initialize(Entity owner, Vector2 dir, integer dmg, number speed, string hitEffectRUID)
 		self.Owner = owner
 		
 		-- Handle zero vector direction safely
@@ -21,6 +23,7 @@ script Projectile extends Component
 		self.Damage = dmg
 		self.Speed = speed
 		self.ElapsedTime = 0.0
+		self.HitEffectRUID = hitEffectRUID or ""
 		log("[PROJECTILE] Initialized at direction (" .. string.format("%.2f, %.2f", self.Direction.x, self.Direction.y) .. ") with dmg " .. dmg)
 	end
 
@@ -69,12 +72,16 @@ script Projectile extends Component
 	@ExecSpace("ServerOnly")
 	method void TriggerAttackOnTarget(Entity target)
 		if not isvalid(self.Owner) then return end
-		local combat = self.Owner:GetComponent("script.PlayerCombat")
-		if not isvalid(combat) then return end
+		local combatComp = self.Owner:GetComponent("script.PlayerCombat")
+		if not isvalid(combatComp) then return end
+		---@type PlayerCombat
+		local combat = combatComp
 
 		-- Store original PendingDamage and apply skill damage
 		local originalPending = combat.PendingDamage
+		local originalHitFx = combat.PendingHitEffectRUID
 		combat.PendingDamage = self.Damage
+		combat.PendingHitEffectRUID = self.HitEffectRUID or ""
 
 		-- Attack shape directly centered on the monster's HitBox position
 		local targetPos = target.TransformComponent.WorldPosition
@@ -82,8 +89,9 @@ script Projectile extends Component
 		
 		combat:AttackFast(shape, nil, CollisionGroups.HitBox)
 		
-		-- Restore original PendingDamage
+		-- Restore original PendingDamage / hit FX
 		combat.PendingDamage = originalPending
+		combat.PendingHitEffectRUID = originalHitFx or ""
 		log("[PROJECTILE] Struck monster target " .. target.Name .. " dealing " .. self.Damage .. " damage.")
 	end
 

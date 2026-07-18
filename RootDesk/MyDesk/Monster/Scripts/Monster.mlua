@@ -205,6 +205,32 @@ script Monster extends Component
 		end
 		self:FlashHit()
 
+		-- T65: 피격음 — 공격자 장착 도구 HitSoundRUID (MulticastPlaySkillSound 선례)
+		-- T66: 피격 이펙트 — PlayerCombat.PendingHitEffectRUID (HitEvent.Extra로는 스킬 식별 불가 확인)
+		if isvalid(event.AttackerEntity) then
+			local pcComp = event.AttackerEntity:GetComponent("script.PlayerController")
+			if isvalid(pcComp) then
+				---@type PlayerController
+				local pc = pcComp
+				local hitRuid = pc:ResolveEquippedToolSound("HitSoundRUID")
+				if hitRuid ~= nil and hitRuid ~= "" then
+					pc:MulticastPlaySkillSound(hitRuid)
+					log("[T65][HIT] monster sound=" .. hitRuid)
+				end
+				local combatComp = event.AttackerEntity:GetComponent("script.PlayerCombat")
+				if isvalid(combatComp) then
+					---@type PlayerCombat
+					local combat = combatComp
+					local fx = combat.PendingHitEffectRUID
+					if fx ~= nil and fx ~= "" then
+						local mpos = self.Entity.TransformComponent.WorldPosition
+						pc:MulticastPlayEffectEx(fx, mpos, false, 1.0)
+						log("[T66][HITFX] monster ruid=" .. fx)
+					end
+				end
+			end
+		end
+
 		if self.Hp > 0 then return end
 		self:Dead()
 		if self.RespawnOn then

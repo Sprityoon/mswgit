@@ -12,6 +12,9 @@ script TreasureChest extends Component
 	-- 클라 근접 참고값(모델 프로퍼티 유지) / 서버 검증 거리. F/BtnInteract 판정은 PlayerController.
 	property number InteractDistance = 3.0
 	property number ServerOpenDistance = 4.0
+	-- T67: 조준선 footprint
+	property integer AimFootprintW = 1
+	property integer AimFootprintH = 1
 	-- 개봉 후 스프라이트 감광 톤
 	property number OpenedTintR = 0.45
 	property number OpenedTintG = 0.45
@@ -26,14 +29,14 @@ script TreasureChest extends Component
 		local playerEntity = _UserService:GetUserEntityByUserId(userId)
 		if not isvalid(playerEntity) then return end
 
-		local myPos = self.Entity.TransformComponent.WorldPosition
-		local playerPos = playerEntity.TransformComponent.WorldPosition
-		local dist = Vector2.Distance(Vector2(myPos.x, myPos.y), Vector2(playerPos.x, playerPos.y))
-		if dist > self.ServerOpenDistance then
-			log_warning("[TREASURE] open rejected dist=" .. tostring(dist))
+		-- T67: 서버 검증도 조준선 게이트 (클라 FindNearbyTreasureChest와 정합)
+		local pcGate = playerEntity:GetComponent("script.PlayerController")
+		if not isvalid(pcGate) or not pcGate:IsAimTarget(self.Entity) then
+			log_warning("[TREASURE] open rejected — not aim target")
 			return
 		end
 
+		local myPos = self.Entity.TransformComponent.WorldPosition
 		self.IsOpened = true
 		local map = self.Entity.CurrentMap
 		if isvalid(map) and _TileDurabilityManager ~= nil then

@@ -6,6 +6,9 @@ script BulletinBoard extends Component
 
 	property any keyHandler = nil
 	property any interactRequestHandler = nil
+	-- T67: 대형 구조물 footprint (셀)
+	property integer AimFootprintW = 2
+	property integer AimFootprintH = 2
 
 	method void OnBeginPlay()
 		-- 클라: F KeyDown + InteractRequestEvent 구독.
@@ -49,12 +52,14 @@ script BulletinBoard extends Component
 
 	@ExecSpace("ClientOnly")
 	method void TryInteract()
-		-- 근처면 의뢰 UI 오픈 (OnKeyDown 본문 이동).
+		-- T67: 조준선 게이트 (근접 거리 판정 폐지).
 		local localPlayer = _UserService.LocalPlayer
 		if not isvalid(localPlayer) then return end
-		if self:GetDistanceToPlayer(localPlayer) <= 3.0 then
-			self:OpenRequestUI()
-		end
+		local pc = localPlayer:GetComponent("script.PlayerController")
+		if not isvalid(pc) then return end
+		if not pc:IsAimTarget(self.Entity) then return end
+		log("[T67][AIM] BulletinBoard aim-ok")
+		self:OpenRequestUI()
 	end
 
 	@ExecSpace("ClientOnly")

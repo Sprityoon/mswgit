@@ -37,6 +37,10 @@ script Animal extends Component
 
 	property Vector2 MoveDir = Vector2(0, 0)
 
+	-- T67: 조준선 footprint (배회형 — 현재 셀 기준 1×1)
+	property integer AimFootprintW = 1
+	property integer AimFootprintH = 1
+
 	property number WanderMin = 1.0
 
 	property number WanderMax = 2.5
@@ -48,9 +52,10 @@ script Animal extends Component
 	property number produceTickAccum = 0.0
 
 	property any keyHandler = nil
+	property any interactRequestHandler = nil
 
 	method void OnBeginPlay()
-		-- 서버: 앵커·배회 / 클라: F 급여 입력.
+		-- 서버: 앵커·배회 / 클라: F + InteractRequestEvent(T59/T67) 급여 입력.
 		if self:IsServer() then
 			if self.HomeX == 0.0 and self.HomeY == 0.0 and isvalid(self.Entity.TransformComponent) then
 				local p = self.Entity.TransformComponent.WorldPosition
@@ -64,14 +69,29 @@ script Animal extends Component
 		end
 		if self:IsClient() then
 			self.keyHandler = _InputService:ConnectEvent(KeyDownEvent, self.OnKeyDown)
+			local lp = _UserService.LocalPlayer
+			if isvalid(lp) then
+				self.interactRequestHandler = lp:ConnectEvent(InteractRequestEvent, function()
+					self:TryFeedInteract()
+				end)
+			end
 		end
 	end
 
 	method void OnEndPlay()
-		-- 클라 키 핸들러 해제.
-		if self:IsClient() and self.keyHandler ~= nil then
-			_InputService:DisconnectEvent(KeyDownEvent, self.keyHandler)
-			self.keyHandler = nil
+		-- 클라 키/브리지 핸들러 해제.
+		if self:IsClient() then
+			if self.keyHandler ~= nil then
+				_InputService:DisconnectEvent(KeyDownEvent, self.keyHandler)
+				self.keyHandler = nil
+			end
+			if self.interactRequestHandler ~= nil then
+				local lp = _UserService.LocalPlayer
+				if isvalid(lp) then
+					lp:DisconnectEvent(InteractRequestEvent, self.interactRequestHandler)
+				end
+				self.interactRequestHandler = nil
+			end
 		end
 	end
 
@@ -231,12 +251,20 @@ script Animal extends Component
 
 	@ExecSpace("ClientOnly")
 	method void OnKeyDown(KeyDownEvent event)
-		-- F: 근처 로컬 플레이어가 먹이 급여 요청.
+		-- T67: F — 조준선 셀의 가축만 급여 요청.
 		if event.key ~= KeyboardKey.F then return end
+		self:TryFeedInteract()
+	end
+
+	@ExecSpace("ClientOnly")
+	method void TryFeedInteract()
+		-- T67: 조준선 게이트 + 급여 요청 (F / BtnInteract 브리지 공용).
 		local lp = _UserService.LocalPlayer
 		if not isvalid(lp) then return end
-		local dist = self:GetDistanceToPlayer(lp)
-		if dist > 2.5 then return end
+		local pc = lp:GetComponent("script.PlayerController")
+		if not isvalid(pc) then return end
+		if not pc:IsAimTarget(self.Entity) then return end
+		log("[T67][AIM] Animal feed aim-ok")
 		self:ServerRequestFeed()
 	end
 
@@ -256,12 +284,10 @@ script Animal extends Component
 		local player = _UserService:GetUserEntityByUserId(userId)
 		if not isvalid(player) then return end
 
-		local dist = Vector2.Distance(
-			Vector2(self.Entity.TransformComponent.WorldPosition.x, self.Entity.TransformComponent.WorldPosition.y),
-			Vector2(player.TransformComponent.WorldPosition.x, player.TransformComponent.WorldPosition.y)
-		)
-		if dist > 3.0 then
-			self:Feedback(player, "가축에게 더 가까이 가세요.")
+		-- T67: 서버도 조준선 게이트 (거리 판정 폐지)
+		local pcComp = player:GetComponent("script.PlayerController")
+		if not isvalid(pcComp) or not pcComp:IsAimTarget(self.Entity) then
+			self:Feedback(player, "가축을 조준선으로 바라보고 F를 누르세요.")
 			return
 		end
 

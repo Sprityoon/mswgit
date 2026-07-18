@@ -4,4 +4,8 @@ script Furniture_Bed extends Component
 	-- Bed furniture marker. Sleep is triggered by PlayerController FindNearbyBed
 	-- via F / BtnInteract (T59: world TouchEvent removed).
 
+	-- T67: 침대 footprint (약간 넓게)
+	property integer AimFootprintW = 2
+	property integer AimFootprintH = 2
+
 end

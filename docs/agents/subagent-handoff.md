@@ -91,12 +91,13 @@
 ## 3. 작업 큐 (하위 에이전트 위임 대상)
 
 > 상태: `[대기]` / `[진행]` / `[완료]` / `[보류]`
-> 각 항목은 **Target(파일) / Change(변경) / Acceptance(완료 기준)** 3요소를 반드시 채운다. **T번호는 단조 증가·재사용 금지 — 현재 최대 = T64.**
+> 각 항목은 **Target(파일) / Change(변경) / Acceptance(완료 기준)** 3요소를 반드시 채운다. **T번호는 단조 증가·재사용 금지 — 현재 최대 = T67.**
 
 > 🧭 **현황판 (지휘자 2026-07-16 — 2차)**
 > - **Play PASS 확정**: T50까지의 전 완료분 + T51 · T58 · T59 · T60 · **T62**(⚖️ 2026-07-16 확정) · **T63**(낚시 랭킹 수정 — 핫픽스 포함 확인). 체크포인트 커밋 = 이 갱신과 동시.
 > - **Play 대기(제작자 광범위 Play에서 이상 보고 없음 — 개별 명시 확인은 미완)**: T19(목장) · T23(펫) · T27(퀘스트 107 해금 — **미완료 캐릭터로** 확인) · T49(아트 육안) · T54(팝업 여닫기) · T55(BGM) · T56(주민 대화) · **T61(지형 쿨다운 0.25s 체감)**. 체크리스트 = 각 `reports/T<n>-*.md` §6.
 > - **코드 완료·Play 대기(2026-07-18)**: **T64 낚시 v2** — 지휘자 직접 구현 완료(LSP errors=0). ⚠ Maker 미기동 상태에서 작업 — **첫 refresh에서 신규 스크립트 2종(`UIFishingGaugeController`)·데이터셋(`FishingDifficultyDataSet`) 등록 + Error=0 확인 필요**. 체크리스트 = `reports/T64-fishing-v2-reeling.md` §6.
+> - **⚖️ 2026-07-18 보스 지시 3건 → 배치 J (T65→T66→T67) 코드 완료(2026-07-18)**: 세 티켓 모두 refresh Error=0 · **런타임 검증 보류(제작자 Play)**. 보고서 = `T65-mine-attack-sfx.md` · `T66-skill-vfx-dash-damage.md` · `T67-aim-cell-interact-gate.md`. **⚖️ 제작자 1차 Play 피드백(2026-07-18): "선택된 사운드들이 어색" — 기능 자체는 승인(체크포인트 지시), 사운드 리튠은 후속 후보(`item_dataset.SwingSoundRUID/HitSoundRUID` CSV RUID 교체만으로 반영 — 티켓 미발행).**
 > - **병렬 규약(요지)**: ① 상대 레인 소유 파일은 읽기만 ② 이 문서 갱신은 자기 T블록 라인만 ③ 티켓 완료마다 refresh 1회+빌드 Error 수를 보고서 §4에 기재 ④ 무보고 종료 = 반려(§5 조항 11).
 
 ### T4. [대기] 경계 테라스/절벽 아트 정리
@@ -143,6 +144,50 @@
 - **Acceptance**: ① 입질 후 "그냥 놓침" 0 — 실패는 텐션 초과(줄 끊김)뿐 ② 위험 표시 중 홀드 유지 시 텐션 상승→끊김, 릴리즈-재홀드 리듬으로 어획 가능 ③ 어종별 난이도 체감 차이(Difficulty) + 숙련 레벨업 시 고레벨 어종 등장·텐션 완화(로그 근거) ④ 재접속 후 숙련 레벨 유지 ⑤ 낚시왕 랭킹(T57/T63)·날씨 입질 보너스(T21) 회귀 0 ⑥ 수치·어종 하드코딩 0(전부 CSV/프로퍼티) ⑦ refresh Error=0 + 보고 3종 + §7 루브릭(FishingGauge). 난이도 감성은 제작자 Play.
 - **충돌 주의**: 지휘자 단독 레인(FishingSpot·PlayerController·PersistenceManager·HUDGroup.ui). 규칙 9(세이브)·규칙 11(.ui 편집 전 refresh 상태 확인) 준수.
 - **구현 요약 (2026-07-18)**: ① 미스 폐지 — `TriggerBite`=자동 릴링 진입, 실패=텐션 초과 `FailReel`뿐 ② 서버 `ReelTick` 0.1s(진행/텐션/위험 랜덤 스케줄) + 클라 홀드 폴링(F `IsKeyPressed` ∨ 모바일 플래그, 변화 시만 `ServerSetReelHold`) ③ `FishDataSet` 컬럼 3종 + 신규 `FishingDifficultyDataSet`(티어별 파라미터 CSV) ④ `FishingLevel/FishingXp` @Sync+영속(선캡처, Yield 무추가) — 텐션 완화·풀 개방 ⑤ HUD `FishingGauge`(공용 프레임+UIMyInfo 바 패밀리+골드, §7 루브릭 8/8) ⑥ 모바일=BtnInteract `ButtonStateChangeEvent` Pressed/Released(정의 실확인 — [보류] 불필요). Target 외 최소 수정: `UIHUDController.mlua`(BtnInteract 배선 소유 파일 — 홀드 핸들러 1쌍). 보고서: `reports/T64-fishing-v2-reeling.md`.
+
+### T65. [코드 완료 — 2026-07-18 | refresh Error=0 | 런타임 검증 보류(제작자 수행)] 채집·기본 공격 스윙/타격 사운드 (⚖️ 2026-07-18 보스 지시 — 배치 J ①)
+
+- **배경**: Ctrl 채광/공격에 사운드가 전무. 지휘자 실사(코드 확정): `PlayerController.ClientPlayMineEffect`(825행 부근)가 **주석 "(Disabled)"의 빈 함수** — `RequestMine`이 이미 hitSuccess(true=자원/몬스터 명중, false=허공)와 대상 엔티티를 넘겨 호출 중이라 훅 포인트는 살아 있다. 몬스터 피격 측 훅 = `Monster.HandleHitEvent`(185행 — FlashHit·넉백 선례, 기본 공격·스킬 모두 HitEvent로 수렴). Phase 18 사운드 축(18-D) 연장.
+- **Target**: `Player/Scripts/PlayerController.mlua`(스윙/타격 재생), `item/DataSets/item_dataset.csv`(+`SwingSoundRUID`/`HitSoundRUID` 컬럼), `Monster/Scripts/Monster.mlua`(피격음 — HandleHitEvent), (동기화 확인만) `MapObjects/Scripts/ResourceReaction.mlua`
+- **Change**:
+  ① 음원 확보 = **msw-search 공식 리소스 검색이 1순위**(원작 무기 스윙/타격 SFX — R1). 자작 금지.
+  ② `item_dataset`에 `SwingSoundRUID`/`HitSoundRUID` 컬럼 신설 — 도구별 소리 차등(곡괭이/도끼/맨손 등). 공란 폴백 = PlayerController 프로퍼티 기본 RUID(맨손). `if name == "..."` 분기 금지(R3).
+  ③ 스윙음: `TryMine`의 MINE 상태 진입 경로(허공 스윙 포함 매 스윙)에서 장착 도구의 SwingSoundRUID 재생. 지형 편집 도구(T61)는 스윙음만 — 별도 타격음 확장 금지.
+  ④ 타격음: 자원 명중(`RequestMine` pivotKey 분기) + 몬스터 명중(`Monster.HandleHitEvent`)에서 HitSoundRUID 재생. 서버→클라 전파는 기존 `MulticastPlaySkillSound` 선례 미러. 위치 기반 재생 API 유무는 `_SoundService` `.d.mlua`로 **실확인**(규칙 8) — 없으면 2D 재생으로 확정.
+- **Acceptance**: ① Ctrl 스윙마다 스윙음(허공 포함) ② 자원/몬스터 명중 시 타격음 추가 재생 ③ 도구별 소리 차등이 **CSV 행 수정만으로** 반영 ④ 하드코딩 0 ⑤ 스킬 시전 사운드(T46 `SkillDataSet.SoundRUID`) 무수정·회귀 0 ⑥ refresh Error=0 + 보고 3종. 체감(음량·톤)은 제작자 Play.
+- **충돌 주의**: `PlayerController.mlua`·`Monster.mlua`는 T66과 공유 — **배치 내 순차 엄수**.
+- **구현 요약 (2026-07-18)**: CSV 컬럼 2종+도구 RUID · `ResolveEquippedToolSound`/`ClientPlaySwingSound` · 자원=`ClientPlayMineEffect` · 몬스터=`HandleHitEvent`→`MulticastPlaySkillSound` · `_SoundService:PlaySound` 2D. 보고서: `docs/agents/reports/T65-mine-attack-sfx.md`.
+- **검증**: Maker refresh **Error=0** (total 517 / Warning 25 / Info 492). **런타임 검증 보류(제작자 수행)**.
+
+### T66. [코드 완료 — 2026-07-18 | refresh Error=0 | 런타임 검증 보류(제작자 수행)] 스킬 이펙트 실표시 수리 + 원작 이펙트·피격 이펙트 + 대시 데미지 (⚖️ 2026-07-18 보스 지시 — 배치 J ②)
+
+- **배경**: 제작자 Play — "스킬 이펙트가 없다. 원작 메이플처럼 이펙트·데미지를 맞춰라(대시도 데미지)". 지휘자 실사: T46이 `SkillDataSet.EffectRUID` → `MulticastPlayEffect`(`_EffectService:PlayEffect`, 시전 위치)를 이미 구현했고 4스킬 전부 RUID가 채워져 있는데 **비주얼만 안 보임**(사운드는 동일 게이트의 코드가 재생됨) → 유력 원인 ⓐ EffectRUID 무효 ⓑ **렌더 정렬**(톱다운 타일맵에 깔림 — `ExecuteProjectileSkill` 2316~2320행이 `IgnoreMapLayerCheck=true`+`SortingLayer=EntityLayer`를 명시 설정해야 보였던 선례). 또한 피격 이펙트 전무, dash 행 `DamageMultiplier=0`.
+- **Target**: `Player/Scripts/PlayerController.mlua`(이펙트 재생 경로·`ExecuteDashSkill`), `Player/DataSets/SkillDataSet.csv`(+`HitEffectRUID` 컬럼, dash 데미지 값), `Player/Scripts/Projectile.mlua`(명중 이펙트 훅), `Monster/Scripts/Monster.mlua`(피격 이펙트 훅 — T65와 같은 파일, 순차라 충돌 없음)
+- **Change**:
+  ① **진단 선행**: refresh 후 로그로 `PlayEffect` 호출 도달·RUID 유효성 확인 → 원인 확정 후 수정. 정렬 문제면 이펙트에 SortingLayer/레이어 무시를 지정 — `PlayEffect`/`PlayEffectAttached` 등 시그니처의 정렬 옵션 유무를 `.d.mlua`로 **실확인**(규칙 8, 추정 호출 금지). EffectRUID 무효면 msw-search로 원작 스킬(파워 스트라이크/매직 클로/플래시 점프/슬래시 블러스트) 이펙트 RUID 재확보.
+  ② 시전 이펙트 원작화: 바라보는 방향 반영(좌우 플립/회전) + 시전자 전방 오프셋 — 오프셋·스케일 수치는 CSV 컬럼 또는 컴포넌트 프로퍼티(리터럴 금지).
+  ③ `HitEffectRUID` 컬럼 신설 — 피격 몬스터 위치에 원작 피격 이펙트 재생. 훅 = `Monster.HandleHitEvent`에서 스킬 식별이 HitEvent 페이로드로 가능한지 **실확인 후** 결정, 불가하면 공격측(AttackFast 명중 결과/Projectile 명중)에서 재생.
+  ④ **대시 데미지**: `SkillDataSet` dash 행 `DamageMultiplier`>0 + `DamagePerLevel` 부여(제안 1.0/+0.2 — 수치는 CSV, 튜닝은 제작자) + `ExecuteDashSkill`이 시작→도착 경로를 스윕 박스로 판정해 기존 `PendingDamage`+`AttackFast` 경로(ExecuteAreaDamageSkill 미러)로 데미지 적용 + 경로/도착 이펙트.
+  ⑤ 기존 3스킬 배율(1.5/2.2/4.5)은 유지 — 전면 리밸런스는 범위 밖(제작자 Play 후 별도 티켓).
+- **Acceptance**: ① 4스킬 전부 시전 이펙트 가시(코드 근거=로그·정렬 설정, 육안은 제작자 Play) ② 피격 몬스터에 피격 이펙트 ③ 대시 경로상 몬스터가 데미지를 입음(로그 근거) ④ 이펙트·수치 전부 CSV/프로퍼티 ⑤ 쿨다운·스태미나·사운드·기존 데미지 회귀 0 ⑥ refresh Error=0 + 보고 3종.
+- **충돌 주의**: `PlayerController.mlua`·`Monster.mlua` 공유 — T65 완료 후 착수.
+- **구현 요약 (2026-07-18)**: EffectRUID 유효 확인·비가시=정렬 누락 → `MulticastPlayEffectEx`(IgnoreMapLayerCheck+EntityLayer+FlipX) · HitEffectRUID+PendingHitEffectRUID · dash 1.0/+0.2+경로 AABB. 보고서: `docs/agents/reports/T66-skill-vfx-dash-damage.md`.
+- **검증**: Maker refresh **Error=0** (total 517 / Warning 25 / Info 492). **런타임 검증 보류(제작자 수행)**.
+
+### T67. [코드 완료 — 2026-07-18 | refresh Error=0 | 런타임 검증 보류(제작자 수행)] 상호작용 조준선(에임 셀) 게이트 — 근접 판정 폐지 (⚖️ 2026-07-18 보스 지시 — 배치 J ③)
+
+- **배경**: 제작자 — "근처에만 있어도 상호작용돼 다른 오브젝트와 꼬인다. 조준선 안에 있을 때만 되어야 한다". 지휘자 실사(코드 확정): ⓐ PC의 F는 `PlayerController.TryInteract`(근접 1.5셀 최근접 체인)와 **분산 핸들러 6종이 KeyDown F를 동시 독립 리슨**(상인 3.0셀 등 각자 거리 판정) — 겹치면 복수 발동 ⓑ 모바일 `InteractRequestEvent` 브리지도 수신 측 각자 거리 판정이라 동일. 조준선 셀은 이미 존재: `UpdateMineReticle`의 `targetCell = playerCell + LastDirection`.
+- **Target**: `Player/Scripts/PlayerController.mlua`(판정 헬퍼 + TryInteract/FindNearby* 교체), 분산 핸들러 6종 = `NPC/Scripts/MerchantInteract.mlua`·`NPC/Scripts/VillagerDialog.mlua`·`NPC/Scripts/FishingLeaderboardInteract.mlua`·`MapObjects/Scripts/ResearchLab.mlua`·`MapObjects/Scripts/BulletinBoard.mlua`·`MapObjects/Scripts/Animal.mlua`
+- **Change (🧭 지휘자 설계 확정 2026-07-18)**:
+  ① PlayerController에 공개 판정 헬퍼 **`IsAimTarget(Entity target): boolean` 단일 정의** — 조준선 셀(playerCell+LastDirection) 중심 월드 좌표가 대상 점유 범위 안이면 true. 점유 범위 기본 = 대상 위치 중심 1×1셀, 대형 구조물(연구소/게시판/우리/침대 등)은 **컴포넌트 프로퍼티(footprint 셀 폭·높이)**로 확장 — 이름 분기 금지(R3).
+  ② 🧭 **트리거형 예외 = 발밑 셀 허용**: 포탈(`ActivePortal` 트리거 유지 — 밟고 서서 F)과 낚시 릴링 상태 분기는 기존 유지. 그 외는 전부 조준선 게이트.
+  ③ PC-owned 대상(보물상자/침대/화로/상자/낚시터)의 `FindNearby*` 최근접 검색을 조준선 판정(`IsAimTarget` 필터)으로 교체.
+  ④ 분산 핸들러 6종의 거리 판정(`dist <= 3.0` 등)을 `IsAimTarget(self.Entity)` 호출로 교체(LocalPlayer의 PlayerController 취득 — 규칙 8은 이 티켓에서 ①을 먼저 정의하므로 충족). `Animal`은 배회형이라 대상 **현재** 셀 기준 — 체감 불편은 제작자 피드백 후 완화(후속).
+  ⑤ `TryInteract` 미처리 → `InteractRequestEvent` 브리지 구조는 유지(T59 회귀 금지). 같은 셀에 복수 후보가 겹치는 예외 상황만 기존 우선순위 체인 유지.
+- **Acceptance**: ① 조준선 셀의 대상만 상호작용 — 1.5셀 내 인접해 있어도 조준선 밖이면 무반응 ② 화로+상자+상인 밀집 배치에서 방향 전환만으로 대상이 정확히 갈림(복수 팝업 0) ③ 포탈 밟고 F 워프 정상 ④ 모바일 BtnInteract도 동일 동작 ⑤ 낚시(캐스팅~릴링)/수면/목장 급여 회귀 0 ⑥ refresh Error=0 + 보고 3종.
+- **충돌 주의**: `PlayerController.mlua` 공유 — **배치 마지막(T66 완료 후) 착수**. 낚시 릴링 홀드(T64 OnUpdate 폴링)는 무수정.
+- **구현 요약 (2026-07-18)**: `IsAimTarget`+`AimFootprintW/H` · FindNearby* 5종 · 분산 6종 거리→조준선 · Animal InteractRequestEvent 추가 · 포탈/낚시 예외 유지. 보고서: `docs/agents/reports/T67-aim-cell-interact-gate.md`.
+- **검증**: Maker refresh **Error=0** (total 471 / Warning 25 / Info 446). **런타임 검증 보류(제작자 수행)**.
 
 ### (신규 작업 추가 템플릿)
 ```

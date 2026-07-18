@@ -5,6 +5,9 @@ script VillagerDialog extends Component
 
 	property string NpcId = "elder"
 	property number InteractRange = 3.0
+	-- T67: 조준선 footprint
+	property integer AimFootprintW = 1
+	property integer AimFootprintH = 1
 	property number BalloonDuration = 4.0
 	property number AutoTalkInterval = 15.0
 	property number AutoTalkRange = 6.0
@@ -79,11 +82,13 @@ script VillagerDialog extends Component
 
 	@ExecSpace("ClientOnly")
 	method void TryInteract()
-		-- 근처면 대화 요청 (OnKeyDown 본문 이동).
+		-- T67: 조준선 게이트 (근접 거리 판정 폐지).
 		local localPlayer = _UserService.LocalPlayer
 		if not isvalid(localPlayer) then return end
-		local dist = self:GetDistanceToPlayer(localPlayer)
-		if dist > self.InteractRange then return end
+		local pc = localPlayer:GetComponent("script.PlayerController")
+		if not isvalid(pc) then return end
+		if not pc:IsAimTarget(self.Entity) then return end
+		log("[T67][AIM] VillagerDialog aim-ok")
 		self:RequestTalk()
 	end
 
