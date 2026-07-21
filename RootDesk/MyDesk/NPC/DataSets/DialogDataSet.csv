@@ -1,4 +1,4 @@
-NpcId,Text,TimeBand,WeatherId,Weight
+﻿NpcId,Text,TimeBand,WeatherId,Weight
 elder,어서 오게. 이 마을은 모두의 쉼터라네.,any,,100
 elder,영지에서 수확한 걸 상점에 팔아보게. 상인이 기다리고 있어.,day,,80
 elder,밤은 조용하지… 불빛 아래에서 천천히 쉬게나.,night,,90
@@ -11,3 +11,11 @@ fisher,마을 연못에도 잉어가 있지. 낚싯대 챙겼나?,day,,90
 fisher,밤낚시… 별빛 아래 찌가 흔들릴 때 참 좋지.,night,,80
 fisher,주간 낚시왕 시즌이 열린다더군. 기록 한번 세워 보게.,any,,70
 fisher,안개 낀 날은 물소리가 더 또렷해. 천천히 캐스팅하게.,any,fog,60
+resident_a,광장이 참 평화롭지? 분수 소리가 좋아.,any,,100
+resident_a,상점에서 필요한 거 사 둬. 밤에 오면 품절일지도.,day,,80
+resident_b,노점 과일 봤어? 오늘 유난히 싱싱해.,any,,100
+resident_b,비가 오면 차양 아래가 제일 아늑하지.,any,rain,90
+resident_c,우리 동네 버섯집, 지붕이 귀엽지 않아?,any,
+resident_c,밤에 가로등 켜지면 골목이 더 예뻐 보여.,night,,85
+resident_d,헛간 쪽은 건초 냄새가 나서 좋아.,any,,100
+resident_d,가축들 돌볼 때 조심해. 놀라기 쉽거든.,day,,80

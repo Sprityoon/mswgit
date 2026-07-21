@@ -218,7 +218,9 @@ script VillagerDialog extends Component
 	end
 
 	method void ShowBalloon(string text, string reason)
-		-- ChatBalloonComponent.Message + ShowDuration (월드 말풍선).
+		-- ChatBalloon은 AutoShowEnabled=true + 짧은 HideDuration일 때만 화면에 그려짐.
+		-- 서버에서 @Sync 값을 맞춘 뒤 클라 Multicast로 한 번 더 적용(동기화 덮어쓰기 방지).
+		if not self:IsServer() then return end
 		local balloon = self.Entity.ChatBalloonComponent
 		if not isvalid(balloon) then
 			log_warning("[T56][DIALOG] ChatBalloonComponent missing on " .. tostring(self.Entity.Name))
@@ -227,12 +229,21 @@ script VillagerDialog extends Component
 		local dur = self.BalloonDuration
 		if dur < 1 then dur = 3 end
 		if dur > 5 then dur = 5 end
+		balloon.Enable = true
+		balloon.ChatModeEnabled = true
+		balloon.HideDuration = 0.05
+		balloon.AutoShowEnabled = true
+		if balloon.Offset < 0.5 then
+			balloon.Offset = 1.2
+		end
 		balloon.ShowDuration = dur
+		balloon.Message = ""
 		balloon.Message = text
 		log("[T56][DIALOG] balloon npc=" .. tostring(self.NpcId)
 			.. " reason=" .. tostring(reason)
 			.. " dur=" .. tostring(dur)
 			.. " msg=" .. text)
+		self:ClientShowBalloon(text, dur)
 
 		if self.balloonClearTimer ~= nil then
 			_TimerService:ClearTimer(self.balloonClearTimer)
@@ -240,10 +251,43 @@ script VillagerDialog extends Component
 		end
 		self.balloonClearTimer = _TimerService:SetTimerOnce(function()
 			if isvalid(self.Entity) and isvalid(self.Entity.ChatBalloonComponent) then
-				self.Entity.ChatBalloonComponent.Message = ""
+				local b = self.Entity.ChatBalloonComponent
+				b.Message = ""
+				b.AutoShowEnabled = false
 			end
+			self:ClientClearBalloon()
 			self.balloonClearTimer = nil
-		end, dur + 0.1)
+		end, dur + 0.15)
+	end
+
+	@ExecSpace("Multicast")
+	method void ClientShowBalloon(string text, number dur)
+		-- 클라 로컬 재적용 (서버→클라 Sync가 늦거나 덮여도 표시되게).
+		local balloon = self.Entity.ChatBalloonComponent
+		if not isvalid(balloon) then return end
+		balloon.Enable = true
+		balloon.ChatModeEnabled = true
+		balloon.HideDuration = 0.05
+		balloon.AutoShowEnabled = true
+		if balloon.Offset < 0.5 then
+			balloon.Offset = 1.2
+		end
+		balloon.ShowDuration = dur
+		if balloon.Message ~= text then
+			balloon.Message = ""
+			balloon.Message = text
+		else
+			balloon.Message = text
+		end
+	end
+
+	@ExecSpace("Multicast")
+	method void ClientClearBalloon()
+		-- 표시 종료.
+		local balloon = self.Entity.ChatBalloonComponent
+		if not isvalid(balloon) then return end
+		balloon.Message = ""
+		balloon.AutoShowEnabled = false
 	end
 
 end

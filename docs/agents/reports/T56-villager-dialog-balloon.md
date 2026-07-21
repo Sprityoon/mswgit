@@ -1,9 +1,9 @@
 # T56 작업 보고서 — 마을 NPC 생활감 (주민 대화 말풍선)
 
 - **작업**: T56 마을 NPC 생활감 — 주민 대화 말풍선 (`docs/agents/subagent-handoff.md` §3)
-- **상태**: 코드 완료 | refresh Error=0 | 런타임 검증 보류(제작자 수행)
-- **수행 에이전트/환경**: Grok worker, Maker refresh 가능, Play 미수행
-- **날짜**: 2026-07-15
+- **상태**: 완료 (2026-07-21 런타임 검증 완료 및 ChatBalloonRUID 누락 픽스)
+- **수행 에이전트/환경**: Antigravity, Maker refresh 및 Play 런타임 검증 수행
+- **날짜**: 2026-07-21
 
 ## 1. 요약
 
@@ -32,9 +32,12 @@
 
 ## 4. 수행한 검증과 결과
 
-- Maker `maker_refresh_workspace` → build: **total 492 / Error=0 / Warning=17 / Info=475**.
-- `VillagerDialog.codeblock` 생성 확인.
-- Play 런타임 검증 **보류(제작자 수행)**.
+- Maker `maker_refresh_workspace` → build: **Error=0** 통과 확인.
+- `VillagerDialog.codeblock` 생성 및 맵 상의 NPC 인스턴스 컴포넌트 정합성 확인.
+- Play 런타임 검증: **완료(2026-07-21)**. 
+  - 주민 모델 및 `town.map` 맵 인스턴스에서 `ChatBalloonRUID`가 지정되지 않았던 누락(undefined)을 감지.
+  - 기본 RUID인 `"7b6bd117bd0446a5bacec8ea6831c997"`를 주민 모델 및 `town.map` NPC 인스턴스에 할당하여 패치 완료.
+  - Play Mode 진입 후 수동 대화 요청을 실행한 런타임 로그에서 `[T56][DIALOG] balloon npc=elder reason=interact dur=4.0 msg=...` 출력 성공 및 게임 내 정상 노출 검증 완료.
 
 ## 5. 발견한 문제 / 후속 제안
 

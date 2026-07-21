@@ -87876,10 +87876,15 @@
             {
               "@type": "MOD.Core.ChatBalloonComponent",
               "Enable": true,
-              "ChatModeEnabled": false,
+              "ChatModeEnabled": true,
               "ShowDuration": 4,
-              "AutoShowEnabled": false,
-              "Message": ""
+              "AutoShowEnabled": true,
+              "Message": "",
+              "ChatBalloonRUID": {
+                "DataId": "7b6bd117bd0446a5bacec8ea6831c997"
+              },
+              "Offset": 1.2,
+              "HideDuration": 0.05
             },
             {
               "@type": "MOD.Core.StateAnimationComponent",
@@ -87994,10 +87999,15 @@
             {
               "@type": "MOD.Core.ChatBalloonComponent",
               "Enable": true,
-              "ChatModeEnabled": false,
+              "ChatModeEnabled": true,
               "ShowDuration": 4,
-              "AutoShowEnabled": false,
-              "Message": ""
+              "AutoShowEnabled": true,
+              "Message": "",
+              "ChatBalloonRUID": {
+                "DataId": "7b6bd117bd0446a5bacec8ea6831c997"
+              },
+              "Offset": 1.2,
+              "HideDuration": 0.05
             },
             {
               "@type": "MOD.Core.StateAnimationComponent",
@@ -88119,6 +88129,1114 @@
             "entry_id": "fishingrankboard",
             "sub_entity_id": null,
             "root_entity_id": "82767035-d3c3-443d-be5d-5364df17c07c",
+            "replaced_model_id": null
+          }
+        }
+      },
+      {
+        "id": "ccdcbceb-0b32-4db5-add9-08778d005da2",
+        "path": "/maps/town/Building_Fountain",
+        "componentNames": "MOD.Core.TransformComponent,MOD.Core.SpriteRendererComponent",
+        "jsonString": {
+          "name": "Building_Fountain",
+          "path": "/maps/town/Building_Fountain",
+          "nameEditable": true,
+          "enable": true,
+          "visible": true,
+          "localize": false,
+          "displayOrder": 22,
+          "pathConstraints": "///",
+          "revision": 1,
+          "modelId": "building_fountain",
+          "@components": [
+            {
+              "@type": "MOD.Core.TransformComponent",
+              "Position": {
+                "x": 0,
+                "y": 4.5,
+                "z": 0
+              },
+              "QuaternionRotation": {
+                "x": 0,
+                "y": 0,
+                "z": 0,
+                "w": 1
+              },
+              "Scale": {
+                "x": 1,
+                "y": 1,
+                "z": 1
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.SpriteRendererComponent",
+              "SpriteRUID": "cbdb6e1fd013457192e0bfa7c6e6d9fa",
+              "Color": {
+                "r": 1,
+                "g": 1,
+                "b": 1,
+                "a": 1
+              },
+              "DrawMode": 0,
+              "FlipX": false,
+              "FlipY": false,
+              "PlayRate": 1,
+              "OrderInLayer": 10,
+              "StartFrameIndex": 0,
+              "EndFrameIndex": 2147483647,
+              "Enable": true,
+              "SortingLayer": "MapLayer5"
+            }
+          ],
+          "@version": 1,
+          "origin": {
+            "type": "Model",
+            "entry_id": "building_fountain",
+            "sub_entity_id": null,
+            "root_entity_id": "ccdcbceb-0b32-4db5-add9-08778d005da2",
+            "replaced_model_id": null
+          }
+        }
+      },
+      {
+        "id": "0e40182c-c805-47d5-af00-2dd4f55d62bf",
+        "path": "/maps/town/Building_Well",
+        "componentNames": "MOD.Core.TransformComponent,MOD.Core.SpriteRendererComponent",
+        "jsonString": {
+          "name": "Building_Well",
+          "path": "/maps/town/Building_Well",
+          "nameEditable": true,
+          "enable": true,
+          "visible": true,
+          "localize": false,
+          "displayOrder": 23,
+          "pathConstraints": "///",
+          "revision": 1,
+          "modelId": "building_well",
+          "@components": [
+            {
+              "@type": "MOD.Core.TransformComponent",
+              "Position": {
+                "x": 4.5,
+                "y": -4.5,
+                "z": 0
+              },
+              "QuaternionRotation": {
+                "x": 0,
+                "y": 0,
+                "z": 0,
+                "w": 1
+              },
+              "Scale": {
+                "x": 1,
+                "y": 1,
+                "z": 1
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.SpriteRendererComponent",
+              "SpriteRUID": "617a24d387d34f6ab76ae184ffe58245",
+              "Color": {
+                "r": 1,
+                "g": 1,
+                "b": 1,
+                "a": 1
+              },
+              "DrawMode": 0,
+              "FlipX": false,
+              "FlipY": false,
+              "PlayRate": 1,
+              "OrderInLayer": 10,
+              "StartFrameIndex": 0,
+              "EndFrameIndex": 2147483647,
+              "Enable": true,
+              "SortingLayer": "MapLayer5"
+            }
+          ],
+          "@version": 1,
+          "origin": {
+            "type": "Model",
+            "entry_id": "building_well",
+            "sub_entity_id": null,
+            "root_entity_id": "0e40182c-c805-47d5-af00-2dd4f55d62bf",
+            "replaced_model_id": null
+          }
+        }
+      },
+      {
+        "id": "f552f491-c254-45fc-984b-04e97e250dbb",
+        "path": "/maps/town/Building_Blacksmith",
+        "componentNames": "MOD.Core.TransformComponent,MOD.Core.SpriteRendererComponent",
+        "jsonString": {
+          "name": "Building_Blacksmith",
+          "path": "/maps/town/Building_Blacksmith",
+          "nameEditable": true,
+          "enable": true,
+          "visible": true,
+          "localize": false,
+          "displayOrder": 24,
+          "pathConstraints": "///",
+          "revision": 1,
+          "modelId": "building_blacksmith",
+          "@components": [
+            {
+              "@type": "MOD.Core.TransformComponent",
+              "Position": {
+                "x": 9,
+                "y": -1.5,
+                "z": 0
+              },
+              "QuaternionRotation": {
+                "x": 0,
+                "y": 0,
+                "z": 0,
+                "w": 1
+              },
+              "Scale": {
+                "x": 1,
+                "y": 1,
+                "z": 1
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.SpriteRendererComponent",
+              "SpriteRUID": "3cf6b9e903e645c295fadfa6bb0548b0",
+              "Color": {
+                "r": 1,
+                "g": 1,
+                "b": 1,
+                "a": 1
+              },
+              "DrawMode": 0,
+              "FlipX": false,
+              "FlipY": false,
+              "PlayRate": 1,
+              "OrderInLayer": 10,
+              "StartFrameIndex": 0,
+              "EndFrameIndex": 2147483647,
+              "Enable": true,
+              "SortingLayer": "MapLayer5"
+            }
+          ],
+          "@version": 1,
+          "origin": {
+            "type": "Model",
+            "entry_id": "building_blacksmith",
+            "sub_entity_id": null,
+            "root_entity_id": "f552f491-c254-45fc-984b-04e97e250dbb",
+            "replaced_model_id": null
+          }
+        }
+      },
+      {
+        "id": "5fa2eb4f-ef8c-423b-b6e6-4e4b860d37ff",
+        "path": "/maps/town/House_MushroomA",
+        "componentNames": "MOD.Core.TransformComponent,MOD.Core.SpriteRendererComponent",
+        "jsonString": {
+          "name": "House_MushroomA",
+          "path": "/maps/town/House_MushroomA",
+          "nameEditable": true,
+          "enable": true,
+          "visible": true,
+          "localize": false,
+          "displayOrder": 25,
+          "pathConstraints": "///",
+          "revision": 1,
+          "modelId": "house_mushroom_a",
+          "@components": [
+            {
+              "@type": "MOD.Core.TransformComponent",
+              "Position": {
+                "x": -9.5,
+                "y": 5.2,
+                "z": 0
+              },
+              "QuaternionRotation": {
+                "x": 0,
+                "y": 0,
+                "z": 0,
+                "w": 1
+              },
+              "Scale": {
+                "x": 1,
+                "y": 1,
+                "z": 1
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.SpriteRendererComponent",
+              "SpriteRUID": "70993f0dc5ab44e6841780e218f3d86b",
+              "Color": {
+                "r": 1,
+                "g": 1,
+                "b": 1,
+                "a": 1
+              },
+              "DrawMode": 0,
+              "FlipX": false,
+              "FlipY": false,
+              "PlayRate": 1,
+              "OrderInLayer": 10,
+              "StartFrameIndex": 0,
+              "EndFrameIndex": 2147483647,
+              "Enable": true,
+              "SortingLayer": "MapLayer5"
+            }
+          ],
+          "@version": 1,
+          "origin": {
+            "type": "Model",
+            "entry_id": "house_mushroom_a",
+            "sub_entity_id": null,
+            "root_entity_id": "5fa2eb4f-ef8c-423b-b6e6-4e4b860d37ff",
+            "replaced_model_id": null
+          }
+        }
+      },
+      {
+        "id": "98c1a386-056a-41d0-94ae-0c907095e5c0",
+        "path": "/maps/town/House_MushroomOrange",
+        "componentNames": "MOD.Core.TransformComponent,MOD.Core.SpriteRendererComponent",
+        "jsonString": {
+          "name": "House_MushroomOrange",
+          "path": "/maps/town/House_MushroomOrange",
+          "nameEditable": true,
+          "enable": true,
+          "visible": true,
+          "localize": false,
+          "displayOrder": 26,
+          "pathConstraints": "///",
+          "revision": 1,
+          "modelId": "house_mushroom_orange",
+          "@components": [
+            {
+              "@type": "MOD.Core.TransformComponent",
+              "Position": {
+                "x": -11.2,
+                "y": 3.2,
+                "z": 0
+              },
+              "QuaternionRotation": {
+                "x": 0,
+                "y": 0,
+                "z": 0,
+                "w": 1
+              },
+              "Scale": {
+                "x": 1,
+                "y": 1,
+                "z": 1
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.SpriteRendererComponent",
+              "SpriteRUID": "27104f25e3784ba6be376ee17b200451",
+              "Color": {
+                "r": 1,
+                "g": 1,
+                "b": 1,
+                "a": 1
+              },
+              "DrawMode": 0,
+              "FlipX": false,
+              "FlipY": false,
+              "PlayRate": 1,
+              "OrderInLayer": 10,
+              "StartFrameIndex": 0,
+              "EndFrameIndex": 2147483647,
+              "Enable": true,
+              "SortingLayer": "MapLayer5"
+            }
+          ],
+          "@version": 1,
+          "origin": {
+            "type": "Model",
+            "entry_id": "house_mushroom_orange",
+            "sub_entity_id": null,
+            "root_entity_id": "98c1a386-056a-41d0-94ae-0c907095e5c0",
+            "replaced_model_id": null
+          }
+        }
+      },
+      {
+        "id": "1b878705-e8bc-4dc0-ace3-4bda197a42cd",
+        "path": "/maps/town/House_MushroomYellow",
+        "componentNames": "MOD.Core.TransformComponent,MOD.Core.SpriteRendererComponent",
+        "jsonString": {
+          "name": "House_MushroomYellow",
+          "path": "/maps/town/House_MushroomYellow",
+          "nameEditable": true,
+          "enable": true,
+          "visible": true,
+          "localize": false,
+          "displayOrder": 27,
+          "pathConstraints": "///",
+          "revision": 1,
+          "modelId": "house_mushroom_yellow",
+          "@components": [
+            {
+              "@type": "MOD.Core.TransformComponent",
+              "Position": {
+                "x": -7.2,
+                "y": 5.8,
+                "z": 0
+              },
+              "QuaternionRotation": {
+                "x": 0,
+                "y": 0,
+                "z": 0,
+                "w": 1
+              },
+              "Scale": {
+                "x": 1,
+                "y": 1,
+                "z": 1
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.SpriteRendererComponent",
+              "SpriteRUID": "c817b1ea38d94e47b261d950877b9c34",
+              "Color": {
+                "r": 1,
+                "g": 1,
+                "b": 1,
+                "a": 1
+              },
+              "DrawMode": 0,
+              "FlipX": false,
+              "FlipY": false,
+              "PlayRate": 1,
+              "OrderInLayer": 10,
+              "StartFrameIndex": 0,
+              "EndFrameIndex": 2147483647,
+              "Enable": true,
+              "SortingLayer": "MapLayer5"
+            }
+          ],
+          "@version": 1,
+          "origin": {
+            "type": "Model",
+            "entry_id": "house_mushroom_yellow",
+            "sub_entity_id": null,
+            "root_entity_id": "1b878705-e8bc-4dc0-ace3-4bda197a42cd",
+            "replaced_model_id": null
+          }
+        }
+      },
+      {
+        "id": "017346e4-9edf-4f67-b12b-86e8f24acfc1",
+        "path": "/maps/town/House_ThatchHut",
+        "componentNames": "MOD.Core.TransformComponent,MOD.Core.SpriteRendererComponent",
+        "jsonString": {
+          "name": "House_ThatchHut",
+          "path": "/maps/town/House_ThatchHut",
+          "nameEditable": true,
+          "enable": true,
+          "visible": true,
+          "localize": false,
+          "displayOrder": 28,
+          "pathConstraints": "///",
+          "revision": 1,
+          "modelId": "house_thatch_hut",
+          "@components": [
+            {
+              "@type": "MOD.Core.TransformComponent",
+              "Position": {
+                "x": -9.5,
+                "y": -7.8,
+                "z": 0
+              },
+              "QuaternionRotation": {
+                "x": 0,
+                "y": 0,
+                "z": 0,
+                "w": 1
+              },
+              "Scale": {
+                "x": 1,
+                "y": 1,
+                "z": 1
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.SpriteRendererComponent",
+              "SpriteRUID": "c2c90cbd4b974c2d8bdc93998196404c",
+              "Color": {
+                "r": 1,
+                "g": 1,
+                "b": 1,
+                "a": 1
+              },
+              "DrawMode": 0,
+              "FlipX": false,
+              "FlipY": false,
+              "PlayRate": 1,
+              "OrderInLayer": 10,
+              "StartFrameIndex": 0,
+              "EndFrameIndex": 2147483647,
+              "Enable": true,
+              "SortingLayer": "MapLayer5"
+            }
+          ],
+          "@version": 1,
+          "origin": {
+            "type": "Model",
+            "entry_id": "house_thatch_hut",
+            "sub_entity_id": null,
+            "root_entity_id": "017346e4-9edf-4f67-b12b-86e8f24acfc1",
+            "replaced_model_id": null
+          }
+        }
+      },
+      {
+        "id": "07d4129e-3fec-4da0-8839-561869e650a1",
+        "path": "/maps/town/House_WoodTower",
+        "componentNames": "MOD.Core.TransformComponent,MOD.Core.SpriteRendererComponent",
+        "jsonString": {
+          "name": "House_WoodTower",
+          "path": "/maps/town/House_WoodTower",
+          "nameEditable": true,
+          "enable": true,
+          "visible": true,
+          "localize": false,
+          "displayOrder": 29,
+          "pathConstraints": "///",
+          "revision": 1,
+          "modelId": "house_wood_tower",
+          "@components": [
+            {
+              "@type": "MOD.Core.TransformComponent",
+              "Position": {
+                "x": 7.5,
+                "y": -8.5,
+                "z": 0
+              },
+              "QuaternionRotation": {
+                "x": 0,
+                "y": 0,
+                "z": 0,
+                "w": 1
+              },
+              "Scale": {
+                "x": 1,
+                "y": 1,
+                "z": 1
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.SpriteRendererComponent",
+              "SpriteRUID": "d6027217ea184d9c97a9492cb20d9ae7",
+              "Color": {
+                "r": 1,
+                "g": 1,
+                "b": 1,
+                "a": 1
+              },
+              "DrawMode": 0,
+              "FlipX": false,
+              "FlipY": false,
+              "PlayRate": 1,
+              "OrderInLayer": 10,
+              "StartFrameIndex": 0,
+              "EndFrameIndex": 2147483647,
+              "Enable": true,
+              "SortingLayer": "MapLayer5"
+            }
+          ],
+          "@version": 1,
+          "origin": {
+            "type": "Model",
+            "entry_id": "house_wood_tower",
+            "sub_entity_id": null,
+            "root_entity_id": "07d4129e-3fec-4da0-8839-561869e650a1",
+            "replaced_model_id": null
+          }
+        }
+      },
+      {
+        "id": "aa2169f0-2365-4fcb-a29f-9f1fe8d88518",
+        "path": "/maps/town/Villager_ResidentA",
+        "componentNames": "MOD.Core.TransformComponent,MOD.Core.SpriteRendererComponent,MOD.Core.RigidbodyComponent,MOD.Core.StateComponent,MOD.Core.ChatBalloonComponent,MOD.Core.StateAnimationComponent,MOD.Core.NameTagComponent,MOD.Core.TouchReceiveComponent,script.VillagerDialog",
+        "jsonString": {
+          "name": "Villager_ResidentA",
+          "path": "/maps/town/Villager_ResidentA",
+          "nameEditable": true,
+          "enable": true,
+          "visible": true,
+          "localize": false,
+          "displayOrder": 30,
+          "pathConstraints": "///",
+          "revision": 1,
+          "modelId": "villager_resident_a",
+          "@components": [
+            {
+              "@type": "MOD.Core.TransformComponent",
+              "Position": {
+                "x": 1.8,
+                "y": -1.2,
+                "z": 0
+              },
+              "QuaternionRotation": {
+                "x": 0,
+                "y": 0,
+                "z": 0,
+                "w": 1
+              },
+              "Scale": {
+                "x": 1,
+                "y": 1,
+                "z": 1
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.SpriteRendererComponent",
+              "SpriteRUID": "64f05aa322814b779ddf707ac31bb109",
+              "Color": {
+                "r": 1,
+                "g": 1,
+                "b": 1,
+                "a": 1
+              },
+              "DrawMode": 0,
+              "FlipX": false,
+              "FlipY": false,
+              "PlayRate": 1,
+              "OrderInLayer": 12,
+              "StartFrameIndex": 0,
+              "EndFrameIndex": 2147483647,
+              "Enable": true,
+              "SortingLayer": "MapLayer5"
+            },
+            {
+              "@type": "MOD.Core.RigidbodyComponent",
+              "MoveVelocity": {
+                "x": 0,
+                "y": 0
+              },
+              "RealMoveVelocity": {
+                "x": 0,
+                "y": 0
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.StateComponent",
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.ChatBalloonComponent",
+              "Enable": true,
+              "ChatModeEnabled": true,
+              "ShowDuration": 4,
+              "AutoShowEnabled": true,
+              "Message": "",
+              "ChatBalloonRUID": {
+                "DataId": "7b6bd117bd0446a5bacec8ea6831c997"
+              },
+              "Offset": 1.2,
+              "HideDuration": 0.05
+            },
+            {
+              "@type": "MOD.Core.StateAnimationComponent",
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.NameTagComponent",
+              "Enable": true,
+              "Name": "촌장"
+            },
+            {
+              "@type": "MOD.Core.TouchReceiveComponent",
+              "Enable": true,
+              "AutoFitToSize": true,
+              "TouchArea": {
+                "$type": "MOD.Core.MODVector2, MOD.Core",
+                "x": 1.5,
+                "y": 2.5
+              }
+            },
+            {
+              "@type": "script.VillagerDialog",
+              "Enable": true,
+              "NpcId": "resident_a",
+              "InteractRange": 3,
+              "BalloonDuration": 4,
+              "AutoTalkInterval": 15,
+              "AutoTalkRange": 6
+            }
+          ],
+          "@version": 1,
+          "origin": {
+            "type": "Model",
+            "entry_id": "villager_resident_a",
+            "sub_entity_id": null,
+            "root_entity_id": "aa2169f0-2365-4fcb-a29f-9f1fe8d88518",
+            "replaced_model_id": null
+          }
+        }
+      },
+      {
+        "id": "7629389a-a672-40ae-a13e-86e917499af3",
+        "path": "/maps/town/Villager_ResidentB",
+        "componentNames": "MOD.Core.TransformComponent,MOD.Core.SpriteRendererComponent,MOD.Core.RigidbodyComponent,MOD.Core.StateComponent,MOD.Core.ChatBalloonComponent,MOD.Core.StateAnimationComponent,MOD.Core.NameTagComponent,MOD.Core.TouchReceiveComponent,script.VillagerDialog",
+        "jsonString": {
+          "name": "Villager_ResidentB",
+          "path": "/maps/town/Villager_ResidentB",
+          "nameEditable": true,
+          "enable": true,
+          "visible": true,
+          "localize": false,
+          "displayOrder": 31,
+          "pathConstraints": "///",
+          "revision": 1,
+          "modelId": "villager_resident_b",
+          "@components": [
+            {
+              "@type": "MOD.Core.TransformComponent",
+              "Position": {
+                "x": -3.2,
+                "y": 3.5,
+                "z": 0
+              },
+              "QuaternionRotation": {
+                "x": 0,
+                "y": 0,
+                "z": 0,
+                "w": 1
+              },
+              "Scale": {
+                "x": 1,
+                "y": 1,
+                "z": 1
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.SpriteRendererComponent",
+              "SpriteRUID": "ae46402787474a12b34fa13b25ce698f",
+              "Color": {
+                "r": 1,
+                "g": 1,
+                "b": 1,
+                "a": 1
+              },
+              "DrawMode": 0,
+              "FlipX": false,
+              "FlipY": false,
+              "PlayRate": 1,
+              "OrderInLayer": 12,
+              "StartFrameIndex": 0,
+              "EndFrameIndex": 2147483647,
+              "Enable": true,
+              "SortingLayer": "MapLayer5"
+            },
+            {
+              "@type": "MOD.Core.RigidbodyComponent",
+              "MoveVelocity": {
+                "x": 0,
+                "y": 0
+              },
+              "RealMoveVelocity": {
+                "x": 0,
+                "y": 0
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.StateComponent",
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.ChatBalloonComponent",
+              "Enable": true,
+              "ChatModeEnabled": true,
+              "ShowDuration": 4,
+              "AutoShowEnabled": true,
+              "Message": "",
+              "ChatBalloonRUID": {
+                "DataId": "7b6bd117bd0446a5bacec8ea6831c997"
+              },
+              "Offset": 1.2,
+              "HideDuration": 0.05
+            },
+            {
+              "@type": "MOD.Core.StateAnimationComponent",
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.NameTagComponent",
+              "Enable": true,
+              "Name": "촌장"
+            },
+            {
+              "@type": "MOD.Core.TouchReceiveComponent",
+              "Enable": true,
+              "AutoFitToSize": true,
+              "TouchArea": {
+                "$type": "MOD.Core.MODVector2, MOD.Core",
+                "x": 1.5,
+                "y": 2.5
+              }
+            },
+            {
+              "@type": "script.VillagerDialog",
+              "Enable": true,
+              "NpcId": "resident_b",
+              "InteractRange": 3,
+              "BalloonDuration": 4,
+              "AutoTalkInterval": 15,
+              "AutoTalkRange": 6
+            }
+          ],
+          "@version": 1,
+          "origin": {
+            "type": "Model",
+            "entry_id": "villager_resident_b",
+            "sub_entity_id": null,
+            "root_entity_id": "7629389a-a672-40ae-a13e-86e917499af3",
+            "replaced_model_id": null
+          }
+        }
+      },
+      {
+        "id": "051d9cb3-1830-41c5-bcdf-5aa1ea44de6b",
+        "path": "/maps/town/Villager_ResidentC",
+        "componentNames": "MOD.Core.TransformComponent,MOD.Core.SpriteRendererComponent,MOD.Core.RigidbodyComponent,MOD.Core.StateComponent,MOD.Core.ChatBalloonComponent,MOD.Core.StateAnimationComponent,MOD.Core.NameTagComponent,MOD.Core.TouchReceiveComponent,script.VillagerDialog",
+        "jsonString": {
+          "name": "Villager_ResidentC",
+          "path": "/maps/town/Villager_ResidentC",
+          "nameEditable": true,
+          "enable": true,
+          "visible": true,
+          "localize": false,
+          "displayOrder": 32,
+          "pathConstraints": "///",
+          "revision": 1,
+          "modelId": "villager_resident_c",
+          "@components": [
+            {
+              "@type": "MOD.Core.TransformComponent",
+              "Position": {
+                "x": -10.2,
+                "y": 4.2,
+                "z": 0
+              },
+              "QuaternionRotation": {
+                "x": 0,
+                "y": 0,
+                "z": 0,
+                "w": 1
+              },
+              "Scale": {
+                "x": 1,
+                "y": 1,
+                "z": 1
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.SpriteRendererComponent",
+              "SpriteRUID": "fd92a3c4f1414e408ca4facef64aec7a",
+              "Color": {
+                "r": 1,
+                "g": 1,
+                "b": 1,
+                "a": 1
+              },
+              "DrawMode": 0,
+              "FlipX": false,
+              "FlipY": false,
+              "PlayRate": 1,
+              "OrderInLayer": 12,
+              "StartFrameIndex": 0,
+              "EndFrameIndex": 2147483647,
+              "Enable": true,
+              "SortingLayer": "MapLayer5"
+            },
+            {
+              "@type": "MOD.Core.RigidbodyComponent",
+              "MoveVelocity": {
+                "x": 0,
+                "y": 0
+              },
+              "RealMoveVelocity": {
+                "x": 0,
+                "y": 0
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.StateComponent",
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.ChatBalloonComponent",
+              "Enable": true,
+              "ChatModeEnabled": true,
+              "ShowDuration": 4,
+              "AutoShowEnabled": true,
+              "Message": "",
+              "ChatBalloonRUID": {
+                "DataId": "7b6bd117bd0446a5bacec8ea6831c997"
+              },
+              "Offset": 1.2,
+              "HideDuration": 0.05
+            },
+            {
+              "@type": "MOD.Core.StateAnimationComponent",
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.NameTagComponent",
+              "Enable": true,
+              "Name": "촌장"
+            },
+            {
+              "@type": "MOD.Core.TouchReceiveComponent",
+              "Enable": true,
+              "AutoFitToSize": true,
+              "TouchArea": {
+                "$type": "MOD.Core.MODVector2, MOD.Core",
+                "x": 1.5,
+                "y": 2.5
+              }
+            },
+            {
+              "@type": "script.VillagerDialog",
+              "Enable": true,
+              "NpcId": "resident_c",
+              "InteractRange": 3,
+              "BalloonDuration": 4,
+              "AutoTalkInterval": 15,
+              "AutoTalkRange": 6
+            }
+          ],
+          "@version": 1,
+          "origin": {
+            "type": "Model",
+            "entry_id": "villager_resident_c",
+            "sub_entity_id": null,
+            "root_entity_id": "051d9cb3-1830-41c5-bcdf-5aa1ea44de6b",
+            "replaced_model_id": null
+          }
+        }
+      },
+      {
+        "id": "f089fba0-7d43-4814-a664-01f711dd65e5",
+        "path": "/maps/town/Villager_ResidentD",
+        "componentNames": "MOD.Core.TransformComponent,MOD.Core.SpriteRendererComponent,MOD.Core.RigidbodyComponent,MOD.Core.StateComponent,MOD.Core.ChatBalloonComponent,MOD.Core.StateAnimationComponent,MOD.Core.NameTagComponent,MOD.Core.TouchReceiveComponent,script.VillagerDialog",
+        "jsonString": {
+          "name": "Villager_ResidentD",
+          "path": "/maps/town/Villager_ResidentD",
+          "nameEditable": true,
+          "enable": true,
+          "visible": true,
+          "localize": false,
+          "displayOrder": 33,
+          "pathConstraints": "///",
+          "revision": 1,
+          "modelId": "villager_resident_d",
+          "@components": [
+            {
+              "@type": "MOD.Core.TransformComponent",
+              "Position": {
+                "x": 10.5,
+                "y": -3.5,
+                "z": 0
+              },
+              "QuaternionRotation": {
+                "x": 0,
+                "y": 0,
+                "z": 0,
+                "w": 1
+              },
+              "Scale": {
+                "x": 1,
+                "y": 1,
+                "z": 1
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.SpriteRendererComponent",
+              "SpriteRUID": "884e00729dd94292b3d26ef6abd11afa",
+              "Color": {
+                "r": 1,
+                "g": 1,
+                "b": 1,
+                "a": 1
+              },
+              "DrawMode": 0,
+              "FlipX": false,
+              "FlipY": false,
+              "PlayRate": 1,
+              "OrderInLayer": 12,
+              "StartFrameIndex": 0,
+              "EndFrameIndex": 2147483647,
+              "Enable": true,
+              "SortingLayer": "MapLayer5"
+            },
+            {
+              "@type": "MOD.Core.RigidbodyComponent",
+              "MoveVelocity": {
+                "x": 0,
+                "y": 0
+              },
+              "RealMoveVelocity": {
+                "x": 0,
+                "y": 0
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.StateComponent",
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.ChatBalloonComponent",
+              "Enable": true,
+              "ChatModeEnabled": true,
+              "ShowDuration": 4,
+              "AutoShowEnabled": true,
+              "Message": "",
+              "ChatBalloonRUID": {
+                "DataId": "7b6bd117bd0446a5bacec8ea6831c997"
+              },
+              "Offset": 1.2,
+              "HideDuration": 0.05
+            },
+            {
+              "@type": "MOD.Core.StateAnimationComponent",
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.NameTagComponent",
+              "Enable": true,
+              "Name": "촌장"
+            },
+            {
+              "@type": "MOD.Core.TouchReceiveComponent",
+              "Enable": true,
+              "AutoFitToSize": true,
+              "TouchArea": {
+                "$type": "MOD.Core.MODVector2, MOD.Core",
+                "x": 1.5,
+                "y": 2.5
+              }
+            },
+            {
+              "@type": "script.VillagerDialog",
+              "Enable": true,
+              "NpcId": "resident_d",
+              "InteractRange": 3,
+              "BalloonDuration": 4,
+              "AutoTalkInterval": 15,
+              "AutoTalkRange": 6
+            }
+          ],
+          "@version": 1,
+          "origin": {
+            "type": "Model",
+            "entry_id": "villager_resident_d",
+            "sub_entity_id": null,
+            "root_entity_id": "f089fba0-7d43-4814-a664-01f711dd65e5",
+            "replaced_model_id": null
+          }
+        }
+      },
+      {
+        "id": "51b571f4-1225-4762-ba4e-3bd70810e82b",
+        "path": "/maps/town/Animal_Cat",
+        "componentNames": "MOD.Core.TransformComponent,MOD.Core.SpriteRendererComponent,MOD.Core.KinematicbodyComponent,MOD.Core.MovementComponent,script.Animal",
+        "jsonString": {
+          "name": "Animal_Cat",
+          "path": "/maps/town/Animal_Cat",
+          "nameEditable": true,
+          "enable": true,
+          "visible": true,
+          "localize": false,
+          "displayOrder": 34,
+          "pathConstraints": "///",
+          "revision": 1,
+          "modelId": "animal_cat",
+          "@components": [
+            {
+              "@type": "MOD.Core.TransformComponent",
+              "Position": {
+                "x": 2.2,
+                "y": -3.2,
+                "z": 0
+              },
+              "QuaternionRotation": {
+                "x": 0,
+                "y": 0,
+                "z": 0,
+                "w": 1
+              },
+              "Scale": {
+                "x": 1,
+                "y": 1,
+                "z": 1
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.SpriteRendererComponent",
+              "SpriteRUID": "c981d6ae466148f482dce1cac7a0d10c",
+              "Color": {
+                "r": 1,
+                "g": 1,
+                "b": 1,
+                "a": 1
+              },
+              "DrawMode": 0,
+              "FlipX": false,
+              "FlipY": false,
+              "PlayRate": 1,
+              "OrderInLayer": 2,
+              "StartFrameIndex": 0,
+              "EndFrameIndex": 2147483647,
+              "Enable": true,
+              "SortingLayer": "MapLayer5"
+            },
+            {
+              "@type": "MOD.Core.KinematicbodyComponent",
+              "MoveVelocity": {
+                "x": 0,
+                "y": 0
+              },
+              "RealMoveVelocity": {
+                "x": 0,
+                "y": 0
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.MovementComponent",
+              "Enable": true,
+              "InputSpeed": 0.9
+            },
+            {
+              "@type": "script.Animal",
+              "Enable": true,
+              "AnimalId": "Cat"
+            }
+          ],
+          "@version": 1,
+          "origin": {
+            "type": "Model",
+            "entry_id": "animal_cat",
+            "sub_entity_id": null,
+            "root_entity_id": "51b571f4-1225-4762-ba4e-3bd70810e82b",
             "replaced_model_id": null
           }
         }

@@ -1,7 +1,7 @@
 {
   "Id": "",
   "GameId": "",
-  "EntryKey": "model://furniture_bed",
+  "EntryKey": "model://building_fountain",
   "ContentType": "x-mod/model",
   "Content": "",
   "Usage": 0,
@@ -14,16 +14,12 @@
     "Use": "Json",
     "Json": {
       "Version": 1,
-      "Name": "Furniture_Bed",
+      "Name": "Building_Fountain",
       "BaseModelId": null,
-      "Id": "furniture_bed",
+      "Id": "building_fountain",
       "Components": [
         "MOD.Core.TransformComponent",
-        "MOD.Core.SpriteRendererComponent",
-        "MOD.Core.TouchReceiveComponent",
-        "script.PlaceableFurniture",
-        "script.ResourceOccupiedArea",
-        "script.Furniture_Bed"
+        "MOD.Core.SpriteRendererComponent"
       ],
       "Properties": [
         {
@@ -99,70 +95,7 @@
             "$type": "MODNativeType",
             "type": "System.String, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089"
           },
-          "Value": "4ed3c0b888b54b2885a438575f746b9e"
-        },
-        {
-          "TargetType": "MOD.Core.TouchReceiveComponent",
-          "Name": "RelayEventToBehind",
-          "ValueType": {
-            "$type": "MODNativeType",
-            "type": "System.Boolean, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089"
-          },
-          "Value": true
-        },
-        {
-          "TargetType": "MOD.Core.TouchReceiveComponent",
-          "Name": "AutoFitToSize",
-          "ValueType": {
-            "$type": "MODNativeType",
-            "type": "System.Boolean, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089"
-          },
-          "Value": true
-        },
-        {
-          "TargetType": "script.PlaceableFurniture",
-          "Name": "ItemId",
-          "ValueType": {
-            "$type": "MODNativeType",
-            "type": "System.String, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089"
-          },
-          "Value": "Bed"
-        },
-        {
-          "TargetType": "script.ResourceOccupiedArea",
-          "Name": "OffsetXMin",
-          "ValueType": {
-            "$type": "MODNativeType",
-            "type": "System.Double, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089"
-          },
-          "Value": 0
-        },
-        {
-          "TargetType": "script.ResourceOccupiedArea",
-          "Name": "OffsetXMax",
-          "ValueType": {
-            "$type": "MODNativeType",
-            "type": "System.Double, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089"
-          },
-          "Value": 0
-        },
-        {
-          "TargetType": "script.ResourceOccupiedArea",
-          "Name": "OffsetYMin",
-          "ValueType": {
-            "$type": "MODNativeType",
-            "type": "System.Double, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089"
-          },
-          "Value": 0
-        },
-        {
-          "TargetType": "script.ResourceOccupiedArea",
-          "Name": "OffsetYMax",
-          "ValueType": {
-            "$type": "MODNativeType",
-            "type": "System.Double, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089"
-          },
-          "Value": 0
+          "Value": "cbdb6e1fd013457192e0bfa7c6e6d9fa"
         },
         {
           "TargetType": "MOD.Core.SpriteRendererComponent",
@@ -180,7 +113,7 @@
             "$type": "MODNativeType",
             "type": "System.Int32, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089"
           },
-          "Value": 2
+          "Value": 10
         }
       ],
       "EventLinks": [],

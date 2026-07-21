@@ -1,7 +1,7 @@
 {
   "Id": "",
   "GameId": "",
-  "EntryKey": "model://villager_elder",
+  "EntryKey": "model://villager_resident_c",
   "ContentType": "x-mod/model",
   "Content": "",
   "Usage": 0,
@@ -14,9 +14,9 @@
     "Use": "Json",
     "Json": {
       "Version": 1,
-      "Name": "Villager_Elder",
+      "Name": "Villager_ResidentC",
       "BaseModelId": null,
-      "Id": "villager_elder",
+      "Id": "villager_resident_c",
       "Components": [
         "MOD.Core.TransformComponent",
         "MOD.Core.SpriteRendererComponent",
@@ -159,7 +159,7 @@
             "$type": "MODNativeType",
             "type": "System.String, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089"
           },
-          "Value": "2d61d5aa45cf481684caa36e99ac215b"
+          "Value": "fd92a3c4f1414e408ca4facef64aec7a"
         },
         {
           "TargetType": "MOD.Core.SpriteRendererComponent",
@@ -199,7 +199,7 @@
             "$type": "MODNativeType",
             "type": "System.String, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089"
           },
-          "Value": "elder"
+          "Value": "resident_c"
         },
         {
           "TargetType": "script.VillagerDialog",
@@ -208,7 +208,7 @@
             "$type": "MODNativeType",
             "type": "System.Single, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089"
           },
-          "Value": 3
+          "Value": 3.0
         },
         {
           "TargetType": "script.VillagerDialog",
@@ -217,7 +217,7 @@
             "$type": "MODNativeType",
             "type": "System.Single, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089"
           },
-          "Value": 4
+          "Value": 4.0
         },
         {
           "TargetType": "script.VillagerDialog",
@@ -226,7 +226,7 @@
             "$type": "MODNativeType",
             "type": "System.Single, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089"
           },
-          "Value": 15
+          "Value": 15.0
         },
         {
           "TargetType": "script.VillagerDialog",
@@ -235,7 +235,7 @@
             "$type": "MODNativeType",
             "type": "System.Single, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089"
           },
-          "Value": 6
+          "Value": 6.0
         },
         {
           "TargetType": "MOD.Core.ChatBalloonComponent",
@@ -253,7 +253,7 @@
             "$type": "MODNativeType",
             "type": "System.Single, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089"
           },
-          "Value": 4
+          "Value": 4.0
         },
         {
           "TargetType": "MOD.Core.ChatBalloonComponent",

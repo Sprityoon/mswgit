@@ -94,9 +94,9 @@
 > 상태: `[대기]` / `[진행]` / `[완료]` / `[보류]`
 > 각 항목은 **Target(파일) / Change(변경) / Acceptance(완료 기준)** 3요소를 반드시 채운다. **T번호는 단조 증가·재사용 금지 — 현재 최대 = T71.**
 
-> 🧭 **현황판 (지휘자 2026-07-16 — 2차)**
-> - **Play PASS 확정**: T50까지의 전 완료분 + T51 · T58 · T59 · T60 · **T62**(⚖️ 2026-07-16 확정) · **T63**(낚시 랭킹 수정 — 핫픽스 포함 확인). 체크포인트 커밋 = 이 갱신과 동시.
-> - **Play 대기(제작자 광범위 Play에서 이상 보고 없음 — 개별 명시 확인은 미완)**: T19(목장) · T23(펫) · T27(퀘스트 107 해금 — **미완료 캐릭터로** 확인) · T49(아트 육안) · T54(팝업 여닫기) · T55(BGM) · T56(주민 대화) · **T61(지형 쿨다운 0.25s 체감)**. 체크리스트 = 각 `reports/T<n>-*.md` §6.
+> 🧭 **현황판 (지휘자 2026-07-21 — 버그픽스)**
+> - **Play PASS 확정**: T50까지의 전 완료분 + T56(주민 대화 말풍선 버그픽스 검증) + T51 · T58 · T59 · T60 · **T62**(⚖️ 2026-07-16 확정) · **T63**(낚시 랭킹 수정 — 핫픽스 포함 확인). 체크포인트 커밋 = 이 갱신과 동시.
+> - **Play 대기(제작자 광범위 Play에서 이상 보고 없음 — 개별 명시 확인은 미완)**: T19(목장) · T23(펫) · T27(퀘스트 107 해금 — **미완료 캐릭터로** 확인) · T49(아트 육안) · T54(팝업 여닫기) · T55(BGM) · **T61(지형 쿨다운 0.25s 체감)**. 체크리스트 = 각 `reports/T<n>-*.md` §6.
 > - **코드 완료·Play 대기(2026-07-18)**: **T64 낚시 v2** — 지휘자 직접 구현 완료(LSP errors=0). ⚠ Maker 미기동 상태에서 작업 — **첫 refresh에서 신규 스크립트 2종(`UIFishingGaugeController`)·데이터셋(`FishingDifficultyDataSet`) 등록 + Error=0 확인 필요**. 체크리스트 = `reports/T64-fishing-v2-reeling.md` §6.
 > - **⚖️ 2026-07-18 보스 지시 3건 → 배치 J (T65→T66→T67) 코드 완료(2026-07-18)**: 세 티켓 모두 refresh Error=0 · **런타임 검증 보류(제작자 Play)**. 보고서 = `T65-mine-attack-sfx.md` · `T66-skill-vfx-dash-damage.md` · `T67-aim-cell-interact-gate.md`. **⚖️ 제작자 1차 Play 피드백(2026-07-18): "선택된 사운드들이 어색" → 커밋 9850556 후 "모든 소리가 어색, 네가 선택하라" 지시 → T68(지휘자 직접)로 11슬롯 전량 재선정 완료.**
 > - **⚖️ 2026-07-18 제작자 Play 버그 2건 → 배치 K(T69·T70) 코드 완료 + T71 지휘자 직접 해결**: ① QWER 장착 재접속 초기화 = T69 영속화(Play 확인 대기) ② 스킬 모션 = T70 `CastAction`(런타임 재생 확인) ③ 이펙트 미표시의 진범 = **`PlayEffect` instigator nil(신설 규칙 12)** — T71에서 수정, **시전 경로 클라 serial>0 런타임 검증 완료**(육안 최종 확인만 제작자). 사운드 재선정 잔여분은 ⚖️ 제작자 직접(T68 현황 유지).
@@ -229,8 +229,57 @@
 - **검증**: refresh **Error=0**(Warning 25/Info 502) + Play에서 `ServerRequestCastSkill` 직접 호출 — 클라 `[T71][FX] variant=full serial=1`(파워 스트라이크)·`serial=2`(대시) + `[T70][CAST] play action=swingO2` 모션 재생 확인. **variant=full 성공 = SortingLayer(MapLayer5)+IgnoreMapLayerCheck 적용 상태로 생성** → 타일 위 렌더 보장. 육안 색감·타이밍 확인만 제작자 몫.
 - **재발 방지**: §1.2 규칙 12 신설(아래). 보고서: `reports/T71-effect-instigator-nil.md`.
 
+### T72. [코드 완료 — 2026-07-21 | refresh Error=0 | 런타임 검증 보류(제작자 수행)] 아이템 아이콘 교체 및 모델 외형 일치화 (P0-D)
+- **배경**: 임시로 잘못 재사용 중인 아이콘을 교체. 또한 아이템 아이콘과 실제 필드 모델 모양이 불일치하는 사례가 많아 일치화 필요. 인벤토리/퀵슬롯뿐만 아니라 모든 UI(제작, 도감 등)에서 일관되게 표시되도록 정비.
+- **Target**: `RootDesk/MyDesk/item/DataSets/item_dataset.csv` 등 데이터셋
+- **Change**: `artwork-spec.md` §5 표를 참고하되, 해당 RUID 대신 `msw-search`로 실제 인게임 모델과 일치하는 더 적합한 RUID를 새롭게 찾아 교체. 필요 시 다른 아이템들의 IconRUID도 전수 조사하여 외형 불일치 교정.
+- **Acceptance**: 아이템 아이콘이 모델 외형과 일치하며, 모든 UI에서 정상 표시. refresh Error=0.
+- **구현 요약 (2026-07-21)**: msw-search Icon 10건 + Recipe 6건. Furniture_Bed/Item_Bed 월드 침대 RUID. 보고서: `docs/agents/reports/T72-item-icon-model-match.md`.
+- **검증**: Maker refresh **Error=0** (total 527 / Warning 25 / Info 502). **런타임 검증 보류(제작자 수행)**.
+
+### T73. [코드 완료 — 2026-07-21 | refresh Error=0 | 런타임 검증 보류(제작자 수행)] 마을 광장 분수대 및 우물 리스킨 및 재배치 (P0-A 파트 1)
+- **배경**: 마을 중심 광장에 분수와 우물을 더 자연스럽고 심미적인 위치로 재배치. (상점 아트는 수정 불필요)
+- **Target**: `RootDesk/MyDesk/MapObjects/Models/` (신규 .model), `map/town.map`
+- **Change**: B8(분수대), B9(우물) 아트를 활용하여 `.model` 신규 작성 후 `town.map` 광장에 배치. 기존에 배치했던 어색한 위치를 피해 심미적으로 더 나은 좌표로 재배치. 통행 차단은 기존 `Building_Shop` 미러. 대장간(B7)도 필요시 재배치.
+- **Acceptance**: 상점을 제외한 분수대, 우물 등이 구도에 맞게 정상 배치됨. 충돌/정렬 이상 없음. refresh Error=0.
+- **구현 요약 (2026-07-21)**: Fountain(0,4.5)·Well(4.5,−4.5)·Blacksmith(9,−1.5). Shop 무수정. 보고서: `docs/agents/reports/T73-plaza-fountain-well.md`.
+- **검증**: Maker refresh **Error=0** (total 527 / Warning 25 / Info 502). **런타임 검증 보류(제작자 수행)**.
+
+### T74. [코드 완료 — 2026-07-21 | refresh Error=0 | 런타임 검증 보류(제작자 수행)] 주거구역 주택 5동 배치 (P0-A 파트 2)
+- **배경**: 주거구역을 형성할 버섯집 및 초가집 배치. `docs/design/artwork-spec.md` §2.
+- **Target**: `RootDesk/MyDesk/MapObjects/Models/` (신규 .model), `map/town.map`
+- **Change**: B1~B5 (주택 5종) RUID 확보. 접지선 및 톱다운 시점 보정 후 신규 `.model` 작성. `town.map`의 주거구역에 심미적으로 배치.
+- **Acceptance**: 주택 5동 정상 배치 및 충돌 판정 정상. refresh Error=0.
+- **구현 요약 (2026-07-21)**: House 5종 북서·남서·남동 배치. 보고서: `docs/agents/reports/T74-town-houses.md`.
+- **검증**: Maker refresh **Error=0** (total 527 / Warning 25 / Info 502). **런타임 검증 보류(제작자 수행)**.
+
+### T75. [대기] 상점거리 노점 및 생활 소품 배치 (P0-B, P0-C)
+- **배경**: 마을 생활감 증대를 위한 데코 소품 14종 배치. `docs/design/artwork-spec.md` §3, §4.
+- **Target**: `RootDesk/MyDesk/MapObjects/Models/` (신규 .model), `map/town.map`
+- **Change**: M1~M3(노점) 및 P1~P11(소품 11종) 아트 확보 및 `.model`화. 비충돌 데코는 Body 없이. 다중 배치를 위해 `modelId` 활용하여 곳곳에 배치.
+- **Acceptance**: 조명, 벤치, 울타리, 노점 등이 정상 렌더링 및 배치됨. refresh Error=0.
+
+### T76. [대기] 마을 랜드마크 건물 배치 (P0-A 파트 3)
+- **배경**: 마을 스카이라인을 형성하는 대형 랜드마크(여관, 시계탑, 헛간) 추가. `docs/design/artwork-spec.md` §2.
+- **Target**: `RootDesk/MyDesk/MapObjects/Models/` (신규 .model), `map/town.map`
+- **Change**: B6(여관), B10(시계탑), B11(헛간) 아트 확보 및 시점 압축 보정. 신규 `.model` 작성 후 외곽 및 모서리에 배치.
+- **Acceptance**: 대형 건물 3동 정상 배치. 캐릭터가 올바르게 앞/뒤로 가려짐. refresh Error=0.
+
+### T77. [코드 완료 — 2026-07-21 | refresh Error=0 | 런타임 검증 보류(제작자 수행)] 비전투 마을 NPC 및 생물 다양화 (P1)
+- **배경**: NPC 4인 및 고양이 배치. `docs/design/artwork-spec.md` §6.
+- **Target**: `RootDesk/MyDesk/NPC/Models/` (신규 .model), `map/town.map`, `RootDesk/MyDesk/NPC/DataSets/DialogDataSet.csv`
+- **Change**: N1~N7의 팩 ID에서 RUID 확보. 기존 `Villager_Elder` 미러링하여 신규 NPC `.model` 작성. `DialogDataSet`에 대사 부여 후 배치.
+- **Acceptance**: NPC들이 마을 곳곳에 배치되고 대화 상호작용 동작. 고양이가 배회함. refresh Error=0.
+- **구현 요약 (2026-07-21)**: ResidentA~D + Animal_Cat + Dialog 8행. 보고서: `docs/agents/reports/T77-town-npcs-cat.md`.
+- **검증**: Maker refresh **Error=0** (total 527 / Warning 25 / Info 502). **런타임 검증 보류(제작자 수행)**.
+
+### T78. [대기] 필드 및 영지 바이옴 오브젝트 변주 (P1)
+- **배경**: 단조로운 필드의 나무, 바위 등 변주. `docs/design/artwork-spec.md` §7.
+- **Target**: `RootDesk/MyDesk/MapObjects/Models/` (신규 .model), `map/template_field.map`, `map/town.map` (낚시터)
+- **Change**: F1~F3, F5, F7~F9 아트 확보 및 `.model` 작성. 변주된 자연물을 사냥터에 배치. 마을 낚시터 리스킨 반영.
+- **Acceptance**: 낚시터 리스킨 적용 및 사냥터 시각적 다양성 증가. refresh Error=0.
+
 ### (신규 작업 추가 템플릿)
-```
 
 ### T<n>. [대기] <제목>
 - **배경**: <왜 필요한가, 관련 game_design.md §>

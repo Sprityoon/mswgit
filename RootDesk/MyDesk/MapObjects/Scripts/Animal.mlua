@@ -37,6 +37,11 @@ script Animal extends Component
 
 	property Vector2 MoveDir = Vector2(0, 0)
 
+	-- 상태별 애니메이션 클립(CSV): 정지=SpriteRUID, 이동=MoveRUID. CurrentClipRUID로 중복 재지정(프레임 리셋) 방지.
+	property string StandClipRUID = ""
+	property string MoveClipRUID = ""
+	property string CurrentClipRUID = ""
+
 	-- T67: 조준선 footprint (배회형 — 현재 셀 기준 1×1)
 	property integer AimFootprintW = 1
 	property integer AimFootprintH = 1
@@ -141,18 +146,42 @@ script Animal extends Component
 
 	@ExecSpace("ServerOnly")
 	method void ApplyDatasetVisual()
-		-- CSV SpriteRUID·WanderRadius 반영.
+		-- CSV SpriteRUID(정지)·MoveRUID(이동)·WanderRadius 반영.
 		local row = self:GetAnimalRow()
 		if row == nil then return end
 		local okR, ruid = pcall(function() return row:GetItem("SpriteRUID") end)
 		if okR and ruid ~= nil and ruid ~= "" then
+			self.StandClipRUID = ruid
 			local spr = self.Entity.SpriteRendererComponent
-			if isvalid(spr) then spr.SpriteRUID = ruid end
+			if isvalid(spr) then
+				spr.SpriteRUID = ruid
+				self.CurrentClipRUID = ruid
+			end
+		end
+		local okM, mruid = pcall(function() return row:GetItem("MoveRUID") end)
+		if okM and mruid ~= nil then
+			self.MoveClipRUID = mruid
 		end
 		local okW, wr = pcall(function() return row:GetItem("WanderRadius") end)
 		if okW and wr ~= nil then
 			local n = tonumber(wr)
 			if n ~= nil and n > 0 then self.WanderRadius = n end
+		end
+	end
+
+	@ExecSpace("ServerOnly")
+	method void ApplyStateVisual()
+		-- 배회 상태(WANDER)면 이동 클립, 그 외엔 정지 클립. 변경 시에만 SpriteRUID 재지정(@Sync → 클라 반영, 프레임 리셋 방지).
+		local spr = self.Entity.SpriteRendererComponent
+		if not isvalid(spr) then return end
+		local target = self.StandClipRUID
+		if self.CurrentAIState == "WANDER" and self.MoveClipRUID ~= "" then
+			target = self.MoveClipRUID
+		end
+		if target == "" then return end
+		if target ~= self.CurrentClipRUID then
+			spr.SpriteRUID = target
+			self.CurrentClipRUID = target
 		end
 	end
 
@@ -169,6 +198,7 @@ script Animal extends Component
 			if len < 0.001 then len = 0.001 end
 			self.MoveDir = Vector2(-dx / len, -dy / len)
 			self.CurrentAIState = "WANDER"
+			self:ApplyStateVisual()
 			self:MoveDirVec(self.MoveDir, delta)
 			return
 		end
@@ -194,6 +224,7 @@ script Animal extends Component
 			self.MoveDir = Vector2(math.cos(ang), math.sin(ang))
 			self.StateTimer = self.WanderMin + _UtilLogic:RandomDouble() * (self.WanderMax - self.WanderMin)
 		end
+		self:ApplyStateVisual()
 	end
 
 	@ExecSpace("ServerOnly")
@@ -205,7 +236,8 @@ script Animal extends Component
 		move:MoveToDirection(dir, delta)
 		local spr = self.Entity.SpriteRendererComponent
 		if isvalid(spr) and dir.x ~= 0 then
-			spr.FlipX = dir.x < 0
+			-- 리소스는 왼쪽 향해 제작 → 오른쪽 이동 시 FlipX=true. (반대로 걸면 뒷걸음질처럼 보임)
+			spr.FlipX = dir.x > 0
 		end
 	end
 
