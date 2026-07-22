@@ -1,0 +1,23 @@
+{
+  "Id": "",
+  "GameId": "",
+  "EntryKey": "sprite://7e12cbe0561d4519b25f4b6ee7acbab1",
+  "ContentType": "x-mod/sprite",
+  "Content": "",
+  "Usage": 0,
+  "UsePublish": 1,
+  "UseService": 0,
+  "CoreVersion": "26.5.0.0",
+  "StudioVersion": "0.1.0.0",
+  "DynamicLoading": 0,
+  "ContentProto": {
+    "Use": "Json",
+    "Json": {
+      "upload_keyname": "30/16/3016058963e141f19ca78e39d98a2f17/sprite/7e12cbe0561d4519b25f4b6ee7acbab1/639203118992352446",
+      "upload_hash": "BE84B5903DEBE6499AE69A06770D3FCCE5E2ACA6AFB3CC79847C3BAD474DC358",
+      "name": "msw_topdown_fishing_board_256",
+      "resource_guid": "7e12cbe0561d4519b25f4b6ee7acbab1",
+      "resource_version": "6a60975bfa50f07808673ec1"
+    }
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "Id": "",
+  "GameId": "",
+  "EntryKey": "sprite://9cfea5cceea14919a9a69e2d45354214",
+  "ContentType": "x-mod/sprite",
+  "Content": "",
+  "Usage": 0,
+  "UsePublish": 1,
+  "UseService": 0,
+  "CoreVersion": "26.5.0.0",
+  "StudioVersion": "0.1.0.0",
+  "DynamicLoading": 0,
+  "ContentProto": {
+    "Use": "Json",
+    "Json": {
+      "upload_keyname": "30/16/3016058963e141f19ca78e39d98a2f17/sprite/9cfea5cceea14919a9a69e2d45354214/639203124547659417",
+      "upload_hash": "9B1646BF8537758DC66A95F370FA528EEAC06F34B15C994E51D6F2DE912B4E6B",
+      "name": "msw_topdown_quest_board_256",
+      "resource_guid": "9cfea5cceea14919a9a69e2d45354214",
+      "resource_version": "6a609986f443e9c9c06505c3"
+    }
+  }
+}

@@ -74037,8 +74037,8 @@
             {
               "@type": "MOD.Core.TransformComponent",
               "Position": {
-                "x": -0.57940954,
-                "y": -0.829850733,
+                "x": 8.094651,
+                "y": -0.417729855,
                 "z": 999.999
               },
               "QuaternionRotation": {
@@ -74098,8 +74098,8 @@
             {
               "@type": "MOD.Core.TransformComponent",
               "Position": {
-                "x": -0.03784752,
-                "y": -0.3699417,
+                "x": 7.25367928,
+                "y": -1.7275157,
                 "z": 0.0
               },
               "QuaternionRotation": {
@@ -74193,8 +74193,8 @@
             {
               "@type": "MOD.Core.TransformComponent",
               "Position": {
-                "x": 6.252434,
-                "y": 4.527457,
+                "x": 6.46248245,
+                "y": 4.696032,
                 "z": 0.0
               },
               "QuaternionRotation": {
@@ -74204,8 +74204,8 @@
                 "w": 1.0
               },
               "Scale": {
-                "x": 1.51819909,
-                "y": 1.51819909,
+                "x": 1.75236249,
+                "y": 1.75236249,
                 "z": 1.0
               },
               "Enable": true
@@ -87497,8 +87497,8 @@
             {
               "@type": "MOD.Core.TransformComponent",
               "Position": {
-                "x": -4.252427,
-                "y": 2.648713,
+                "x": -3.815639,
+                "y": -8.588628,
                 "z": 0.0
               },
               "QuaternionRotation": {
@@ -87508,8 +87508,8 @@
                 "w": 1.0
               },
               "Scale": {
-                "x": 1.0,
-                "y": 1.0,
+                "x": 1.42183971,
+                "y": 1.42183971,
                 "z": 1.0
               },
               "Enable": true
@@ -87613,8 +87613,8 @@
             {
               "@type": "MOD.Core.TransformComponent",
               "Position": {
-                "x": -4.845944,
-                "y": 3.58279943,
+                "x": -6.09806156,
+                "y": -6.69923449,
                 "z": 999.999
               },
               "QuaternionRotation": {
@@ -87622,6 +87622,11 @@
                 "y": 0.0,
                 "z": 0.0,
                 "w": 1.0
+              },
+              "Scale": {
+                "x": 2.0405333,
+                "y": 2.040533,
+                "z": 1.0
               },
               "Enable": true
             },
@@ -87662,8 +87667,8 @@
             {
               "@type": "MOD.Core.TransformComponent",
               "Position": {
-                "x": 2.5,
-                "y": 1.5,
+                "x": 3.30780554,
+                "y": -0.256973147,
                 "z": 0.0
               },
               "QuaternionRotation": {
@@ -87673,8 +87678,8 @@
                 "w": 1.0
               },
               "Scale": {
-                "x": 1.0,
-                "y": 1.0,
+                "x": 0.6603534,
+                "y": 0.6603534,
                 "z": 1.0
               },
               "Enable": true
@@ -87690,7 +87695,7 @@
               "PlayRate": 1.0,
               "RenderSetting": 0,
               "SortingLayer": "MapLayer5",
-              "SpriteRUID": "7b4b2408585b49e89d2ee61dc9c87e43",
+              "SpriteRUID": "9cfea5cceea14919a9a69e2d45354214",
               "StartFrameIndex": 0,
               "Color": {
                 "r": 1.0,
@@ -87743,8 +87748,8 @@
             {
               "@type": "MOD.Core.TransformComponent",
               "Position": {
-                "x": -2.15881062,
-                "y": -3.71734715,
+                "x": 9.260423,
+                "y": 12.0387993,
                 "z": 0.0
               },
               "QuaternionRotation": {
@@ -87754,8 +87759,8 @@
                 "w": 1.0
               },
               "Scale": {
-                "x": 1.0,
-                "y": 1.0,
+                "x": 1.24993289,
+                "y": 1.249933,
                 "z": 1.0
               },
               "Enable": true
@@ -87770,7 +87775,7 @@
               "OrderInLayer": 2,
               "PlayRate": 1.0,
               "RenderSetting": 0,
-              "SpriteRUID": "6796165eeb2944a380321e3f1b9cdf68",
+              "SpriteRUID": "68496b170fe1406a88f43437f0847801",
               "StartFrameIndex": 0,
               "Color": {
                 "r": 1.0,
@@ -87828,8 +87833,8 @@
             {
               "@type": "MOD.Core.TransformComponent",
               "Position": {
-                "x": 4.0,
-                "y": 0.5,
+                "x": -0.879048347,
+                "y": -1.48302531,
                 "z": 0.0
               },
               "QuaternionRotation": {
@@ -87839,8 +87844,8 @@
                 "w": 1.0
               },
               "Scale": {
-                "x": 1.0,
-                "y": 1.0,
+                "x": 1.369998,
+                "y": 1.369998,
                 "z": 1.0
               },
               "Enable": true
@@ -87953,8 +87958,8 @@
             {
               "@type": "MOD.Core.TransformComponent",
               "Position": {
-                "x": -3.5,
-                "y": -3.4,
+                "x": 7.68548,
+                "y": 10.7059622,
                 "z": 0.0
               },
               "QuaternionRotation": {
@@ -87964,8 +87969,8 @@
                 "w": 1.0
               },
               "Scale": {
-                "x": 1.0,
-                "y": 1.0,
+                "x": 1.28217387,
+                "y": 1.282174,
                 "z": 1.0
               },
               "Enable": true
@@ -88078,8 +88083,8 @@
             {
               "@type": "MOD.Core.TransformComponent",
               "Position": {
-                "x": 3.5,
-                "y": -5.5,
+                "x": 6.927777,
+                "y": 12.3085546,
                 "z": 0.0
               },
               "QuaternionRotation": {
@@ -88089,8 +88094,8 @@
                 "w": 1.0
               },
               "Scale": {
-                "x": 1.0,
-                "y": 1.0,
+                "x": 0.6401515,
+                "y": 0.6401515,
                 "z": 1.0
               },
               "Enable": true
@@ -88106,7 +88111,7 @@
               "PlayRate": 1.0,
               "RenderSetting": 0,
               "SortingLayer": "MapLayer5",
-              "SpriteRUID": "7b4b2408585b49e89d2ee61dc9c87e43",
+              "SpriteRUID": "7e12cbe0561d4519b25f4b6ee7acbab1",
               "StartFrameIndex": 0,
               "Color": {
                 "r": 1.0,
@@ -88159,8 +88164,8 @@
             {
               "@type": "MOD.Core.TransformComponent",
               "Position": {
-                "x": 0.0,
-                "y": 4.5,
+                "x": 0.9245907,
+                "y": -0.315175,
                 "z": 0.0
               },
               "QuaternionRotation": {
@@ -88170,8 +88175,8 @@
                 "w": 1.0
               },
               "Scale": {
-                "x": 1.0,
-                "y": 1.0,
+                "x": 1.14786935,
+                "y": 1.14786935,
                 "z": 1.0
               },
               "Enable": true
@@ -88187,7 +88192,7 @@
               "PlayRate": 1.0,
               "RenderSetting": 0,
               "SortingLayer": "MapLayer5",
-              "SpriteRUID": "cbdb6e1fd013457192e0bfa7c6e6d9fa",
+              "SpriteRUID": "130141b29b704abf8c9b29f84d711f74",
               "StartFrameIndex": 0,
               "Color": {
                 "r": 1.0,
@@ -88295,8 +88300,8 @@
             {
               "@type": "MOD.Core.TransformComponent",
               "Position": {
-                "x": 9.0,
-                "y": -1.5,
+                "x": 18.66089,
+                "y": 4.255257,
                 "z": 0.0
               },
               "QuaternionRotation": {
@@ -88306,8 +88311,8 @@
                 "w": 1.0
               },
               "Scale": {
-                "x": 1.0,
-                "y": 1.0,
+                "x": 1.63619542,
+                "y": 1.63619566,
                 "z": 1.0
               },
               "Enable": true
@@ -88363,8 +88368,8 @@
             {
               "@type": "MOD.Core.TransformComponent",
               "Position": {
-                "x": -9.5,
-                "y": 5.2,
+                "x": -5.609912,
+                "y": 4.694177,
                 "z": 0.0
               },
               "QuaternionRotation": {
@@ -88374,8 +88379,8 @@
                 "w": 1.0
               },
               "Scale": {
-                "x": 1.0,
-                "y": 1.0,
+                "x": 2.09050035,
+                "y": 2.09050035,
                 "z": 1.0
               },
               "Enable": true
@@ -88391,7 +88396,7 @@
               "PlayRate": 1.0,
               "RenderSetting": 0,
               "SortingLayer": "MapLayer5",
-              "SpriteRUID": "70993f0dc5ab44e6841780e218f3d86b",
+              "SpriteRUID": "e7eb1ead48df4473b19d9bd750bad379",
               "StartFrameIndex": 0,
               "Color": {
                 "r": 1.0,
@@ -88431,8 +88436,8 @@
             {
               "@type": "MOD.Core.TransformComponent",
               "Position": {
-                "x": -11.2,
-                "y": 3.2,
+                "x": -16.6360874,
+                "y": 4.21366739,
                 "z": 0.0
               },
               "QuaternionRotation": {
@@ -88442,8 +88447,8 @@
                 "w": 1.0
               },
               "Scale": {
-                "x": 1.0,
-                "y": 1.0,
+                "x": 1.788504,
+                "y": 1.78850377,
                 "z": 1.0
               },
               "Enable": true
@@ -88499,8 +88504,8 @@
             {
               "@type": "MOD.Core.TransformComponent",
               "Position": {
-                "x": -7.2,
-                "y": 5.8,
+                "x": -12.00214,
+                "y": 11.1811447,
                 "z": 0.0
               },
               "QuaternionRotation": {
@@ -88510,8 +88515,8 @@
                 "w": 1.0
               },
               "Scale": {
-                "x": 1.0,
-                "y": 1.0,
+                "x": 1.81485331,
+                "y": 1.81485307,
                 "z": 1.0
               },
               "Enable": true
@@ -88542,74 +88547,6 @@
         }
       },
       {
-        "id": "017346e4-9edf-4f67-b12b-86e8f24acfc1",
-        "path": "/maps/town/House_ThatchHut",
-        "componentNames": "MOD.Core.TransformComponent,MOD.Core.SpriteRendererComponent",
-        "jsonString": {
-          "name": "House_ThatchHut",
-          "path": "/maps/town/House_ThatchHut",
-          "nameEditable": true,
-          "enable": true,
-          "visible": true,
-          "localize": false,
-          "displayOrder": 28,
-          "pathConstraints": "///",
-          "revision": 1,
-          "origin": {
-            "type": "Model",
-            "entry_id": "house_thatch_hut",
-            "sub_entity_id": null,
-            "root_entity_id": "017346e4-9edf-4f67-b12b-86e8f24acfc1",
-            "replaced_model_id": null
-          },
-          "modelId": "house_thatch_hut",
-          "@components": [
-            {
-              "@type": "MOD.Core.TransformComponent",
-              "Position": {
-                "x": -9.5,
-                "y": -7.8,
-                "z": 0.0
-              },
-              "QuaternionRotation": {
-                "x": 0.0,
-                "y": 0.0,
-                "z": 0.0,
-                "w": 1.0
-              },
-              "Scale": {
-                "x": 1.0,
-                "y": 1.0,
-                "z": 1.0
-              },
-              "Enable": true
-            },
-            {
-              "@type": "MOD.Core.SpriteRendererComponent",
-              "ActionSheet": {},
-              "DrawMode": 0,
-              "EndFrameIndex": 2147483647,
-              "FlipX": false,
-              "FlipY": false,
-              "OrderInLayer": 10,
-              "PlayRate": 1.0,
-              "RenderSetting": 0,
-              "SortingLayer": "MapLayer5",
-              "SpriteRUID": "c2c90cbd4b974c2d8bdc93998196404c",
-              "StartFrameIndex": 0,
-              "Color": {
-                "r": 1.0,
-                "g": 1.0,
-                "b": 1.0,
-                "a": 1.0
-              },
-              "Enable": true
-            }
-          ],
-          "@version": 1
-        }
-      },
-      {
         "id": "07d4129e-3fec-4da0-8839-561869e650a1",
         "path": "/maps/town/House_WoodTower",
         "componentNames": "MOD.Core.TransformComponent,MOD.Core.SpriteRendererComponent",
@@ -88620,7 +88557,7 @@
           "enable": true,
           "visible": true,
           "localize": false,
-          "displayOrder": 29,
+          "displayOrder": 28,
           "pathConstraints": "///",
           "revision": 1,
           "origin": {
@@ -88635,8 +88572,8 @@
             {
               "@type": "MOD.Core.TransformComponent",
               "Position": {
-                "x": 13.4780025,
-                "y": -10.41831,
+                "x": 6.626129,
+                "y": -6.963333,
                 "z": 0.0
               },
               "QuaternionRotation": {
@@ -88646,8 +88583,8 @@
                 "w": 1.0
               },
               "Scale": {
-                "x": 1.0,
-                "y": 1.0,
+                "x": 0.446144819,
+                "y": 0.446144819,
                 "z": 1.0
               },
               "Enable": true
@@ -88663,7 +88600,7 @@
               "PlayRate": 1.0,
               "RenderSetting": 0,
               "SortingLayer": "MapLayer5",
-              "SpriteRUID": "d6027217ea184d9c97a9492cb20d9ae7",
+              "SpriteRUID": "0c4b4594c66c48e4a44e6e1ff4db8056",
               "StartFrameIndex": 0,
               "Color": {
                 "r": 1.0,
@@ -88688,7 +88625,7 @@
           "enable": true,
           "visible": true,
           "localize": false,
-          "displayOrder": 30,
+          "displayOrder": 29,
           "pathConstraints": "///",
           "revision": 1,
           "origin": {
@@ -88703,8 +88640,8 @@
             {
               "@type": "MOD.Core.TransformComponent",
               "Position": {
-                "x": 1.8,
-                "y": -1.2,
+                "x": 8.647855,
+                "y": 2.47852373,
                 "z": 0.0
               },
               "QuaternionRotation": {
@@ -88714,8 +88651,8 @@
                 "w": 1.0
               },
               "Scale": {
-                "x": 1.0,
-                "y": 1.0,
+                "x": 1.218373,
+                "y": 1.218373,
                 "z": 1.0
               },
               "Enable": true
@@ -88813,7 +88750,7 @@
           "enable": true,
           "visible": true,
           "localize": false,
-          "displayOrder": 31,
+          "displayOrder": 30,
           "pathConstraints": "///",
           "revision": 1,
           "origin": {
@@ -88828,8 +88765,8 @@
             {
               "@type": "MOD.Core.TransformComponent",
               "Position": {
-                "x": -3.2,
-                "y": 3.5,
+                "x": -5.770833,
+                "y": 2.53688431,
                 "z": 0.0
               },
               "QuaternionRotation": {
@@ -88839,8 +88776,8 @@
                 "w": 1.0
               },
               "Scale": {
-                "x": 1.0,
-                "y": 1.0,
+                "x": 1.35664546,
+                "y": 1.35664546,
                 "z": 1.0
               },
               "Enable": true
@@ -88938,7 +88875,7 @@
           "enable": true,
           "visible": true,
           "localize": false,
-          "displayOrder": 32,
+          "displayOrder": 31,
           "pathConstraints": "///",
           "revision": 1,
           "origin": {
@@ -88953,8 +88890,8 @@
             {
               "@type": "MOD.Core.TransformComponent",
               "Position": {
-                "x": -10.2,
-                "y": 4.2,
+                "x": 15.8665247,
+                "y": 3.5628345,
                 "z": 0.0
               },
               "QuaternionRotation": {
@@ -88964,8 +88901,8 @@
                 "w": 1.0
               },
               "Scale": {
-                "x": 1.0,
-                "y": 1.0,
+                "x": 1.22112167,
+                "y": 1.22112191,
                 "z": 1.0
               },
               "Enable": true
@@ -89063,7 +89000,7 @@
           "enable": true,
           "visible": true,
           "localize": false,
-          "displayOrder": 33,
+          "displayOrder": 32,
           "pathConstraints": "///",
           "revision": 1,
           "origin": {
@@ -89077,22 +89014,28 @@
           "@components": [
             {
               "@type": "MOD.Core.TransformComponent",
+              "Rotation": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 1.336034
+              },
               "Position": {
-                "x": 10.5,
-                "y": -3.5,
+                "x": 7.665717,
+                "y": -9.31196,
                 "z": 0.0
               },
               "QuaternionRotation": {
                 "x": 0.0,
                 "y": 0.0,
-                "z": 0.0,
-                "w": 1.0
+                "z": 0.0116588306,
+                "w": 0.999932051
               },
               "Scale": {
-                "x": 1.0,
-                "y": 1.0,
+                "x": 1.65814745,
+                "y": 1.65814722,
                 "z": 1.0
               },
+              "ZRotation": 1.336034,
               "Enable": true
             },
             {
@@ -89188,7 +89131,7 @@
           "enable": true,
           "visible": true,
           "localize": false,
-          "displayOrder": 34,
+          "displayOrder": 33,
           "pathConstraints": "///",
           "revision": 1,
           "origin": {
@@ -89203,8 +89146,8 @@
             {
               "@type": "MOD.Core.TransformComponent",
               "Position": {
-                "x": 2.2,
-                "y": -3.2,
+                "x": 3.34173584,
+                "y": -2.89661622,
                 "z": 0.0
               },
               "QuaternionRotation": {
@@ -89214,8 +89157,8 @@
                 "w": 1.0
               },
               "Scale": {
-                "x": 1.0,
-                "y": 1.0,
+                "x": 1.37186646,
+                "y": 1.37186658,
                 "z": 1.0
               },
               "Enable": true
@@ -89231,7 +89174,7 @@
               "PlayRate": 1.0,
               "RenderSetting": 0,
               "SortingLayer": "MapLayer5",
-              "SpriteRUID": "c981d6ae466148f482dce1cac7a0d10c",
+              "SpriteRUID": "f89583f2cd1545db872be2919b452290",
               "StartFrameIndex": 0,
               "Color": {
                 "r": 1.0,

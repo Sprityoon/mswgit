@@ -1,0 +1,23 @@
+{
+  "Id": "",
+  "GameId": "",
+  "EntryKey": "sprite://68496b170fe1406a88f43437f0847801",
+  "ContentType": "x-mod/sprite",
+  "Content": "",
+  "Usage": 0,
+  "UsePublish": 1,
+  "UseService": 0,
+  "CoreVersion": "26.5.0.0",
+  "StudioVersion": "0.1.0.0",
+  "DynamicLoading": 0,
+  "ContentProto": {
+    "Use": "Json",
+    "Json": {
+      "upload_keyname": "30/16/3016058963e141f19ca78e39d98a2f17/sprite/68496b170fe1406a88f43437f0847801/639203118992350928",
+      "upload_hash": "843F0EABDD46EE63C9C4C56B9B48DEBB238EF56A95BBA15127F8487D767BF096",
+      "name": "msw_topdown_fishing_pond_256",
+      "resource_guid": "68496b170fe1406a88f43437f0847801",
+      "resource_version": "6a60975b8a181b93f7b208f1"
+    }
+  }
+}
