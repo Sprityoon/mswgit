@@ -30,7 +30,9 @@
 | avatar / costume / 장비 / 모션 | `msw-avatar` | (없음) |
 | DefaultPlayer / 이속 / 점프 / 카메라 | `msw-defaultplayer` | (없음) |
 | attack / hit / damage / 몬스터 전투 | `msw-combat-system` | 몬스터 모델 → `../msw-general/references/monster.md` · HP바 → `references/hp-gauge.md` · 투사체 → `references/projectile.md` · FSM → `../msw-general/references/animation-state.md` · BT → `references/ai-bt.md` |
-| 인벤토리 / 상점 / 랭킹 / 퀘스트 / 도감 등 표준 시스템 | `msw-packages` | (카탈로그 먼저 — 백지 구현 금지) |
+| 인벤토리 / 상점 / 랭킹 / 퀘스트 / 도감 등 표준 시스템 | `msw-packages` + `msw-wiki` | 카탈로그 먼저 — 백지 구현 금지. README는 로컬 미러(`docs/wiki/mswpackages/`)부터 |
+| 패키지 상세 / 공식 예제 / 충돌 감지 방식 / 오브젝트 풀 / 강화·레벨 예제 / UI 스타일팩 | `msw-wiki` | `docs/wiki/{mswpackages,roguelike-world}/INDEX.md` 먼저 |
+| 새 게임 기획 / GDD / 마일스톤 로드맵 (독립 월드) | `msw-planning` | ⚠️ **이 프로젝트의 "다음 작업/이어서" = T티켓 큐** → `msw-worker`/`msw-conductor`가 우선. msw-planning은 별도 신규 게임·마일스톤 GDD 작업에만 |
 | popup / HUD / 버튼 / 토스트 / `.ui` | `msw-ui-system` | 스타일 → `references/templates/templates.md` · API → `references/component-api.md` · 런타임 패턴 → `references/runtime-patterns.md` · 빌더 → `../msw-general/references/builder-protocol.md` · 미학 → `references/ui-aesthetics.md`(UI 납품 시 §7 루브릭 필수) |
 | entity 배치 / `.map` / spawn / 좌표 | `msw-general` | `references/entity.md` + `references/builder-protocol.md` |
 | `.model` / 템플릿 | `msw-general` | `references/model.md` + `references/builder-protocol.md` (+몬스터면 `monster.md`) |
@@ -47,4 +49,5 @@
 | `msw-conductor` | 지휘자 세션 부팅: 큐·트래커 재구성, 보고 검수, T티켓 발행 |
 | `msw-worker` | T티켓 구현 표준 절차: §1 로드 → 레인 준수 → 구현 → 검증 체인 → 보고 3종 |
 | `msw-checkpoint` | 문서 동기화 점검 + git 커밋·푸시 |
+| `msw-wiki` | 로컬 위키(docs/wiki) 안내 — MSWPackages 미러 + RoguelikeWorld 예제 큐레이션 |
 | `image-to-pixel` | 원본 이미지 → 픽셀 게임 에셋 변환 |

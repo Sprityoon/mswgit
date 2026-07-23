@@ -26,6 +26,11 @@
 | UserPromptSubmit | `hooks/core-version-check/core-version-check.cjs` | `Environment/config`의 CoreVersion ≠ `26.5.0.0`이면 작업 중단 지시 주입 (워크스페이스당 1회) | 벤더 |
 | UserPromptSubmit | `hooks-project/skill-router-lite.cjs` | 스킬 라우팅 리마인더: **세션 첫 프롬프트 = 벤더 전문(~20KB) 위임 주입, 이후 = 요약(~2KB)** | 프로젝트 (신설 — 매 턴 20KB 주입하던 벤더판 대체. 전문 텍스트의 단일 소스는 여전히 벤더 스크립트) |
 
+### 2026-07-23 변경 — 벤더 스킬 v0.6.0 동기화 + 라우터 LITE에 위키·플래닝 라우팅 추가
+
+- **벤더 스킬 동기화**: `MSW-Git/msw-ai-coding-plugins-official` v0.5.3 → **v0.6.0** (22파일 갱신 + `msw-planning` 스킬 신규). 커스텀 유지 파일 2종(`msw-ui-system/SKILL.md`, `references/layout-recipes.md`)은 업스트림 변경분만 선별 병합. `skills-lock.json` computedHash 전량 재계산(알고리즘 재현 검증 완료: 스킬 폴더 전 파일 POSIX 상대경로 정렬 → `경로+raw bytes` SHA-256 — vercel-labs/skills local-lock 규격). 반입 작업은 `MSW_READONLY_GUARD_DISABLE=1` 1회 우회로 수행(사유: 벤더 마이그레이션 — 본 항목이 그 기록).
+- **`skill-router-lite.cjs` LITE 요약 갱신**: `msw-wiki`(로컬 위키 `docs/wiki/` — MSWPackages 미러·RoguelikeWorld 예제) 라우팅 + `msw-planning` 우선순위 주의("다음 작업"류는 T티켓 큐 소관) 2줄 추가. 벤더 전문(첫 턴 주입분)은 벤더 소유라 미수정 — 전문과 LITE가 다르면 프로젝트 문서(`skill-routing.md`)가 보완 소스.
+
 ### 2026-07-16 변경 — SessionStart LSP 훅 timeout 수정 (stdin 무기한 대기 → 프로젝트 포크)
 
 - **증상**: `project/settings:session_start[0].hooks[0]` timeout(120s) 에러 (제작자 보고).

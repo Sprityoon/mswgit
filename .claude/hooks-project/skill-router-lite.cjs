@@ -77,6 +77,9 @@ Domain → additional skill:
   avatar/costume/motion        → msw-avatar        | DefaultPlayer/speed/jump/camera   → msw-defaultplayer
   attack/hit/damage/monster    → msw-combat-system (+monster.md/hp-gauge.md/projectile.md/ai-bt.md per sub-trigger)
   inventory/shop/quest/ranking → msw-packages (catalog FIRST — never write standard systems from scratch)
+                                 + msw-wiki: local mirrors docs/wiki/mswpackages/ (read INDEX.md before any GitHub fetch)
+  official examples/obj pool/collision-detect choice/UI style packs → msw-wiki (docs/wiki/roguelike-world + mswpackages)
+  NEW standalone game planning/GDD → msw-planning (in THIS repo "next task/continue" = T-ticket queue → msw-worker, NOT planning)
   popup/HUD/.ui                → msw-ui-system refs (+builder-protocol.md; ui-aesthetics.md §7 rubric on delivery)
   .map/.model/entity/platform  → msw-general refs (entity.md / model.md / platform*.md / troubleshooting.md)
   T-ticket work                → msw-worker        | conductor duties → msw-conductor

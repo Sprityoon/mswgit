@@ -1154,7 +1154,8 @@ script PlayerController extends Component
 
 	method boolean IsAimTarget(Entity target)
 		-- T67: 조준선 셀(playerCell+LastDirection)이 대상 footprint 안이면 true.
-		-- 기본 footprint=1×1(대상 셀). 대형은 컴포넌트 AimFootprintW/H 프로퍼티로 확장(이름 분기 금지).
+		-- T82: TriggerComponent가 있으면(유효 AABB)면 조준 셀 월드 1×1과 Trigger AABB 겹침으로 판정.
+		-- Trigger 없으면 기존 AimFootprintW/H 경로(기본 1×1, 대형은 컴포넌트 프로퍼티 — 이름 분기 금지).
 		if not isvalid(target) then return false end
 		local currentMap = self.Entity.CurrentMap
 		if not isvalid(currentMap) then return false end
@@ -1163,6 +1164,23 @@ script PlayerController extends Component
 		local playerCell = tilemap:ToCellPosition(self.Entity.TransformComponent.WorldPosition)
 		if playerCell == nil then return false end
 		local aimCell = Vector2Int(playerCell.x + self.LastDirectionX, playerCell.y + self.LastDirectionY)
+		local targetName = target.Name
+		if targetName == nil then targetName = "?" end
+
+		-- T82: Trigger AABB ∩ aim-cell world rect
+		local box = { minX = 0, maxX = 0, minY = 0, maxY = 0 }
+		if self:GetColliderAABB(target, box) then
+			local aimMinX = aimCell.x
+			local aimMaxX = aimCell.x + 1
+			local aimMinY = aimCell.y
+			local aimMaxY = aimCell.y + 1
+			local eps = 0.001
+			local hit = aimMaxX > (box.minX - eps) and aimMinX < (box.maxX + eps)
+				and aimMaxY > (box.minY - eps) and aimMinY < (box.maxY + eps)
+			log(string.format("[T82][AIM] target=%s mode=trigger hit=%s", targetName, tostring(hit)))
+			return hit
+		end
+
 		local targetCell = tilemap:ToCellPosition(target.TransformComponent.WorldPosition)
 		if targetCell == nil then return false end
 		local fp = self:ReadAimFootprint(target)
@@ -1172,7 +1190,9 @@ script PlayerController extends Component
 		local maxDy = math.floor((fh - 1) / 2)
 		local dx = math.abs(aimCell.x - targetCell.x)
 		local dy = math.abs(aimCell.y - targetCell.y)
-		return dx <= maxDx and dy <= maxDy
+		local hit = dx <= maxDx and dy <= maxDy
+		log(string.format("[T82][AIM] target=%s mode=footprint hit=%s", targetName, tostring(hit)))
+		return hit
 	end
 
 	method Vector2Int ReadAimFootprint(Entity target)

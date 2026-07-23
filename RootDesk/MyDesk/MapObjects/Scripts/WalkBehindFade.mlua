@@ -1,0 +1,118 @@
+@Component
+script WalkBehindFade extends Component
+
+	-- MapObject ResourceReaction과 동일 계열: 플레이어가 스프라이트에 가려질 때
+	-- 건물이 반투명(SetAlpha)되고, EntityLayer + Y 기반 OrderInLayer로 "위가 아니라 뒤"로 정렬.
+
+	property number CoveredAlpha = 0.4
+
+	-- OrderInLayer = (SortRadius - worldY) * 100. 홈 ResourceSpawner.MapRadius=30과 맞추려면
+	-- 배치 맵에 맞게 프로퍼티만 조정(코드 분기 금지).
+	property number SortRadius = 100
+
+	property boolean EnableYSort = true
+
+	-- 가림 밴드: 충돌 Trigger 박스 **상단 북쪽**만 (ResourceReaction의 y×3 배율은 건물엔 과대).
+	-- CoverNorthExtent = 박스 윗변에서 북쪽으로 몇 유닛까지 반투명할지.
+	-- CoverWidthScale = 박스 폭 대비 가림 폭(1=전체, 0.85=살짝 안쪽).
+	property number CoverNorthExtent = 1.2
+
+	property number CoverWidthScale = 0.85
+
+	property boolean _WasCovered = false
+
+	method void OnBeginPlay()
+		if not self:IsClient() then return end
+		self:ApplyYSort()
+		log(string.format("[T83][WALKBEHIND] begin entity=%s sort=%s", tostring(self.Entity.Name), tostring(self.EnableYSort)))
+	end
+
+	method void ApplyYSort()
+		if not self.EnableYSort then return end
+		local sprite = self.Entity.SpriteRendererComponent
+		local transform = self.Entity.TransformComponent
+		if not isvalid(sprite) or not isvalid(transform) then return end
+		if _RenderLayers then
+			sprite.SortingLayer = _RenderLayers.EntityLayer
+		else
+			sprite.SortingLayer = "MapLayer5"
+		end
+		local radius = self.SortRadius
+		if _ResourceSpawner ~= nil then
+			local ok, r = pcall(function() return _ResourceSpawner.MapRadius end)
+			if ok and r ~= nil then
+				radius = tonumber(r) or radius
+			end
+		end
+		local y = transform.WorldPosition.y
+		local minOrder = 2
+		if _RenderLayers and _RenderLayers.MinEntityOrder ~= nil then
+			minOrder = _RenderLayers.MinEntityOrder
+		end
+		sprite.OrderInLayer = math.max(minOrder, math.floor((radius - y) * 100))
+	end
+
+	method void OnUpdate(number delta)
+		-- 가림 = Trigger AABB 상단의 좁은 북쪽 밴드만 (본체 앞·옆에서는 불투명 유지).
+		if not self:IsClient() then return end
+		local localPlayer = _UserService.LocalPlayer
+		if not isvalid(localPlayer) then return end
+		local playerTransform = localPlayer.TransformComponent
+		local myTransform = self.Entity.TransformComponent
+		if not isvalid(playerTransform) or not isvalid(myTransform) then return end
+
+		local playerPos = playerTransform.WorldPosition
+		local myPos = myTransform.WorldPosition
+
+		local offsetX = 0.0
+		local offsetY = 0.0
+		local boxSize = nil
+
+		local trigger = self.Entity.TriggerComponent
+		local collider = self.Entity.PhysicsColliderComponent
+		if isvalid(trigger) then
+			boxSize = trigger.BoxSize
+			offsetX = trigger.ColliderOffset.x
+			offsetY = trigger.ColliderOffset.y
+		elseif isvalid(collider) then
+			boxSize = collider.BoxSize
+			offsetX = collider.ColliderOffset.x
+			offsetY = collider.ColliderOffset.y
+		end
+
+		local isCovered = false
+		if boxSize then
+			local cx = myPos.x + offsetX
+			local cy = myPos.y + offsetY
+			local hx = boxSize.x * 0.5
+			local hy = boxSize.y * 0.5
+			local boxMaxY = cy + hy
+			local widthScale = self.CoverWidthScale
+			if widthScale == nil or widthScale <= 0 then widthScale = 0.85 end
+			local halfW = hx * widthScale
+			local north = self.CoverNorthExtent
+			if north == nil or north < 0.2 then north = 1.2 end
+			-- 박스 윗변 근처~북쪽 CoverNorthExtent 안 + 폭 안쪽만
+			isCovered = playerPos.x >= (cx - halfW) and playerPos.x <= (cx + halfW)
+				and playerPos.y > (boxMaxY - 0.1)
+				and playerPos.y < (boxMaxY + north)
+		end
+
+		local sprite = self.Entity.SpriteRendererComponent
+		if not isvalid(sprite) then return end
+		if isCovered then
+			sprite:SetAlpha(self.CoveredAlpha)
+			if not self._WasCovered then
+				self._WasCovered = true
+				log(string.format("[T83][WALKBEHIND] cover=true entity=%s", tostring(self.Entity.Name)))
+			end
+		else
+			sprite:SetAlpha(1.0)
+			if self._WasCovered then
+				self._WasCovered = false
+				log(string.format("[T83][WALKBEHIND] cover=false entity=%s", tostring(self.Entity.Name)))
+			end
+		end
+	end
+
+end

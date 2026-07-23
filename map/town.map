@@ -33,12 +33,12 @@
               "@type": "MOD.Core.MapComponent",
               "IsInstanceMap": false,
               "LeftBottom": {
-                "x": -50.0,
-                "y": -50.0
+                "x": -50,
+                "y": -50
               },
               "RightTop": {
-                "x": 50.0,
-                "y": 50.0
+                "x": 50,
+                "y": 50
               },
               "TileMapMode": 1,
               "Enable": true
@@ -71,27 +71,27 @@
             {
               "@type": "MOD.Core.TransformComponent",
               "Rotation": {
-                "x": 0.0,
-                "y": 0.0,
-                "z": 0.0
+                "x": 0,
+                "y": 0,
+                "z": 0
               },
               "Position": {
-                "x": 0.0,
-                "y": 0.0,
-                "z": 0.0
+                "x": 0,
+                "y": 0,
+                "z": 0
               },
               "QuaternionRotation": {
-                "x": 0.0,
-                "y": 0.0,
-                "z": 0.0,
-                "w": 1.0
+                "x": 0,
+                "y": 0,
+                "z": 0,
+                "w": 1
               },
               "Scale": {
-                "x": 1.0,
-                "y": 1.0,
-                "z": 1.0
+                "x": 1,
+                "y": 1,
+                "z": 1
               },
-              "ZRotation": 0.0,
+              "ZRotation": 0,
               "Enable": true
             },
             {
@@ -103,7 +103,7 @@
               "SpriteRUID": "ecb83722d7fa4a3ab425302401032701",
               "Color": {
                 "r": 0.2,
-                "g": 1.0,
+                "g": 1,
                 "b": 0.2,
                 "a": 0.6
               },
@@ -135,7 +135,7 @@
                 "r": 0.549019635,
                 "g": 0.34117648,
                 "b": 0.164705887,
-                "a": 1.0
+                "a": 1
               },
               "TemplateRUID": "794ad8421e2543d8a6d2c70307637450",
               "Type": 3,
@@ -208,15 +208,15 @@
             {
               "@type": "MOD.Core.TransformComponent",
               "Position": {
-                "x": 0.0,
-                "y": 0.0,
-                "z": 1000.0
+                "x": 0,
+                "y": 0,
+                "z": 1000
               },
               "QuaternionRotation": {
-                "x": 0.0,
-                "y": 0.0,
-                "z": 0.0,
-                "w": 1.0
+                "x": 0,
+                "y": 0,
+                "z": 0,
+                "w": 1
               },
               "Enable": true
             },
@@ -40622,15 +40622,15 @@
             {
               "@type": "MOD.Core.TransformComponent",
               "Position": {
-                "x": 0.0,
-                "y": 0.0,
-                "z": 1000.0
+                "x": 0,
+                "y": 0,
+                "z": 1000
               },
               "QuaternionRotation": {
-                "x": 0.0,
-                "y": 0.0,
-                "z": 0.0,
-                "w": 1.0
+                "x": 0,
+                "y": 0,
+                "z": 0,
+                "w": 1
               },
               "Enable": true
             },
@@ -73988,15 +73988,15 @@
             {
               "@type": "MOD.Core.TransformComponent",
               "Position": {
-                "x": 0.0,
-                "y": 0.0,
-                "z": 1000.0
+                "x": 0,
+                "y": 0,
+                "z": 1000
               },
               "QuaternionRotation": {
-                "x": 0.0,
-                "y": 0.0,
-                "z": 0.0,
-                "w": 1.0
+                "x": 0,
+                "y": 0,
+                "z": 0,
+                "w": 1
               },
               "Enable": true
             },
@@ -74042,15 +74042,15 @@
                 "z": 999.999
               },
               "QuaternionRotation": {
-                "x": 0.0,
-                "y": 0.0,
-                "z": 0.0,
-                "w": 1.0
+                "x": 0,
+                "y": 0,
+                "z": 0,
+                "w": 1
               },
               "Scale": {
-                "x": 1.0,
-                "y": 1.0,
-                "z": 1.0
+                "x": 1,
+                "y": 1,
+                "z": 1
               },
               "Enable": true
             },
@@ -74100,18 +74100,18 @@
               "Position": {
                 "x": 7.25367928,
                 "y": -1.7275157,
-                "z": 0.0
+                "z": 0
               },
               "QuaternionRotation": {
-                "x": 0.0,
-                "y": 0.0,
-                "z": 0.0,
-                "w": 1.0
+                "x": 0,
+                "y": 0,
+                "z": 0,
+                "w": 1
               },
               "Scale": {
-                "x": 1.0,
-                "y": 1.0,
-                "z": 1.0
+                "x": 1,
+                "y": 1,
+                "z": 1
               },
               "Enable": true
             },
@@ -74124,16 +74124,16 @@
               "FlipY": false,
               "IgnoreMapLayerCheck": true,
               "OrderInLayer": 7500,
-              "PlayRate": 1.0,
+              "PlayRate": 1,
               "RenderSetting": 0,
               "SortingLayer": "MapLayer2",
               "SpriteRUID": "aba58d2139ca4736bab39f6b4c39aa37",
               "StartFrameIndex": 0,
               "Color": {
-                "r": 1.0,
-                "g": 1.0,
-                "b": 1.0,
-                "a": 1.0
+                "r": 1,
+                "g": 1,
+                "b": 1,
+                "a": 1
               },
               "Enable": true
             },
@@ -74155,13 +74155,14 @@
               "Enable": true,
               "TargetMapName": "Home",
               "TargetPosition": {
-                "x": -3.0,
-                "y": 0.0
+                "x": -3,
+                "y": 0
               }
             },
             {
               "@type": "script.PlaceableFurniture",
-              "Enable": true
+              "Enable": true,
+              "BlocksMovement": false
             }
           ],
           "@version": 1
@@ -74170,7 +74171,7 @@
       {
         "id": "31e3ee9b-02de-4728-b43c-17444882888d",
         "path": "/maps/town/ResearchLab",
-        "componentNames": "MOD.Core.TransformComponent,MOD.Core.SpriteRendererComponent,MOD.Core.TouchReceiveComponent,script.ResearchLab",
+        "componentNames": "MOD.Core.TransformComponent,MOD.Core.SpriteRendererComponent,MOD.Core.TouchReceiveComponent,script.ResearchLab,MOD.Core.TriggerComponent,script.ResourceOccupiedArea,script.WalkBehindFade",
         "jsonString": {
           "name": "ResearchLab",
           "path": "/maps/town/ResearchLab",
@@ -74195,18 +74196,18 @@
               "Position": {
                 "x": 6.46248245,
                 "y": 4.696032,
-                "z": 0.0
+                "z": 0
               },
               "QuaternionRotation": {
-                "x": 0.0,
-                "y": 0.0,
-                "z": 0.0,
-                "w": 1.0
+                "x": 0,
+                "y": 0,
+                "z": 0,
+                "w": 1
               },
               "Scale": {
                 "x": 1.75236249,
                 "y": 1.75236249,
-                "z": 1.0
+                "z": 1
               },
               "Enable": true
             },
@@ -74218,16 +74219,16 @@
               "FlipX": false,
               "FlipY": false,
               "OrderInLayer": 10,
-              "PlayRate": 1.0,
+              "PlayRate": 1,
               "RenderSetting": 0,
-              "SortingLayer": "MapLayer2",
+              "SortingLayer": "MapLayer5",
               "SpriteRUID": "7b4b2408585b49e89d2ee61dc9c87e43",
               "StartFrameIndex": 0,
               "Color": {
-                "r": 1.0,
-                "g": 1.0,
-                "b": 1.0,
-                "a": 1.0
+                "r": 1,
+                "g": 1,
+                "b": 1,
+                "a": 1
               },
               "Enable": true
             },
@@ -74238,6 +74239,34 @@
             {
               "@type": "script.ResearchLab",
               "Enable": true
+            },
+            {
+              "@type": "MOD.Core.TriggerComponent",
+              "IsLegacy": false,
+              "Enable": true,
+              "IsPassive": true,
+              "BoxSize": {
+                "x": 2.88,
+                "y": 2.5
+              },
+              "ColliderOffset": {
+                "x": 0,
+                "y": -0.35
+              }
+            },
+            {
+              "@type": "script.ResourceOccupiedArea",
+              "BlocksMovement": true,
+              "Enable": true
+            },
+            {
+              "@type": "script.WalkBehindFade",
+              "CoveredAlpha": 0.4,
+              "SortRadius": 100,
+              "EnableYSort": true,
+              "Enable": true,
+              "CoverNorthExtent": 1.2,
+              "CoverWidthScale": 0.85
             }
           ],
           "@version": 1
@@ -74305,15 +74334,15 @@
             {
               "@type": "MOD.Core.TransformComponent",
               "Position": {
-                "x": 0.0,
-                "y": 0.0,
-                "z": 0.0
+                "x": 0,
+                "y": 0,
+                "z": 0
               },
               "QuaternionRotation": {
-                "x": 0.0,
-                "y": 0.0,
-                "z": 0.0,
-                "w": 1.0
+                "x": 0,
+                "y": 0,
+                "z": 0,
+                "w": 1
               },
               "Enable": true
             },
@@ -80919,15 +80948,15 @@
             {
               "@type": "MOD.Core.TransformComponent",
               "Position": {
-                "x": 0.0,
-                "y": 0.0,
-                "z": 0.0
+                "x": 0,
+                "y": 0,
+                "z": 0
               },
               "QuaternionRotation": {
-                "x": 0.0,
-                "y": 0.0,
-                "z": 0.0,
-                "w": 1.0
+                "x": 0,
+                "y": 0,
+                "z": 0,
+                "w": 1
               },
               "Enable": true
             },
@@ -87474,7 +87503,7 @@
       {
         "id": "38a7705f-601b-46e1-a7de-640a86315eaa",
         "path": "/maps/town/Merchant",
-        "componentNames": "MOD.Core.TransformComponent,MOD.Core.SpriteRendererComponent,MOD.Core.RigidbodyComponent,MOD.Core.StateComponent,MOD.Core.ChatBalloonComponent,MOD.Core.StateAnimationComponent,MOD.Core.NameTagComponent,MOD.Core.TouchReceiveComponent,script.MerchantInteract",
+        "componentNames": "MOD.Core.TransformComponent,MOD.Core.SpriteRendererComponent,MOD.Core.RigidbodyComponent,MOD.Core.ChatBalloonComponent,MOD.Core.NameTagComponent,script.MerchantInteract,MOD.Core.TriggerComponent,script.ResourceOccupiedArea",
         "jsonString": {
           "name": "Merchant",
           "path": "/maps/town/Merchant",
@@ -87499,18 +87528,18 @@
               "Position": {
                 "x": -3.815639,
                 "y": -8.588628,
-                "z": 0.0
+                "z": 0
               },
               "QuaternionRotation": {
-                "x": 0.0,
-                "y": 0.0,
-                "z": 0.0,
-                "w": 1.0
+                "x": 0,
+                "y": 0,
+                "z": 0,
+                "w": 1
               },
               "Scale": {
                 "x": 1.42183971,
                 "y": 1.42183971,
-                "z": 1.0
+                "z": 1
               },
               "Enable": true
             },
@@ -87522,34 +87551,29 @@
               "FlipX": false,
               "FlipY": false,
               "OrderInLayer": 12,
-              "PlayRate": 1.0,
+              "PlayRate": 1,
               "RenderSetting": 0,
               "SortingLayer": "MapLayer5",
               "SpriteRUID": "61839a48f0144bbdb039f312ee7339bb",
               "StartFrameIndex": 0,
               "Color": {
-                "r": 1.0,
-                "g": 1.0,
-                "b": 1.0,
-                "a": 1.0
+                "r": 1,
+                "g": 1,
+                "b": 1,
+                "a": 1
               },
               "Enable": true
             },
             {
               "@type": "MOD.Core.RigidbodyComponent",
               "MoveVelocity": {
-                "x": 0.0,
-                "y": 0.0
+                "x": 0,
+                "y": 0
               },
               "RealMoveVelocity": {
-                "x": 0.0,
-                "y": 0.0
+                "x": 0,
+                "y": 0
               },
-              "Enable": true
-            },
-            {
-              "@type": "MOD.Core.StateComponent",
-              "IsLegacy": true,
               "Enable": true
             },
             {
@@ -87560,10 +87584,6 @@
               "Enable": true
             },
             {
-              "@type": "MOD.Core.StateAnimationComponent",
-              "Enable": true
-            },
-            {
               "@type": "MOD.Core.NameTagComponent",
               "NameTagRUID": {
                 "DataId": "9bf18287398c44699c20fc5123d1a1ae"
@@ -87571,16 +87591,26 @@
               "Enable": true
             },
             {
-              "@type": "MOD.Core.TouchReceiveComponent",
-              "AutoFitToSize": true,
-              "TouchArea": {
-                "x": 1.5,
-                "y": 2.5
-              },
+              "@type": "script.MerchantInteract",
               "Enable": true
             },
             {
-              "@type": "script.MerchantInteract",
+              "@type": "MOD.Core.TriggerComponent",
+              "IsLegacy": false,
+              "Enable": true,
+              "IsPassive": true,
+              "BoxSize": {
+                "x": 0.8,
+                "y": 0.8
+              },
+              "ColliderOffset": {
+                "x": 0,
+                "y": -0.35
+              }
+            },
+            {
+              "@type": "script.ResourceOccupiedArea",
+              "BlocksMovement": true,
               "Enable": true
             }
           ],
@@ -87590,7 +87620,7 @@
       {
         "id": "cabb560f-05e9-417c-a865-99c588289629",
         "path": "/maps/town/Building_Shop",
-        "componentNames": "MOD.Core.TransformComponent,MOD.Core.SpriteRendererComponent",
+        "componentNames": "MOD.Core.TransformComponent,MOD.Core.SpriteRendererComponent,MOD.Core.TriggerComponent,script.ResourceOccupiedArea,script.WalkBehindFade",
         "jsonString": {
           "name": "Building_Shop",
           "path": "/maps/town/Building_Shop",
@@ -87618,15 +87648,15 @@
                 "z": 999.999
               },
               "QuaternionRotation": {
-                "x": 0.0,
-                "y": 0.0,
-                "z": 0.0,
-                "w": 1.0
+                "x": 0,
+                "y": 0,
+                "z": 0,
+                "w": 1
               },
               "Scale": {
                 "x": 2.0405333,
                 "y": 2.040533,
-                "z": 1.0
+                "z": 1
               },
               "Enable": true
             },
@@ -87634,8 +87664,36 @@
               "@type": "MOD.Core.SpriteRendererComponent",
               "ActionSheet": {},
               "RenderSetting": 0,
-              "SortingLayer": "MapLayer2",
+              "SortingLayer": "MapLayer5",
               "Enable": true
+            },
+            {
+              "@type": "MOD.Core.TriggerComponent",
+              "IsLegacy": false,
+              "Enable": true,
+              "IsPassive": true,
+              "BoxSize": {
+                "x": 5.85,
+                "y": 3.12
+              },
+              "ColliderOffset": {
+                "x": 0,
+                "y": -0.44
+              }
+            },
+            {
+              "@type": "script.ResourceOccupiedArea",
+              "BlocksMovement": true,
+              "Enable": true
+            },
+            {
+              "@type": "script.WalkBehindFade",
+              "CoveredAlpha": 0.4,
+              "SortRadius": 100,
+              "EnableYSort": true,
+              "Enable": true,
+              "CoverNorthExtent": 1.2,
+              "CoverWidthScale": 0.85
             }
           ],
           "@version": 1
@@ -87644,7 +87702,7 @@
       {
         "id": "b99b1425-0d22-49c7-b5c7-ff1a153b370c",
         "path": "/maps/town/BulletinBoard",
-        "componentNames": "MOD.Core.TransformComponent,MOD.Core.SpriteRendererComponent,MOD.Core.TouchReceiveComponent,script.BulletinBoard",
+        "componentNames": "MOD.Core.TransformComponent,MOD.Core.SpriteRendererComponent,MOD.Core.TouchReceiveComponent,script.BulletinBoard,MOD.Core.TriggerComponent,script.ResourceOccupiedArea,script.WalkBehindFade",
         "jsonString": {
           "name": "BulletinBoard",
           "path": "/maps/town/BulletinBoard",
@@ -87669,18 +87727,18 @@
               "Position": {
                 "x": 3.30780554,
                 "y": -0.256973147,
-                "z": 0.0
+                "z": 0
               },
               "QuaternionRotation": {
-                "x": 0.0,
-                "y": 0.0,
-                "z": 0.0,
-                "w": 1.0
+                "x": 0,
+                "y": 0,
+                "z": 0,
+                "w": 1
               },
               "Scale": {
                 "x": 0.6603534,
                 "y": 0.6603534,
-                "z": 1.0
+                "z": 1
               },
               "Enable": true
             },
@@ -87692,16 +87750,16 @@
               "FlipX": false,
               "FlipY": false,
               "OrderInLayer": 10,
-              "PlayRate": 1.0,
+              "PlayRate": 1,
               "RenderSetting": 0,
               "SortingLayer": "MapLayer5",
               "SpriteRUID": "9cfea5cceea14919a9a69e2d45354214",
               "StartFrameIndex": 0,
               "Color": {
-                "r": 1.0,
-                "g": 1.0,
-                "b": 1.0,
-                "a": 1.0
+                "r": 1,
+                "g": 1,
+                "b": 1,
+                "a": 1
               },
               "Enable": true
             },
@@ -87717,6 +87775,34 @@
             {
               "@type": "script.BulletinBoard",
               "Enable": true
+            },
+            {
+              "@type": "MOD.Core.TriggerComponent",
+              "IsLegacy": false,
+              "Enable": true,
+              "IsPassive": true,
+              "BoxSize": {
+                "x": 1.17,
+                "y": 1
+              },
+              "ColliderOffset": {
+                "x": 0,
+                "y": -0.25
+              }
+            },
+            {
+              "@type": "script.ResourceOccupiedArea",
+              "BlocksMovement": true,
+              "Enable": true
+            },
+            {
+              "@type": "script.WalkBehindFade",
+              "CoveredAlpha": 0.4,
+              "SortRadius": 100,
+              "EnableYSort": true,
+              "Enable": true,
+              "CoverNorthExtent": 1.2,
+              "CoverWidthScale": 0.85
             }
           ],
           "@version": 1
@@ -87725,7 +87811,7 @@
       {
         "id": "3aa215ca-0aa8-4c87-922e-3063c3b2c215",
         "path": "/maps/town/FishingSpot",
-        "componentNames": "MOD.Core.TransformComponent,MOD.Core.SpriteRendererComponent,MOD.Core.TriggerComponent,script.FishingSpot",
+        "componentNames": "MOD.Core.TransformComponent,MOD.Core.SpriteRendererComponent,MOD.Core.TriggerComponent,script.FishingSpot,script.ResourceOccupiedArea",
         "jsonString": {
           "name": "FishingSpot",
           "path": "/maps/town/FishingSpot",
@@ -87750,18 +87836,18 @@
               "Position": {
                 "x": 9.260423,
                 "y": 12.0387993,
-                "z": 0.0
+                "z": 0
               },
               "QuaternionRotation": {
-                "x": 0.0,
-                "y": 0.0,
-                "z": 0.0,
-                "w": 1.0
+                "x": 0,
+                "y": 0,
+                "z": 0,
+                "w": 1
               },
               "Scale": {
                 "x": 1.24993289,
                 "y": 1.249933,
-                "z": 1.0
+                "z": 1
               },
               "Enable": true
             },
@@ -87773,35 +87859,41 @@
               "FlipX": false,
               "FlipY": false,
               "OrderInLayer": 2,
-              "PlayRate": 1.0,
+              "PlayRate": 1,
               "RenderSetting": 0,
               "SpriteRUID": "68496b170fe1406a88f43437f0847801",
               "StartFrameIndex": 0,
               "Color": {
-                "r": 1.0,
-                "g": 1.0,
-                "b": 1.0,
-                "a": 1.0
+                "r": 1,
+                "g": 1,
+                "b": 1,
+                "a": 1
               },
               "Enable": true
             },
             {
               "@type": "MOD.Core.TriggerComponent",
+              "IsLegacy": false,
+              "Enable": true,
+              "IsPassive": true,
               "BoxSize": {
-                "x": 2.0,
-                "y": 0.8311377
+                "x": 7.5,
+                "y": 4.5
               },
               "ColliderOffset": {
-                "x": 9.536743E-07,
-                "y": 0.718562841
-              },
-              "IsLegacy": false,
-              "Enable": true
+                "x": 0,
+                "y": 0
+              }
             },
             {
               "@type": "script.FishingSpot",
               "Enable": true,
               "SpotType": "town"
+            },
+            {
+              "@type": "script.ResourceOccupiedArea",
+              "BlocksMovement": true,
+              "Enable": true
             }
           ],
           "@version": 1
@@ -87810,7 +87902,7 @@
       {
         "id": "3da9c0e9-4fff-417a-bbcb-20be8967a354",
         "path": "/maps/town/Villager_Elder",
-        "componentNames": "MOD.Core.TransformComponent,MOD.Core.SpriteRendererComponent,MOD.Core.RigidbodyComponent,MOD.Core.StateComponent,MOD.Core.ChatBalloonComponent,MOD.Core.StateAnimationComponent,MOD.Core.NameTagComponent,MOD.Core.TouchReceiveComponent,script.VillagerDialog",
+        "componentNames": "MOD.Core.TransformComponent,MOD.Core.SpriteRendererComponent,MOD.Core.RigidbodyComponent,MOD.Core.ChatBalloonComponent,MOD.Core.NameTagComponent,script.VillagerDialog,MOD.Core.TriggerComponent,script.ResourceOccupiedArea",
         "jsonString": {
           "name": "Villager_Elder",
           "path": "/maps/town/Villager_Elder",
@@ -87835,18 +87927,18 @@
               "Position": {
                 "x": -0.879048347,
                 "y": -1.48302531,
-                "z": 0.0
+                "z": 0
               },
               "QuaternionRotation": {
-                "x": 0.0,
-                "y": 0.0,
-                "z": 0.0,
-                "w": 1.0
+                "x": 0,
+                "y": 0,
+                "z": 0,
+                "w": 1
               },
               "Scale": {
                 "x": 1.369998,
                 "y": 1.369998,
-                "z": 1.0
+                "z": 1
               },
               "Enable": true
             },
@@ -87858,34 +87950,29 @@
               "FlipX": false,
               "FlipY": false,
               "OrderInLayer": 12,
-              "PlayRate": 1.0,
+              "PlayRate": 1,
               "RenderSetting": 0,
               "SortingLayer": "MapLayer5",
               "SpriteRUID": "2d61d5aa45cf481684caa36e99ac215b",
               "StartFrameIndex": 0,
               "Color": {
-                "r": 1.0,
-                "g": 1.0,
-                "b": 1.0,
-                "a": 1.0
+                "r": 1,
+                "g": 1,
+                "b": 1,
+                "a": 1
               },
               "Enable": true
             },
             {
               "@type": "MOD.Core.RigidbodyComponent",
               "MoveVelocity": {
-                "x": 0.0,
-                "y": 0.0
+                "x": 0,
+                "y": 0
               },
               "RealMoveVelocity": {
-                "x": 0.0,
-                "y": 0.0
+                "x": 0,
+                "y": 0
               },
-              "Enable": true
-            },
-            {
-              "@type": "MOD.Core.StateComponent",
-              "IsLegacy": true,
               "Enable": true
             },
             {
@@ -87895,11 +87982,7 @@
               "HideDuration": 0.05,
               "Message": "",
               "Offset": 1.2,
-              "ShowDuration": 4.0,
-              "Enable": true
-            },
-            {
-              "@type": "MOD.Core.StateAnimationComponent",
+              "ShowDuration": 4,
               "Enable": true
             },
             {
@@ -87911,22 +87994,32 @@
               "Enable": true
             },
             {
-              "@type": "MOD.Core.TouchReceiveComponent",
-              "AutoFitToSize": true,
-              "TouchArea": {
-                "x": 1.5,
-                "y": 2.5
-              },
-              "Enable": true
-            },
-            {
               "@type": "script.VillagerDialog",
               "Enable": true,
               "NpcId": "elder",
-              "InteractRange": 3.0,
-              "BalloonDuration": 4.0,
-              "AutoTalkInterval": 15.0,
-              "AutoTalkRange": 6.0
+              "InteractRange": 3,
+              "BalloonDuration": 4,
+              "AutoTalkInterval": 15,
+              "AutoTalkRange": 6
+            },
+            {
+              "@type": "MOD.Core.TriggerComponent",
+              "IsLegacy": false,
+              "Enable": true,
+              "IsPassive": true,
+              "BoxSize": {
+                "x": 0.8,
+                "y": 0.8
+              },
+              "ColliderOffset": {
+                "x": 0,
+                "y": -0.35
+              }
+            },
+            {
+              "@type": "script.ResourceOccupiedArea",
+              "BlocksMovement": true,
+              "Enable": true
             }
           ],
           "@version": 1
@@ -87935,7 +88028,7 @@
       {
         "id": "3d8597a0-834e-47ae-8b95-8c345db6c043",
         "path": "/maps/town/Villager_Fisher",
-        "componentNames": "MOD.Core.TransformComponent,MOD.Core.SpriteRendererComponent,MOD.Core.RigidbodyComponent,MOD.Core.StateComponent,MOD.Core.ChatBalloonComponent,MOD.Core.StateAnimationComponent,MOD.Core.NameTagComponent,MOD.Core.TouchReceiveComponent,script.VillagerDialog",
+        "componentNames": "MOD.Core.TransformComponent,MOD.Core.SpriteRendererComponent,MOD.Core.RigidbodyComponent,MOD.Core.ChatBalloonComponent,MOD.Core.NameTagComponent,script.VillagerDialog,MOD.Core.TriggerComponent,script.ResourceOccupiedArea",
         "jsonString": {
           "name": "Villager_Fisher",
           "path": "/maps/town/Villager_Fisher",
@@ -87960,18 +88053,18 @@
               "Position": {
                 "x": 7.68548,
                 "y": 10.7059622,
-                "z": 0.0
+                "z": 0
               },
               "QuaternionRotation": {
-                "x": 0.0,
-                "y": 0.0,
-                "z": 0.0,
-                "w": 1.0
+                "x": 0,
+                "y": 0,
+                "z": 0,
+                "w": 1
               },
               "Scale": {
                 "x": 1.28217387,
                 "y": 1.282174,
-                "z": 1.0
+                "z": 1
               },
               "Enable": true
             },
@@ -87983,34 +88076,29 @@
               "FlipX": false,
               "FlipY": false,
               "OrderInLayer": 12,
-              "PlayRate": 1.0,
+              "PlayRate": 1,
               "RenderSetting": 0,
               "SortingLayer": "MapLayer5",
               "SpriteRUID": "914e24afa37a4a65b6026b7595cd080f",
               "StartFrameIndex": 0,
               "Color": {
-                "r": 1.0,
-                "g": 1.0,
-                "b": 1.0,
-                "a": 1.0
+                "r": 1,
+                "g": 1,
+                "b": 1,
+                "a": 1
               },
               "Enable": true
             },
             {
               "@type": "MOD.Core.RigidbodyComponent",
               "MoveVelocity": {
-                "x": 0.0,
-                "y": 0.0
+                "x": 0,
+                "y": 0
               },
               "RealMoveVelocity": {
-                "x": 0.0,
-                "y": 0.0
+                "x": 0,
+                "y": 0
               },
-              "Enable": true
-            },
-            {
-              "@type": "MOD.Core.StateComponent",
-              "IsLegacy": true,
               "Enable": true
             },
             {
@@ -88020,11 +88108,7 @@
               "HideDuration": 0.05,
               "Message": "",
               "Offset": 1.2,
-              "ShowDuration": 4.0,
-              "Enable": true
-            },
-            {
-              "@type": "MOD.Core.StateAnimationComponent",
+              "ShowDuration": 4,
               "Enable": true
             },
             {
@@ -88036,22 +88120,32 @@
               "Enable": true
             },
             {
-              "@type": "MOD.Core.TouchReceiveComponent",
-              "AutoFitToSize": true,
-              "TouchArea": {
-                "x": 1.5,
-                "y": 2.5
-              },
-              "Enable": true
-            },
-            {
               "@type": "script.VillagerDialog",
               "Enable": true,
               "NpcId": "fisher",
-              "InteractRange": 3.0,
-              "BalloonDuration": 4.0,
-              "AutoTalkInterval": 15.0,
-              "AutoTalkRange": 6.0
+              "InteractRange": 3,
+              "BalloonDuration": 4,
+              "AutoTalkInterval": 15,
+              "AutoTalkRange": 6
+            },
+            {
+              "@type": "MOD.Core.TriggerComponent",
+              "IsLegacy": false,
+              "Enable": true,
+              "IsPassive": true,
+              "BoxSize": {
+                "x": 0.8,
+                "y": 0.8
+              },
+              "ColliderOffset": {
+                "x": 0,
+                "y": -0.35
+              }
+            },
+            {
+              "@type": "script.ResourceOccupiedArea",
+              "BlocksMovement": true,
+              "Enable": true
             }
           ],
           "@version": 1
@@ -88060,7 +88154,7 @@
       {
         "id": "82767035-d3c3-443d-be5d-5364df17c07c",
         "path": "/maps/town/FishingRankBoard",
-        "componentNames": "MOD.Core.TransformComponent,MOD.Core.SpriteRendererComponent,MOD.Core.TouchReceiveComponent,script.FishingLeaderboardInteract",
+        "componentNames": "MOD.Core.TransformComponent,MOD.Core.SpriteRendererComponent,MOD.Core.TouchReceiveComponent,script.FishingLeaderboardInteract,MOD.Core.TriggerComponent,script.ResourceOccupiedArea,script.WalkBehindFade",
         "jsonString": {
           "name": "FishingRankBoard",
           "path": "/maps/town/FishingRankBoard",
@@ -88085,18 +88179,18 @@
               "Position": {
                 "x": 6.927777,
                 "y": 12.3085546,
-                "z": 0.0
+                "z": 0
               },
               "QuaternionRotation": {
-                "x": 0.0,
-                "y": 0.0,
-                "z": 0.0,
-                "w": 1.0
+                "x": 0,
+                "y": 0,
+                "z": 0,
+                "w": 1
               },
               "Scale": {
                 "x": 0.6401515,
                 "y": 0.6401515,
-                "z": 1.0
+                "z": 1
               },
               "Enable": true
             },
@@ -88108,16 +88202,16 @@
               "FlipX": false,
               "FlipY": false,
               "OrderInLayer": 10,
-              "PlayRate": 1.0,
+              "PlayRate": 1,
               "RenderSetting": 0,
               "SortingLayer": "MapLayer5",
               "SpriteRUID": "7e12cbe0561d4519b25f4b6ee7acbab1",
               "StartFrameIndex": 0,
               "Color": {
-                "r": 1.0,
-                "g": 1.0,
-                "b": 1.0,
-                "a": 1.0
+                "r": 1,
+                "g": 1,
+                "b": 1,
+                "a": 1
               },
               "Enable": true
             },
@@ -88133,6 +88227,34 @@
             {
               "@type": "script.FishingLeaderboardInteract",
               "Enable": true
+            },
+            {
+              "@type": "MOD.Core.TriggerComponent",
+              "IsLegacy": false,
+              "Enable": true,
+              "IsPassive": true,
+              "BoxSize": {
+                "x": 1.17,
+                "y": 1
+              },
+              "ColliderOffset": {
+                "x": 0,
+                "y": -0.25
+              }
+            },
+            {
+              "@type": "script.ResourceOccupiedArea",
+              "BlocksMovement": true,
+              "Enable": true
+            },
+            {
+              "@type": "script.WalkBehindFade",
+              "CoveredAlpha": 0.4,
+              "SortRadius": 100,
+              "EnableYSort": true,
+              "Enable": true,
+              "CoverNorthExtent": 1.2,
+              "CoverWidthScale": 0.85
             }
           ],
           "@version": 1
@@ -88141,7 +88263,7 @@
       {
         "id": "ccdcbceb-0b32-4db5-add9-08778d005da2",
         "path": "/maps/town/Building_Fountain",
-        "componentNames": "MOD.Core.TransformComponent,MOD.Core.SpriteRendererComponent",
+        "componentNames": "MOD.Core.TransformComponent,MOD.Core.SpriteRendererComponent,MOD.Core.TriggerComponent,script.ResourceOccupiedArea,script.WalkBehindFade",
         "jsonString": {
           "name": "Building_Fountain",
           "path": "/maps/town/Building_Fountain",
@@ -88166,18 +88288,18 @@
               "Position": {
                 "x": 0.9245907,
                 "y": -0.315175,
-                "z": 0.0
+                "z": 0
               },
               "QuaternionRotation": {
-                "x": 0.0,
-                "y": 0.0,
-                "z": 0.0,
-                "w": 1.0
+                "x": 0,
+                "y": 0,
+                "z": 0,
+                "w": 1
               },
               "Scale": {
                 "x": 1.14786935,
                 "y": 1.14786935,
-                "z": 1.0
+                "z": 1
               },
               "Enable": true
             },
@@ -88189,18 +88311,46 @@
               "FlipX": false,
               "FlipY": false,
               "OrderInLayer": 10,
-              "PlayRate": 1.0,
+              "PlayRate": 1,
               "RenderSetting": 0,
               "SortingLayer": "MapLayer5",
               "SpriteRUID": "130141b29b704abf8c9b29f84d711f74",
               "StartFrameIndex": 0,
               "Color": {
-                "r": 1.0,
-                "g": 1.0,
-                "b": 1.0,
-                "a": 1.0
+                "r": 1,
+                "g": 1,
+                "b": 1,
+                "a": 1
               },
               "Enable": true
+            },
+            {
+              "@type": "MOD.Core.TriggerComponent",
+              "IsLegacy": false,
+              "Enable": true,
+              "IsPassive": true,
+              "BoxSize": {
+                "x": 3.42,
+                "y": 3.51
+              },
+              "ColliderOffset": {
+                "x": 0,
+                "y": -0.5
+              }
+            },
+            {
+              "@type": "script.ResourceOccupiedArea",
+              "BlocksMovement": true,
+              "Enable": true
+            },
+            {
+              "@type": "script.WalkBehindFade",
+              "CoveredAlpha": 0.4,
+              "SortRadius": 100,
+              "EnableYSort": true,
+              "Enable": true,
+              "CoverNorthExtent": 1.2,
+              "CoverWidthScale": 0.85
             }
           ],
           "@version": 1
@@ -88209,7 +88359,7 @@
       {
         "id": "0e40182c-c805-47d5-af00-2dd4f55d62bf",
         "path": "/maps/town/Building_Well",
-        "componentNames": "MOD.Core.TransformComponent,MOD.Core.SpriteRendererComponent",
+        "componentNames": "MOD.Core.TransformComponent,MOD.Core.SpriteRendererComponent,MOD.Core.TriggerComponent,script.ResourceOccupiedArea,script.WalkBehindFade",
         "jsonString": {
           "name": "Building_Well",
           "path": "/maps/town/Building_Well",
@@ -88234,18 +88384,18 @@
               "Position": {
                 "x": 4.5,
                 "y": -4.5,
-                "z": 0.0
+                "z": 0
               },
               "QuaternionRotation": {
-                "x": 0.0,
-                "y": 0.0,
-                "z": 0.0,
-                "w": 1.0
+                "x": 0,
+                "y": 0,
+                "z": 0,
+                "w": 1
               },
               "Scale": {
-                "x": 1.0,
-                "y": 1.0,
-                "z": 1.0
+                "x": 1,
+                "y": 1,
+                "z": 1
               },
               "Enable": true
             },
@@ -88257,18 +88407,46 @@
               "FlipX": false,
               "FlipY": false,
               "OrderInLayer": 10,
-              "PlayRate": 1.0,
+              "PlayRate": 1,
               "RenderSetting": 0,
               "SortingLayer": "MapLayer5",
               "SpriteRUID": "617a24d387d34f6ab76ae184ffe58245",
               "StartFrameIndex": 0,
               "Color": {
-                "r": 1.0,
-                "g": 1.0,
-                "b": 1.0,
-                "a": 1.0
+                "r": 1,
+                "g": 1,
+                "b": 1,
+                "a": 1
               },
               "Enable": true
+            },
+            {
+              "@type": "MOD.Core.TriggerComponent",
+              "IsLegacy": false,
+              "Enable": true,
+              "IsPassive": true,
+              "BoxSize": {
+                "x": 1.53,
+                "y": 1.2
+              },
+              "ColliderOffset": {
+                "x": 0,
+                "y": -0.25
+              }
+            },
+            {
+              "@type": "script.ResourceOccupiedArea",
+              "BlocksMovement": true,
+              "Enable": true
+            },
+            {
+              "@type": "script.WalkBehindFade",
+              "CoveredAlpha": 0.4,
+              "SortRadius": 100,
+              "EnableYSort": true,
+              "Enable": true,
+              "CoverNorthExtent": 1.2,
+              "CoverWidthScale": 0.85
             }
           ],
           "@version": 1
@@ -88277,7 +88455,7 @@
       {
         "id": "f552f491-c254-45fc-984b-04e97e250dbb",
         "path": "/maps/town/Building_Blacksmith",
-        "componentNames": "MOD.Core.TransformComponent,MOD.Core.SpriteRendererComponent",
+        "componentNames": "MOD.Core.TransformComponent,MOD.Core.SpriteRendererComponent,MOD.Core.TriggerComponent,script.ResourceOccupiedArea,script.WalkBehindFade",
         "jsonString": {
           "name": "Building_Blacksmith",
           "path": "/maps/town/Building_Blacksmith",
@@ -88302,18 +88480,18 @@
               "Position": {
                 "x": 18.66089,
                 "y": 4.255257,
-                "z": 0.0
+                "z": 0
               },
               "QuaternionRotation": {
-                "x": 0.0,
-                "y": 0.0,
-                "z": 0.0,
-                "w": 1.0
+                "x": 0,
+                "y": 0,
+                "z": 0,
+                "w": 1
               },
               "Scale": {
                 "x": 1.63619542,
                 "y": 1.63619566,
-                "z": 1.0
+                "z": 1
               },
               "Enable": true
             },
@@ -88325,18 +88503,46 @@
               "FlipX": false,
               "FlipY": false,
               "OrderInLayer": 10,
-              "PlayRate": 1.0,
+              "PlayRate": 1,
               "RenderSetting": 0,
               "SortingLayer": "MapLayer5",
               "SpriteRUID": "3cf6b9e903e645c295fadfa6bb0548b0",
               "StartFrameIndex": 0,
               "Color": {
-                "r": 1.0,
-                "g": 1.0,
-                "b": 1.0,
-                "a": 1.0
+                "r": 1,
+                "g": 1,
+                "b": 1,
+                "a": 1
               },
               "Enable": true
+            },
+            {
+              "@type": "MOD.Core.TriggerComponent",
+              "IsLegacy": false,
+              "Enable": true,
+              "IsPassive": true,
+              "BoxSize": {
+                "x": 4.95,
+                "y": 2.96
+              },
+              "ColliderOffset": {
+                "x": 0,
+                "y": -0.42
+              }
+            },
+            {
+              "@type": "script.ResourceOccupiedArea",
+              "BlocksMovement": true,
+              "Enable": true
+            },
+            {
+              "@type": "script.WalkBehindFade",
+              "CoveredAlpha": 0.4,
+              "SortRadius": 100,
+              "EnableYSort": true,
+              "Enable": true,
+              "CoverNorthExtent": 1.2,
+              "CoverWidthScale": 0.85
             }
           ],
           "@version": 1
@@ -88345,7 +88551,7 @@
       {
         "id": "5fa2eb4f-ef8c-423b-b6e6-4e4b860d37ff",
         "path": "/maps/town/House_MushroomA",
-        "componentNames": "MOD.Core.TransformComponent,MOD.Core.SpriteRendererComponent",
+        "componentNames": "MOD.Core.TransformComponent,MOD.Core.SpriteRendererComponent,MOD.Core.TriggerComponent,script.ResourceOccupiedArea,script.WalkBehindFade",
         "jsonString": {
           "name": "House_MushroomA",
           "path": "/maps/town/House_MushroomA",
@@ -88370,18 +88576,18 @@
               "Position": {
                 "x": -5.609912,
                 "y": 4.694177,
-                "z": 0.0
+                "z": 0
               },
               "QuaternionRotation": {
-                "x": 0.0,
-                "y": 0.0,
-                "z": 0.0,
-                "w": 1.0
+                "x": 0,
+                "y": 0,
+                "z": 0,
+                "w": 1
               },
               "Scale": {
                 "x": 2.09050035,
                 "y": 2.09050035,
-                "z": 1.0
+                "z": 1
               },
               "Enable": true
             },
@@ -88393,18 +88599,46 @@
               "FlipX": false,
               "FlipY": false,
               "OrderInLayer": 10,
-              "PlayRate": 1.0,
+              "PlayRate": 1,
               "RenderSetting": 0,
               "SortingLayer": "MapLayer5",
               "SpriteRUID": "e7eb1ead48df4473b19d9bd750bad379",
               "StartFrameIndex": 0,
               "Color": {
-                "r": 1.0,
-                "g": 1.0,
-                "b": 1.0,
-                "a": 1.0
+                "r": 1,
+                "g": 1,
+                "b": 1,
+                "a": 1
               },
               "Enable": true
+            },
+            {
+              "@type": "MOD.Core.TriggerComponent",
+              "IsLegacy": false,
+              "Enable": true,
+              "IsPassive": true,
+              "BoxSize": {
+                "x": 5.4,
+                "y": 2.57
+              },
+              "ColliderOffset": {
+                "x": 0,
+                "y": -0.36
+              }
+            },
+            {
+              "@type": "script.ResourceOccupiedArea",
+              "BlocksMovement": true,
+              "Enable": true
+            },
+            {
+              "@type": "script.WalkBehindFade",
+              "CoveredAlpha": 0.4,
+              "SortRadius": 100,
+              "EnableYSort": true,
+              "Enable": true,
+              "CoverNorthExtent": 1.2,
+              "CoverWidthScale": 0.85
             }
           ],
           "@version": 1
@@ -88413,7 +88647,7 @@
       {
         "id": "98c1a386-056a-41d0-94ae-0c907095e5c0",
         "path": "/maps/town/House_MushroomOrange",
-        "componentNames": "MOD.Core.TransformComponent,MOD.Core.SpriteRendererComponent",
+        "componentNames": "MOD.Core.TransformComponent,MOD.Core.SpriteRendererComponent,MOD.Core.TriggerComponent,script.ResourceOccupiedArea,script.WalkBehindFade",
         "jsonString": {
           "name": "House_MushroomOrange",
           "path": "/maps/town/House_MushroomOrange",
@@ -88438,18 +88672,18 @@
               "Position": {
                 "x": -16.6360874,
                 "y": 4.21366739,
-                "z": 0.0
+                "z": 0
               },
               "QuaternionRotation": {
-                "x": 0.0,
-                "y": 0.0,
-                "z": 0.0,
-                "w": 1.0
+                "x": 0,
+                "y": 0,
+                "z": 0,
+                "w": 1
               },
               "Scale": {
                 "x": 1.788504,
                 "y": 1.78850377,
-                "z": 1.0
+                "z": 1
               },
               "Enable": true
             },
@@ -88461,18 +88695,46 @@
               "FlipX": false,
               "FlipY": false,
               "OrderInLayer": 10,
-              "PlayRate": 1.0,
+              "PlayRate": 1,
               "RenderSetting": 0,
               "SortingLayer": "MapLayer5",
               "SpriteRUID": "27104f25e3784ba6be376ee17b200451",
               "StartFrameIndex": 0,
               "Color": {
-                "r": 1.0,
-                "g": 1.0,
-                "b": 1.0,
-                "a": 1.0
+                "r": 1,
+                "g": 1,
+                "b": 1,
+                "a": 1
               },
               "Enable": true
+            },
+            {
+              "@type": "MOD.Core.TriggerComponent",
+              "IsLegacy": false,
+              "Enable": true,
+              "IsPassive": true,
+              "BoxSize": {
+                "x": 3.42,
+                "y": 2.89
+              },
+              "ColliderOffset": {
+                "x": 0,
+                "y": -0.4
+              }
+            },
+            {
+              "@type": "script.ResourceOccupiedArea",
+              "BlocksMovement": true,
+              "Enable": true
+            },
+            {
+              "@type": "script.WalkBehindFade",
+              "CoveredAlpha": 0.4,
+              "SortRadius": 100,
+              "EnableYSort": true,
+              "Enable": true,
+              "CoverNorthExtent": 1.2,
+              "CoverWidthScale": 0.85
             }
           ],
           "@version": 1
@@ -88481,7 +88743,7 @@
       {
         "id": "1b878705-e8bc-4dc0-ace3-4bda197a42cd",
         "path": "/maps/town/House_MushroomYellow",
-        "componentNames": "MOD.Core.TransformComponent,MOD.Core.SpriteRendererComponent",
+        "componentNames": "MOD.Core.TransformComponent,MOD.Core.SpriteRendererComponent,MOD.Core.TriggerComponent,script.ResourceOccupiedArea,script.WalkBehindFade",
         "jsonString": {
           "name": "House_MushroomYellow",
           "path": "/maps/town/House_MushroomYellow",
@@ -88506,18 +88768,18 @@
               "Position": {
                 "x": -12.00214,
                 "y": 11.1811447,
-                "z": 0.0
+                "z": 0
               },
               "QuaternionRotation": {
-                "x": 0.0,
-                "y": 0.0,
-                "z": 0.0,
-                "w": 1.0
+                "x": 0,
+                "y": 0,
+                "z": 0,
+                "w": 1
               },
               "Scale": {
                 "x": 1.81485331,
                 "y": 1.81485307,
-                "z": 1.0
+                "z": 1
               },
               "Enable": true
             },
@@ -88529,18 +88791,46 @@
               "FlipX": false,
               "FlipY": false,
               "OrderInLayer": 10,
-              "PlayRate": 1.0,
+              "PlayRate": 1,
               "RenderSetting": 0,
               "SortingLayer": "MapLayer5",
               "SpriteRUID": "c817b1ea38d94e47b261d950877b9c34",
               "StartFrameIndex": 0,
               "Color": {
-                "r": 1.0,
-                "g": 1.0,
-                "b": 1.0,
-                "a": 1.0
+                "r": 1,
+                "g": 1,
+                "b": 1,
+                "a": 1
               },
               "Enable": true
+            },
+            {
+              "@type": "MOD.Core.TriggerComponent",
+              "IsLegacy": false,
+              "Enable": true,
+              "IsPassive": true,
+              "BoxSize": {
+                "x": 3.42,
+                "y": 2.89
+              },
+              "ColliderOffset": {
+                "x": 0,
+                "y": -0.4
+              }
+            },
+            {
+              "@type": "script.ResourceOccupiedArea",
+              "BlocksMovement": true,
+              "Enable": true
+            },
+            {
+              "@type": "script.WalkBehindFade",
+              "CoveredAlpha": 0.4,
+              "SortRadius": 100,
+              "EnableYSort": true,
+              "Enable": true,
+              "CoverNorthExtent": 1.2,
+              "CoverWidthScale": 0.85
             }
           ],
           "@version": 1
@@ -88549,7 +88839,7 @@
       {
         "id": "07d4129e-3fec-4da0-8839-561869e650a1",
         "path": "/maps/town/House_WoodTower",
-        "componentNames": "MOD.Core.TransformComponent,MOD.Core.SpriteRendererComponent",
+        "componentNames": "MOD.Core.TransformComponent,MOD.Core.SpriteRendererComponent,MOD.Core.TriggerComponent,script.ResourceOccupiedArea,script.WalkBehindFade",
         "jsonString": {
           "name": "House_WoodTower",
           "path": "/maps/town/House_WoodTower",
@@ -88574,18 +88864,18 @@
               "Position": {
                 "x": 6.626129,
                 "y": -6.963333,
-                "z": 0.0
+                "z": 0
               },
               "QuaternionRotation": {
-                "x": 0.0,
-                "y": 0.0,
-                "z": 0.0,
-                "w": 1.0
+                "x": 0,
+                "y": 0,
+                "z": 0,
+                "w": 1
               },
               "Scale": {
                 "x": 0.446144819,
                 "y": 0.446144819,
-                "z": 1.0
+                "z": 1
               },
               "Enable": true
             },
@@ -88597,18 +88887,46 @@
               "FlipX": false,
               "FlipY": false,
               "OrderInLayer": 10,
-              "PlayRate": 1.0,
+              "PlayRate": 1,
               "RenderSetting": 0,
               "SortingLayer": "MapLayer5",
               "SpriteRUID": "0c4b4594c66c48e4a44e6e1ff4db8056",
               "StartFrameIndex": 0,
               "Color": {
-                "r": 1.0,
-                "g": 1.0,
-                "b": 1.0,
-                "a": 1.0
+                "r": 1,
+                "g": 1,
+                "b": 1,
+                "a": 1
               },
               "Enable": true
+            },
+            {
+              "@type": "MOD.Core.TriggerComponent",
+              "IsLegacy": false,
+              "Enable": true,
+              "IsPassive": true,
+              "BoxSize": {
+                "x": 1.08,
+                "y": 1.4
+              },
+              "ColliderOffset": {
+                "x": 0,
+                "y": -0.25
+              }
+            },
+            {
+              "@type": "script.ResourceOccupiedArea",
+              "BlocksMovement": true,
+              "Enable": true
+            },
+            {
+              "@type": "script.WalkBehindFade",
+              "CoveredAlpha": 0.4,
+              "SortRadius": 100,
+              "EnableYSort": true,
+              "Enable": true,
+              "CoverNorthExtent": 1.2,
+              "CoverWidthScale": 0.85
             }
           ],
           "@version": 1
@@ -88617,7 +88935,7 @@
       {
         "id": "aa2169f0-2365-4fcb-a29f-9f1fe8d88518",
         "path": "/maps/town/Villager_ResidentA",
-        "componentNames": "MOD.Core.TransformComponent,MOD.Core.SpriteRendererComponent,MOD.Core.RigidbodyComponent,MOD.Core.StateComponent,MOD.Core.ChatBalloonComponent,MOD.Core.StateAnimationComponent,MOD.Core.NameTagComponent,MOD.Core.TouchReceiveComponent,script.VillagerDialog",
+        "componentNames": "MOD.Core.TransformComponent,MOD.Core.SpriteRendererComponent,MOD.Core.RigidbodyComponent,MOD.Core.ChatBalloonComponent,MOD.Core.NameTagComponent,script.VillagerDialog,MOD.Core.TriggerComponent,script.ResourceOccupiedArea",
         "jsonString": {
           "name": "Villager_ResidentA",
           "path": "/maps/town/Villager_ResidentA",
@@ -88642,18 +88960,18 @@
               "Position": {
                 "x": 8.647855,
                 "y": 2.47852373,
-                "z": 0.0
+                "z": 0
               },
               "QuaternionRotation": {
-                "x": 0.0,
-                "y": 0.0,
-                "z": 0.0,
-                "w": 1.0
+                "x": 0,
+                "y": 0,
+                "z": 0,
+                "w": 1
               },
               "Scale": {
                 "x": 1.218373,
                 "y": 1.218373,
-                "z": 1.0
+                "z": 1
               },
               "Enable": true
             },
@@ -88665,34 +88983,29 @@
               "FlipX": false,
               "FlipY": false,
               "OrderInLayer": 12,
-              "PlayRate": 1.0,
+              "PlayRate": 1,
               "RenderSetting": 0,
               "SortingLayer": "MapLayer5",
               "SpriteRUID": "64f05aa322814b779ddf707ac31bb109",
               "StartFrameIndex": 0,
               "Color": {
-                "r": 1.0,
-                "g": 1.0,
-                "b": 1.0,
-                "a": 1.0
+                "r": 1,
+                "g": 1,
+                "b": 1,
+                "a": 1
               },
               "Enable": true
             },
             {
               "@type": "MOD.Core.RigidbodyComponent",
               "MoveVelocity": {
-                "x": 0.0,
-                "y": 0.0
+                "x": 0,
+                "y": 0
               },
               "RealMoveVelocity": {
-                "x": 0.0,
-                "y": 0.0
+                "x": 0,
+                "y": 0
               },
-              "Enable": true
-            },
-            {
-              "@type": "MOD.Core.StateComponent",
-              "IsLegacy": true,
               "Enable": true
             },
             {
@@ -88702,27 +89015,14 @@
               "HideDuration": 0.05,
               "Message": "",
               "Offset": 1.2,
-              "ShowDuration": 4.0,
-              "Enable": true
-            },
-            {
-              "@type": "MOD.Core.StateAnimationComponent",
+              "ShowDuration": 4,
               "Enable": true
             },
             {
               "@type": "MOD.Core.NameTagComponent",
-              "Name": "촌장",
+              "Name": "미나",
               "NameTagRUID": {
                 "DataId": "9bf18287398c44699c20fc5123d1a1ae"
-              },
-              "Enable": true
-            },
-            {
-              "@type": "MOD.Core.TouchReceiveComponent",
-              "AutoFitToSize": true,
-              "TouchArea": {
-                "x": 1.5,
-                "y": 2.5
               },
               "Enable": true
             },
@@ -88730,10 +89030,29 @@
               "@type": "script.VillagerDialog",
               "Enable": true,
               "NpcId": "resident_a",
-              "InteractRange": 3.0,
-              "BalloonDuration": 4.0,
-              "AutoTalkInterval": 15.0,
-              "AutoTalkRange": 6.0
+              "InteractRange": 3,
+              "BalloonDuration": 4,
+              "AutoTalkInterval": 15,
+              "AutoTalkRange": 6
+            },
+            {
+              "@type": "MOD.Core.TriggerComponent",
+              "IsLegacy": false,
+              "Enable": true,
+              "IsPassive": true,
+              "BoxSize": {
+                "x": 0.8,
+                "y": 0.8
+              },
+              "ColliderOffset": {
+                "x": 0,
+                "y": -0.35
+              }
+            },
+            {
+              "@type": "script.ResourceOccupiedArea",
+              "BlocksMovement": true,
+              "Enable": true
             }
           ],
           "@version": 1
@@ -88742,7 +89061,7 @@
       {
         "id": "7629389a-a672-40ae-a13e-86e917499af3",
         "path": "/maps/town/Villager_ResidentB",
-        "componentNames": "MOD.Core.TransformComponent,MOD.Core.SpriteRendererComponent,MOD.Core.RigidbodyComponent,MOD.Core.StateComponent,MOD.Core.ChatBalloonComponent,MOD.Core.StateAnimationComponent,MOD.Core.NameTagComponent,MOD.Core.TouchReceiveComponent,script.VillagerDialog",
+        "componentNames": "MOD.Core.TransformComponent,MOD.Core.SpriteRendererComponent,MOD.Core.RigidbodyComponent,MOD.Core.ChatBalloonComponent,MOD.Core.NameTagComponent,script.VillagerDialog,MOD.Core.TriggerComponent,script.ResourceOccupiedArea",
         "jsonString": {
           "name": "Villager_ResidentB",
           "path": "/maps/town/Villager_ResidentB",
@@ -88767,18 +89086,18 @@
               "Position": {
                 "x": -5.770833,
                 "y": 2.53688431,
-                "z": 0.0
+                "z": 0
               },
               "QuaternionRotation": {
-                "x": 0.0,
-                "y": 0.0,
-                "z": 0.0,
-                "w": 1.0
+                "x": 0,
+                "y": 0,
+                "z": 0,
+                "w": 1
               },
               "Scale": {
                 "x": 1.35664546,
                 "y": 1.35664546,
-                "z": 1.0
+                "z": 1
               },
               "Enable": true
             },
@@ -88790,34 +89109,29 @@
               "FlipX": false,
               "FlipY": false,
               "OrderInLayer": 12,
-              "PlayRate": 1.0,
+              "PlayRate": 1,
               "RenderSetting": 0,
               "SortingLayer": "MapLayer5",
               "SpriteRUID": "ae46402787474a12b34fa13b25ce698f",
               "StartFrameIndex": 0,
               "Color": {
-                "r": 1.0,
-                "g": 1.0,
-                "b": 1.0,
-                "a": 1.0
+                "r": 1,
+                "g": 1,
+                "b": 1,
+                "a": 1
               },
               "Enable": true
             },
             {
               "@type": "MOD.Core.RigidbodyComponent",
               "MoveVelocity": {
-                "x": 0.0,
-                "y": 0.0
+                "x": 0,
+                "y": 0
               },
               "RealMoveVelocity": {
-                "x": 0.0,
-                "y": 0.0
+                "x": 0,
+                "y": 0
               },
-              "Enable": true
-            },
-            {
-              "@type": "MOD.Core.StateComponent",
-              "IsLegacy": true,
               "Enable": true
             },
             {
@@ -88827,27 +89141,14 @@
               "HideDuration": 0.05,
               "Message": "",
               "Offset": 1.2,
-              "ShowDuration": 4.0,
-              "Enable": true
-            },
-            {
-              "@type": "MOD.Core.StateAnimationComponent",
+              "ShowDuration": 4,
               "Enable": true
             },
             {
               "@type": "MOD.Core.NameTagComponent",
-              "Name": "촌장",
+              "Name": "유나",
               "NameTagRUID": {
                 "DataId": "9bf18287398c44699c20fc5123d1a1ae"
-              },
-              "Enable": true
-            },
-            {
-              "@type": "MOD.Core.TouchReceiveComponent",
-              "AutoFitToSize": true,
-              "TouchArea": {
-                "x": 1.5,
-                "y": 2.5
               },
               "Enable": true
             },
@@ -88855,10 +89156,29 @@
               "@type": "script.VillagerDialog",
               "Enable": true,
               "NpcId": "resident_b",
-              "InteractRange": 3.0,
-              "BalloonDuration": 4.0,
-              "AutoTalkInterval": 15.0,
-              "AutoTalkRange": 6.0
+              "InteractRange": 3,
+              "BalloonDuration": 4,
+              "AutoTalkInterval": 15,
+              "AutoTalkRange": 6
+            },
+            {
+              "@type": "MOD.Core.TriggerComponent",
+              "IsLegacy": false,
+              "Enable": true,
+              "IsPassive": true,
+              "BoxSize": {
+                "x": 0.8,
+                "y": 0.8
+              },
+              "ColliderOffset": {
+                "x": 0,
+                "y": -0.35
+              }
+            },
+            {
+              "@type": "script.ResourceOccupiedArea",
+              "BlocksMovement": true,
+              "Enable": true
             }
           ],
           "@version": 1
@@ -88867,7 +89187,7 @@
       {
         "id": "051d9cb3-1830-41c5-bcdf-5aa1ea44de6b",
         "path": "/maps/town/Villager_ResidentC",
-        "componentNames": "MOD.Core.TransformComponent,MOD.Core.SpriteRendererComponent,MOD.Core.RigidbodyComponent,MOD.Core.StateComponent,MOD.Core.ChatBalloonComponent,MOD.Core.StateAnimationComponent,MOD.Core.NameTagComponent,MOD.Core.TouchReceiveComponent,script.VillagerDialog",
+        "componentNames": "MOD.Core.TransformComponent,MOD.Core.SpriteRendererComponent,MOD.Core.RigidbodyComponent,MOD.Core.ChatBalloonComponent,MOD.Core.NameTagComponent,script.VillagerDialog,MOD.Core.TriggerComponent,script.ResourceOccupiedArea",
         "jsonString": {
           "name": "Villager_ResidentC",
           "path": "/maps/town/Villager_ResidentC",
@@ -88892,18 +89212,18 @@
               "Position": {
                 "x": 15.8665247,
                 "y": 3.5628345,
-                "z": 0.0
+                "z": 0
               },
               "QuaternionRotation": {
-                "x": 0.0,
-                "y": 0.0,
-                "z": 0.0,
-                "w": 1.0
+                "x": 0,
+                "y": 0,
+                "z": 0,
+                "w": 1
               },
               "Scale": {
                 "x": 1.22112167,
                 "y": 1.22112191,
-                "z": 1.0
+                "z": 1
               },
               "Enable": true
             },
@@ -88915,34 +89235,29 @@
               "FlipX": false,
               "FlipY": false,
               "OrderInLayer": 12,
-              "PlayRate": 1.0,
+              "PlayRate": 1,
               "RenderSetting": 0,
               "SortingLayer": "MapLayer5",
               "SpriteRUID": "fd92a3c4f1414e408ca4facef64aec7a",
               "StartFrameIndex": 0,
               "Color": {
-                "r": 1.0,
-                "g": 1.0,
-                "b": 1.0,
-                "a": 1.0
+                "r": 1,
+                "g": 1,
+                "b": 1,
+                "a": 1
               },
               "Enable": true
             },
             {
               "@type": "MOD.Core.RigidbodyComponent",
               "MoveVelocity": {
-                "x": 0.0,
-                "y": 0.0
+                "x": 0,
+                "y": 0
               },
               "RealMoveVelocity": {
-                "x": 0.0,
-                "y": 0.0
+                "x": 0,
+                "y": 0
               },
-              "Enable": true
-            },
-            {
-              "@type": "MOD.Core.StateComponent",
-              "IsLegacy": true,
               "Enable": true
             },
             {
@@ -88952,27 +89267,14 @@
               "HideDuration": 0.05,
               "Message": "",
               "Offset": 1.2,
-              "ShowDuration": 4.0,
-              "Enable": true
-            },
-            {
-              "@type": "MOD.Core.StateAnimationComponent",
+              "ShowDuration": 4,
               "Enable": true
             },
             {
               "@type": "MOD.Core.NameTagComponent",
-              "Name": "촌장",
+              "Name": "다은",
               "NameTagRUID": {
                 "DataId": "9bf18287398c44699c20fc5123d1a1ae"
-              },
-              "Enable": true
-            },
-            {
-              "@type": "MOD.Core.TouchReceiveComponent",
-              "AutoFitToSize": true,
-              "TouchArea": {
-                "x": 1.5,
-                "y": 2.5
               },
               "Enable": true
             },
@@ -88980,10 +89282,29 @@
               "@type": "script.VillagerDialog",
               "Enable": true,
               "NpcId": "resident_c",
-              "InteractRange": 3.0,
-              "BalloonDuration": 4.0,
-              "AutoTalkInterval": 15.0,
-              "AutoTalkRange": 6.0
+              "InteractRange": 3,
+              "BalloonDuration": 4,
+              "AutoTalkInterval": 15,
+              "AutoTalkRange": 6
+            },
+            {
+              "@type": "MOD.Core.TriggerComponent",
+              "IsLegacy": false,
+              "Enable": true,
+              "IsPassive": true,
+              "BoxSize": {
+                "x": 0.8,
+                "y": 0.8
+              },
+              "ColliderOffset": {
+                "x": 0,
+                "y": -0.35
+              }
+            },
+            {
+              "@type": "script.ResourceOccupiedArea",
+              "BlocksMovement": true,
+              "Enable": true
             }
           ],
           "@version": 1
@@ -88992,7 +89313,7 @@
       {
         "id": "f089fba0-7d43-4814-a664-01f711dd65e5",
         "path": "/maps/town/Villager_ResidentD",
-        "componentNames": "MOD.Core.TransformComponent,MOD.Core.SpriteRendererComponent,MOD.Core.RigidbodyComponent,MOD.Core.StateComponent,MOD.Core.ChatBalloonComponent,MOD.Core.StateAnimationComponent,MOD.Core.NameTagComponent,MOD.Core.TouchReceiveComponent,script.VillagerDialog",
+        "componentNames": "MOD.Core.TransformComponent,MOD.Core.SpriteRendererComponent,MOD.Core.RigidbodyComponent,MOD.Core.ChatBalloonComponent,MOD.Core.NameTagComponent,script.VillagerDialog,MOD.Core.TriggerComponent,script.ResourceOccupiedArea",
         "jsonString": {
           "name": "Villager_ResidentD",
           "path": "/maps/town/Villager_ResidentD",
@@ -89015,25 +89336,25 @@
             {
               "@type": "MOD.Core.TransformComponent",
               "Rotation": {
-                "x": 0.0,
-                "y": 0.0,
+                "x": 0,
+                "y": 0,
                 "z": 1.336034
               },
               "Position": {
                 "x": 7.665717,
                 "y": -9.31196,
-                "z": 0.0
+                "z": 0
               },
               "QuaternionRotation": {
-                "x": 0.0,
-                "y": 0.0,
+                "x": 0,
+                "y": 0,
                 "z": 0.0116588306,
                 "w": 0.999932051
               },
               "Scale": {
                 "x": 1.65814745,
                 "y": 1.65814722,
-                "z": 1.0
+                "z": 1
               },
               "ZRotation": 1.336034,
               "Enable": true
@@ -89046,34 +89367,29 @@
               "FlipX": false,
               "FlipY": false,
               "OrderInLayer": 12,
-              "PlayRate": 1.0,
+              "PlayRate": 1,
               "RenderSetting": 0,
               "SortingLayer": "MapLayer5",
               "SpriteRUID": "884e00729dd94292b3d26ef6abd11afa",
               "StartFrameIndex": 0,
               "Color": {
-                "r": 1.0,
-                "g": 1.0,
-                "b": 1.0,
-                "a": 1.0
+                "r": 1,
+                "g": 1,
+                "b": 1,
+                "a": 1
               },
               "Enable": true
             },
             {
               "@type": "MOD.Core.RigidbodyComponent",
               "MoveVelocity": {
-                "x": 0.0,
-                "y": 0.0
+                "x": 0,
+                "y": 0
               },
               "RealMoveVelocity": {
-                "x": 0.0,
-                "y": 0.0
+                "x": 0,
+                "y": 0
               },
-              "Enable": true
-            },
-            {
-              "@type": "MOD.Core.StateComponent",
-              "IsLegacy": true,
               "Enable": true
             },
             {
@@ -89083,27 +89399,14 @@
               "HideDuration": 0.05,
               "Message": "",
               "Offset": 1.2,
-              "ShowDuration": 4.0,
-              "Enable": true
-            },
-            {
-              "@type": "MOD.Core.StateAnimationComponent",
+              "ShowDuration": 4,
               "Enable": true
             },
             {
               "@type": "MOD.Core.NameTagComponent",
-              "Name": "촌장",
+              "Name": "토리",
               "NameTagRUID": {
                 "DataId": "9bf18287398c44699c20fc5123d1a1ae"
-              },
-              "Enable": true
-            },
-            {
-              "@type": "MOD.Core.TouchReceiveComponent",
-              "AutoFitToSize": true,
-              "TouchArea": {
-                "x": 1.5,
-                "y": 2.5
               },
               "Enable": true
             },
@@ -89111,10 +89414,29 @@
               "@type": "script.VillagerDialog",
               "Enable": true,
               "NpcId": "resident_d",
-              "InteractRange": 3.0,
-              "BalloonDuration": 4.0,
-              "AutoTalkInterval": 15.0,
-              "AutoTalkRange": 6.0
+              "InteractRange": 3,
+              "BalloonDuration": 4,
+              "AutoTalkInterval": 15,
+              "AutoTalkRange": 6
+            },
+            {
+              "@type": "MOD.Core.TriggerComponent",
+              "IsLegacy": false,
+              "Enable": true,
+              "IsPassive": true,
+              "BoxSize": {
+                "x": 0.8,
+                "y": 0.8
+              },
+              "ColliderOffset": {
+                "x": 0,
+                "y": -0.35
+              }
+            },
+            {
+              "@type": "script.ResourceOccupiedArea",
+              "BlocksMovement": true,
+              "Enable": true
             }
           ],
           "@version": 1
@@ -89148,18 +89470,18 @@
               "Position": {
                 "x": 3.34173584,
                 "y": -2.89661622,
-                "z": 0.0
+                "z": 0
               },
               "QuaternionRotation": {
-                "x": 0.0,
-                "y": 0.0,
-                "z": 0.0,
-                "w": 1.0
+                "x": 0,
+                "y": 0,
+                "z": 0,
+                "w": 1
               },
               "Scale": {
                 "x": 1.37186646,
                 "y": 1.37186658,
-                "z": 1.0
+                "z": 1
               },
               "Enable": true
             },
@@ -89171,24 +89493,24 @@
               "FlipX": false,
               "FlipY": false,
               "OrderInLayer": 2,
-              "PlayRate": 1.0,
+              "PlayRate": 1,
               "RenderSetting": 0,
               "SortingLayer": "MapLayer5",
               "SpriteRUID": "f89583f2cd1545db872be2919b452290",
               "StartFrameIndex": 0,
               "Color": {
-                "r": 1.0,
-                "g": 1.0,
-                "b": 1.0,
-                "a": 1.0
+                "r": 1,
+                "g": 1,
+                "b": 1,
+                "a": 1
               },
               "Enable": true
             },
             {
               "@type": "MOD.Core.KinematicbodyComponent",
               "MoveVelocity": {
-                "x": 0.0,
-                "y": 0.0
+                "x": 0,
+                "y": 0
               },
               "Enable": true
             },
